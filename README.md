@@ -174,6 +174,84 @@ through without reading, and the reason most approval systems fail in practice.
 
 The separation is what buys the ability to stay quiet when nothing important changed.
 
+## Measured against MetaMask Gator
+
+`AllowlistComparison.t.sol` argues this project's case against a spend-limit wallet this
+repo wrote. That is a fair rendering of the category and it is still a control we invented
+in order to beat it. So the same argument is made again in
+[`contracts/test/GatorComparison.t.sol`](contracts/test/GatorComparison.t.sol) against the
+permission model MetaMask actually ships — 12 tests, no straw man.
+
+Gator grants an agent a delegation with a `functionCall` scope:
+
+```bash
+gator grant --to <agent> --scope functionCall \
+  --targets <addresses> --selectors <signatures> --valueLte <ether>
+```
+
+Targets, selectors, a per-call native value ceiling. **A Lockstep pin declares exactly the
+same three things**, and that is worth stating plainly rather than hiding: the two systems
+agree completely about *what* an agent may call. `test_lockstepEnforcesTheSameThreeConstraints`
+and `test_gatorCaveatsRejectWhatTheyAreFor` assert both halves, so adopting Lockstep loses
+none of what a Gator caveat already gives you.
+
+They diverge on one axis. The test that carries the whole section is
+`test_sameCalldataOneRedeemsTheOtherRefuses`: one `bytes memory hostile`, handed to both
+layers in a single test body.
+
+| | Gator delegation | Lockstep guard |
+|---|---|---|
+| Target allowlisted | yes | yes |
+| Selector allowlisted | yes | yes |
+| Value within ceiling | yes (zero) | yes (zero) |
+| Recipient in the calldata **arguments** | not inspected | not inspected |
+| Which code built the calldata | **no parameter for it** | `skillHash`, attested |
+| Result | redeems, funds reach the attacker | reverts `SkillHashMismatch`, zero logs |
+
+The gap is in the signature, not the enforcement, which is why no amount of caveat
+sophistication closes it. `redeemDelegation(delegation, target, value, callData)` has nowhere
+to put the identity of the code that produced `callData`; `execute(pinId, skillHash, calls)`
+does. `test_theDifferenceIsAParameter` asserts both selectors by hash, so it fails if either
+signature ever changes.
+
+**What is modelled, and what is not.** The caveat enforcement semantics: three enforcer
+contracts checked before the delegator performs the call, with terms packed the way the
+toolkit packs them. Not the full ERC-7710 wire format — no signature recovery, no delegation
+hashing, no authority chains, no ERC-7579 execution modes. Those govern *who* may redeem a
+delegation, which is orthogonal to what a redemption is permitted to do once the redeemer is
+established. Claiming a complete implementation would be false. The file header says so too.
+
+### EIP-7702 delegation is exclusive, and that changes the integration story
+
+"Use both together" is the obvious thing to claim and it is not quite true. `gator create`
+upgrades an EOA to a MetaMask smart account; Lockstep delegates an EOA to `LockstepGuard`.
+Same mechanism, and an EOA carries exactly one delegation indicator —
+`0xef0100 || implementation`, 23 bytes with room for one address.
+
+`Eip7702ExclusivityTest` establishes this by measurement rather than by reading the spec back:
+
+- `test_anAccountCarriesExactlyOneDelegation` — delegating twice **moves** the delegation, it
+  does not stack. `account.code.length` is 23 either way.
+- `test_movingTheDelegationTakesTheGuardWithIt` — after the move the guard's entry points are
+  gone and the replacement works fine. A silent handover, not a broken account.
+- `test_theApprovalSurvivesInStorageWhileUnenforced` — this is the dangerous part. Delegation
+  changes code, not storage. The ERC-7201 slot still holds the approval, so anything reading
+  storage directly sees an account that looks exactly as it did while it was protected.
+- `test_namespacedStorageSurvivesARivalDelegateWritingSlotZero` — a rival delegate keeping a
+  counter at slot 0 would flip an approval to `true` if the guard used sequential slots. It
+  doesn't, and this is why.
+
+The composition that does work is not the obvious one: the two layers stack **across**
+accounts, not on one. A Gator delegation names a delegate, and that delegate can be an address
+whose own spending is gated by Lockstep. The funded account carries one indicator; the executor
+is a different address that holds no funds and pays its own gas, which is already how Lockstep
+is built. `test_theExecutorIsADifferentAddressSoTheLayersStackAcrossAccounts` states it as a
+test so it is not merely prose.
+
+The write-up and the skill live in [`integrations/metamask/`](integrations/metamask/), laid out
+in MetaMask's own `domains/<domain>/skills/<name>/skill.md` structure. It is marked
+`maturity: experimental`, because MetaMask has not reviewed it.
+
 ## Why Monad
 
 | Property | What it enables |
@@ -206,7 +284,9 @@ action/      GitHub Action: pin from CI, refuse self-slashing releases
 sandbox/     Draft manifest generation by observing a skill's calls
 indexer/     Envio HyperIndex config, schema, handlers
 badge/       Embeddable SVG pin badge
-skill/       lockstep-guard skill for ClawHub
+skill/       OpenClaw skill routing agent spend through lockstep_send
+integrations/metamask/  lockstep-provenance skill in MetaMask's skill.md layout
+app/         Next.js dashboard: pins, drift, approvals, bonds, publishers
 demo/        An honest skill and its rug-pulled successor
 e2e/         Full flow against a live Anvil chain with real 7702 delegation
 ```
@@ -429,6 +509,8 @@ exists at all — and it is also why the enforcement has to be free.
 | LockstepGuard (EIP-7702) | Done, 23 tests, gas measured |
 | LockstepLens (ERC-8004) | Done, 14 tests. Sybil filter: naive 74 vs filtered 35 |
 | Allowlist-layer comparison | Done, 5 tests. Same calldata, one layer permits, the other refuses |
+| **MetaMask Gator differential** | **Done, 7 tests** against a model of the real ERC-7710 `functionCall` caveat, not a straw man. Both layers enforce the same targets/selectors/value ceiling; only Lockstep refuses the poisoned bytes — see above |
+| **EIP-7702 exclusivity** | **Done, 5 tests.** An account carries one delegation indicator, so Gator and Lockstep cannot share an account. Approvals survive in storage while unenforced. The layers stack across accounts instead |
 | Bond-velocity benchmark | Done, 3 tests. 40x from 300ms vs 12s blocks |
 | OpenClaw plugin logic | Done, 46 tests |
 | CLI, with self-slash refusal | Done, 38 tests |
@@ -444,7 +526,7 @@ exists at all — and it is also why the enforcement has to be free.
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured.** Guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling |
-| Dashboard (Next.js static export) | Done, 79 tests, reading the live deployment. The write boundary is enforced structurally, not by convention — see below |
+| Dashboard (Next.js static export) | Done, 108 tests, reading the live deployment. The write boundary is enforced structurally, not by convention — see below |
 | ERC-8004 addresses on chain 143 | Deterministic per third-party sources; not explorer-verified |
 
 ### The kill gate, reproduced
