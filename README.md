@@ -572,13 +572,76 @@ can be funded later without a migration. Today it points at the deployer.
 
 Point it at a treasury and the protocol earns **exactly when it catches a publisher lying
 about bytes.** That is an unusually clean incentive: it taxes fraud rather than honest
-publishing, and it cannot be gamed by inflating the protocol's own usage.
+publishing, and it cannot be gamed by inflating the protocol's own usage. Almost every
+monetisation mechanic in software rewards more activity; this one rewards catching a specific
+lie, and there is no way to manufacture more of it from the inside.
+
+**The ceiling, computed rather than asserted.** At `challengerRewardBps` of 5,000 against the
+live bond table, one slash sends between **62.5 and 862.5 AUSD** to `slashRecipient` — half of
+a 125 AUSD narrow pin, half of a 1,725 AUSD wide one. So a hundred caught frauds a year is
+somewhere between six and eighty-six thousand. That is a real insurance float and it is not a
+company, and saying it in numbers is more useful than saying it in adjectives.
 
 Two honest limits. It is not a growth line — revenue correlates with fraud, which is
-bounded and should decline if the product works, so this funds an insurance float rather
-than a company. And a protocol that profits from slashing has an incentive to be
-aggressive about what counts as equivocation, which is why the definition lives in an
-immutable contract (two live pins sharing one `versionId`) and not in anyone's discretion.
+bounded and should decline if the product works. And a protocol that profits from slashing has
+an incentive to be aggressive about what counts as equivocation, which is why the definition
+lives in an immutable contract (two live pins sharing one `versionId`) and not in anyone's
+discretion. That immutability is also a **pricing commitment**: publishers lock capital under a
+published rule, and changing `challengerRewardBps` later would retroactively reprice collateral
+that is already posted. It cannot be changed, which is the strongest promise this protocol can
+make to the people whose money is sitting in it.
+
+### The line that turns the barrier into revenue
+
+Everything above treats bond capital as a cost to be minimised. That is accurate and
+self-limiting, and it is the one place this plan was thinking too narrowly: when price is the
+barrier, the answer is rarely to lower it. It is to change **who pays**.
+
+**Bond underwriting.** A third party posts a publisher's bond; the publisher pays a recurring
+premium far smaller than 1,725 AUSD of locked capital; Lockstep prices and routes the market and
+takes a fee on the premium, never holding the principal.
+
+This is the most defensible line here because it only works where the slashing rule is immutable
+and the challenge window is short — which is the 40x argument from above, restated as an
+underwriting pitch. A shorter window means less capital per unit of value secured, and that is
+precisely what an underwriter prices. It converts the stated adoption barrier into recurring
+revenue instead of fighting it, it does not violate the rejected publish fee (the charge is
+optional, falls on capital provision rather than on releasing, and *lowers* a publisher's cost
+of entry), and it finally gives `slashRecipient` an economic function beyond pointing at the
+deployer: the slash share becomes the loss reserve.
+
+Two constraints to keep honest. Surety is regulated-adjacent in most jurisdictions, so this
+starts as a marketplace rather than as the underwriter of record. And underwriting must never be
+able to influence what counts as equivocation — which the immutable definition already
+guarantees, and which is the reason that immutability was worth having before there was a
+business reason for it.
+
+**Paid monitoring, revenue-shared out of the challenger half.** Detection is already built,
+pure and node-free, and slashing is permissionless — so the challenger's 50% is a bounty the
+protocol already pays to whoever is watching. Sell continuous monitoring to the parties who lose
+when a publisher equivocates, and share recovered bond with subscribers. The incentive stays
+honest because subscribers pay for detection and are paid out of proven fraud. It also hardens
+the admission above: shrinking fraud becomes a monitoring subscription that persists rather than
+a revenue line that evaporates.
+
+### Who else has a reason to pay
+
+Worth asking explicitly, because every line above draws from one of two pockets: the publisher,
+or a fraudster's bond. That is a narrow base, and it is not the only one available.
+
+The parties who bear the loss when an agent moves money through swapped bytes are not only
+publishers. Underwriters of that loss, custodians and exchanges whose users run agents, and agent
+platforms that need to demonstrate diligence all have budget lines, and none of them is currently
+asked for anything. AIR raising $50M to *scan* skills establishes that funded buyers of assurance
+in this category exist — this README already cites that as problem validation, and it is equally
+evidence about who writes cheques.
+
+What is **not** on offer: putting a third party's commercial interest inside the trust boundary.
+There is a clever mechanic where a user who declines to pay is shown a sponsored offer from an
+unrelated brand, and the brand funds the acquisition. It works, and injecting a paid
+recommendation into a signing or publishing flow would put a sponsor inside the exact supply chain
+this product exists to protect. The moment the CLI recommends anyone, the trust boundary the first
+hundred lines of this README establish has an advertiser inside it.
 
 ### Deliberately not built
 
@@ -586,6 +649,38 @@ immutable contract (two live pins sharing one `versionId`) and not in anyone's d
 an omission. Publishing pins is the behaviour that makes the registry worth anything — a
 registry with no pins protects nobody — so charging per release suppresses adoption
 precisely where the network effect comes from. The fee would arrive before the value did.
+
+**Anything that converts by pressure.** Time-limited discounts, limited-quantity offers,
+exit-intent discount ladders, a second upsell after a decline. These demonstrably work on a
+solitary consumer inside an app session, and all of them are wrong here for the same reason:
+the buyer is a security-conscious engineering organisation on a procurement cycle measured in
+months, and **deliberation is the behaviour we want.** This README's own case for refusing the
+key-in-CI shortcut is that a careful buyer's refusal is correct; pressure tactics around that
+argument read as a reason to distrust it. A CLI that re-presents an upsell after a developer
+declines one gets uninstalled and written about.
+
+On chain it is worse than tacky. A time-limited bond discount is a temporary reduction in the
+collateral securing real value — a sale on the security parameter.
+
+**A consent affordance used as a retention device.** The known trick is a "free trial enabled"
+toggle that changes no price and exists because opting in makes cancellation less likely. For a
+product whose entire proposition is non-repudiable honesty about what was approved, using a
+consent control to reduce exit is self-refuting in a way nothing else on this list is.
+
+**Selling usage data.** The registry is public, so indexing and latency over already-public data
+is fine and is a line above. Packaging *which organisations pin which skills, and which
+capabilities they permit* is not: that publishes a map of security postures, which is an
+attacker's target list.
+
+**Silent price experiments and geographic price discrimination.** Survivable in consumer apps
+because buyers do not compare notes. Corrosive here, because developer-tool buyers publish
+pricing screenshots and procurement needs a quotable list price. One published price is a
+feature.
+
+**A lifetime deal on the hosted plane.** Collecting money before the product exists is a good
+idea and is above. A perpetual price against perpetual key custody, hosting and an SLA is not:
+the failure mode is not lost revenue, it is a security service someone can no longer afford to
+operate.
 
 ### Needs a design change first
 
@@ -605,12 +700,52 @@ today means putting `PUBLISHER_PRIVATE_KEY` into GitHub secrets — which is exa
 thing a security-conscious organisation will refuse, and refusing it is correct.
 
 What an organisation would pay for is the part that removes that: managed signing so no
-raw key sits in CI, private registries, org-level capability policy, SSO, audit export,
-and an SLA. Conventional SaaS shape on top of a free primitive, sold into a real objection
-that the free path cannot answer.
+raw key sits in CI. That is the whole wedge, and naming it as one line rather than as a
+feature list matters — it is the only item here attached to a refusal a buyer has already
+made.
 
-This is the line to build after the hackathon, and it is the one with no on-chain
-component at all, which is a point in its favour rather than against.
+**Packaged, because a list of seven features is not a product.** Three tiers, published
+prices, and a meter, since without one there is no expansion revenue and a flat month is a
+flat quarter:
+
+| | | per month | metered on |
+|---|---|---|---|
+| **Free** | The primitive. `lockstep-action`, the CLI, the registry, enforcement. | 0 | — |
+| **Signing** | Managed signing for one org. No raw key in CI. | 99 | 5 repos, then 15/repo |
+| **Policy** | Org-level capability policy, private registry, the drift queue. | 499 | 25 repos, then 12/repo |
+| **Assurance** | SSO, audit export, support, an SLA. | talk to us | seats |
+
+A consumption top-up rather than a forced tier jump for a release burst: a team shipping
+heavily one month should not have to move up permanently to absorb it.
+
+**The moat admission.** Managed signing, SSO and audit export are replicable by any competent
+team in a quarter. Saying this line has "no on-chain component, which is a point in its favour"
+was true about delivery risk and wrong about defensibility — a commodity SaaS layer is exactly
+where a competitor arrives first. What makes it defensible is not the SaaS: it is being the
+default in CI, and being the thing the registry, the Action and the plugin already consume.
+The subscription is downstream of that, not the other way round.
+
+**Money before the product, on purpose.** The sequencing below says nothing is charged yet, and
+that is right about fees and wrong about learning. Three paid design-partner agreements, sold
+against the private-key objection before managed signing exists, would convert two unknowns —
+willingness to pay, and what the unit should be — into banked cash and a committed feedback
+group. A customer who has paid wants the product to work; a prospect wants to be shown. It also
+does not violate the gating metric, which stays pins published by publishers who are not us.
+
+### What happens if you stop paying
+
+Stated because it is the first question a security buyer asks about depending on a hosted signing
+service, and because the answer is good and currently unwritten.
+
+**Pins and bonds are contract state.** They keep working. Enforcement is on chain, it is free, and
+it does not check a subscription — a lapsed customer's guarded accounts keep refusing drifted calls
+exactly as before. What stops is the hosted convenience: managed signing, the private registry, the
+queue.
+
+That is not generosity, it is the only arrangement compatible with the rest of this document. If
+enforcement degraded on non-payment, the free primitive would be a hostage and an enterprise buyer
+would correctly price it as one. Because it does not, churn lands softly onto the free tier, and the
+free tier is the credibility of the paid product rather than a funnel into it.
 
 ### Speculative
 
@@ -618,17 +753,35 @@ component at all, which is a point in its favour rather than against.
 workflow, the drift queue and the audit trail. Plausible, and there is no evidence yet
 that anyone will pay for it, so it is named and not forecast.
 
+The way to stop restating that is to test it rather than to keep qualifying it: sell three paid
+pilots against a described roadmap, explicit about what is not built, and let those three define
+whether the unit is a seat, an agent, or approval volume. If nobody pays for the slice, "no
+evidence anyone will pay" has been established instead of assumed.
+
+**Ecosystem funding for the layer that must stay free.** Enforcement has to be free permanently,
+which means it needs a source that is not a customer — foundation, ecosystem or standards-body
+money for the contracts and the reference client. One condition, and it is disqualifying if
+unmet: no funder may have any influence over the equivocation definition or the registry's
+contents. A neutral registry with a sponsor's thumb on it is not a neutral registry.
+
 ### Sequencing
 
 1. **Now.** Nothing is charged. The only metric that matters is pins published by
    publishers who are not us, because every other line depends on the registry being
-   non-empty. See the status table: publisher outreach is the unstarted work with the
-   longest lead time and it gates everything here.
-2. **Then.** Hosted CI pinning, sold against the private-key-in-CI objection.
-3. **Then.** The control plane, if teams ask for it.
-4. **Throughout.** The slash share funds an insurance pool, not a company. That
-   distinction is worth keeping: the moment slashing revenue is load-bearing for payroll,
-   the incentive that makes it clean stops being clean.
+   non-empty.
+2. **Alongside that, not after it.** Paid design-partner agreements for managed signing, sold
+   against the private-key-in-CI objection before it is built. This is the change from the earlier
+   version of this plan, which put every priced thing after the registry filled. Charging a *fee*
+   then is still right; *learning the price* then is late, and a paying design partner is a better
+   feedback channel than a prospect.
+3. **Then.** Hosted CI pinning as the three tiers above, with published prices.
+4. **Then.** Bond underwriting, as a marketplace. It needs the registry to exist first, because
+   there is nothing to underwrite until publishers are posting bonds.
+5. **Then.** The control plane, if the three pilots say so.
+6. **Throughout.** The slash share funds a loss reserve, not payroll. The moment slashing revenue
+   is load-bearing for salaries, the incentive that makes it clean stops being clean — which is
+   also the argument for underwriting over scaling the slash share: it earns from publishers
+   staying honest rather than from catching them out.
 
 For comparison, AIR raised $50M on 1 September to *scan* agent skills for this class of
 problem. Scanning is advice. This enforces at settlement, which is why the economic layer
