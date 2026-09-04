@@ -379,7 +379,13 @@ function checkLensWiring(problems) {
   // real state. "bytes on your disk" is why two steps have no button. A refactor into a conventional
   // pre-filled checklist would drop both and otherwise look fine.
   //
-  // The last one is Verify's refusal. It is checked against the bundle rather than the HTML for the same
+  // The final entry is the `attestation` definition, and it is the most load-bearing sentence in the
+  // vocabulary: it is the difference between what this product proves and what it merely relays. Term
+  // panels render from client state, so the gloss never appears in the static HTML — only in the bundle.
+  // If TERMS were dropped or tree-shaken away, every coinage would quietly go back to being undefined
+  // and nothing else here would notice.
+  //
+  // The one before it is Verify's refusal. It is checked against the bundle rather than the HTML for the same
   // reason as the quickstart's: which branch renders depends on the snapshot source, which is decided in
   // the browser. A sample build must show the refusal and not a command, because a copyable command
   // under an invented hash returns a mismatch the reader would blame on the product. If this string
@@ -391,6 +397,7 @@ function checkLensWiring(problems) {
     "the first is already true",
     "bytes on your disk",
     "so there is nothing to verify against a chain",
+    "asserted by the client, not proven by the chain",
   ];
   for (const phrase of caveats) {
     const present = bundle.includes(phrase);

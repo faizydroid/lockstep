@@ -23,6 +23,7 @@ import { pinIdFromQuery } from "@/lib/untrusted";
 import { readConfig } from "@/lib/chain";
 import { useSettings } from "@/components/settings";
 import { Verify } from "@/components/verify";
+import { Term } from "@/components/term";
 
 export default function PinsPage() {
   const { snapshot } = useSnapshot();
@@ -67,7 +68,13 @@ export default function PinsPage() {
         <Section
           eyebrow="Registry"
           title="Published pins"
-          description="Each pin binds one publisher's exact skill bytes to a declared set of on-chain powers, with a bond locked against the version claim."
+          description={
+            <>
+              Each <Term name="pin">pin</Term> binds one publisher&rsquo;s exact skill bytes to a declared
+              set of on-chain powers, with a <Term name="bond">bond</Term> locked against the version
+              claim.
+            </>
+          }
         >
           {snapshot.pins.length === 0 ? (
             <Empty title="No pins published">
@@ -239,6 +246,17 @@ function PinDetail({ pin }: { pin: Pin }) {
         <div className="space-y-3 border-t-2 border-line pt-5">
           <p className="shout text-[0.65rem] text-faint">
             What it may do on chain
+          </p>
+
+          {/*
+            The one place "live hash" is worth defining, because the Verify block directly above reads it
+            and a reader comparing the two needs to know that zero is a meaningful answer rather than a
+            failed call.
+          */}
+          <p className="text-xs leading-relaxed font-semibold text-faint">
+            The command above reads this pin&rsquo;s <Term name="live hash">live hash</Term>, which is
+            what the <Term name="guard">guard</Term> compares against at{" "}
+            <Term name="settlement">settlement</Term>.
           </p>
 
           {/*

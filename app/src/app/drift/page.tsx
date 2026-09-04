@@ -15,6 +15,7 @@ import { GuardSays } from "@/components/guard";
 import { Pop, Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, HashDiff, Pill, Section, cx } from "@/components/ui";
 import { Verify } from "@/components/verify";
+import { Term } from "@/components/term";
 import { formatNative } from "@/lib/format";
 import type { Capability, CapabilityDelta } from "@/lib/model";
 
@@ -42,9 +43,10 @@ export default function DriftPage() {
           description={
             <>
               An approval is for exact bytes, not for a name or a version string. When a
-              publisher ships different code, the hash changes and the pin no longer matches, so
-              every fund-moving call from that skill is refused until the account owner looks at
-              the difference and decides again.
+              publisher ships different code, the hash changes and the <Term name="pin">pin</Term> no
+              longer matches, so every fund-moving call from that skill is refused at{" "}
+              <Term name="settlement">settlement</Term> until the account owner looks at the difference
+              and decides again.
             </>
           }
         >

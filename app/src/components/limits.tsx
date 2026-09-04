@@ -26,11 +26,22 @@
  * would imply they might come out differently, and they do not.
  */
 
+import type { ReactNode } from "react";
+
+import { Term } from "./term";
 import { Card, Pill, Section } from "./ui";
 
 interface Limit {
   readonly what: string;
-  readonly why: string;
+  /**
+   * `ReactNode` rather than `string` so the coinages in here can define themselves.
+   *
+   * This panel carries the densest jargon on the overview — attested, drift, bond, settlement — and it is
+   * also the panel most likely to be read by a sceptic who has not read anything else. A reader who
+   * misreads "attested" as "proven" takes the opposite meaning from the one intended, which on a
+   * limitations panel is the worst possible place for it.
+   */
+  readonly why: ReactNode;
 }
 
 /**
@@ -46,15 +57,36 @@ const LIMITS: readonly Limit[] = [
   },
   {
     what: "A skill that was hostile from its first publish",
-    why: "The mechanism catches bytes changing under a version you already approved. A publisher who was malicious before you ever looked at them never drifts, so nothing here is triggered. What remains is the bond — and the capability diff you read before approving.",
+    why: (
+      <>
+        The mechanism catches bytes changing under a version you already approved. A publisher who was
+        malicious before you ever looked at them never <Term name="drift">drifts</Term>, so nothing here
+        is triggered. What remains is the <Term name="bond">bond</Term> &mdash; and the capability diff
+        you read before approving.
+      </>
+    ),
   },
   {
     what: "Which code asked, cryptographically",
-    why: "That part is attested by the runtime, not proven. A compromised runtime can report an honest hash while executing something else, and no signature fixes it, because the key would be reachable by the compromised process. Closing it needs a TEE. Until then the guarantee is economic: a false claim is provable fraud against a bond.",
+    why: (
+      <>
+        That part is <Term name="attestation">attested</Term> by the runtime, not proven. A compromised
+        runtime can report an honest hash while executing something else, and no signature fixes it,
+        because the key would be reachable by the compromised process. Closing it needs a TEE. Until then
+        the guarantee is economic: a false claim is provable fraud against a{" "}
+        <Term name="bond">bond</Term>.
+      </>
+    ),
   },
   {
     what: "Anything that does not move funds",
-    why: "Leaked secrets, deleted files, a poisoned reply. Lockstep bounds financial blast radius at settlement and is not a general agent sandbox. Indirect prompt injection from content an agent reads is out of scope too.",
+    why: (
+      <>
+        Leaked secrets, deleted files, a poisoned reply. Lockstep bounds financial blast radius at{" "}
+        <Term name="settlement">settlement</Term> and is not a general agent sandbox. Indirect prompt
+        injection from content an agent reads is out of scope too.
+      </>
+    ),
   },
 ];
 
@@ -96,8 +128,9 @@ export function Limits() {
           <strong className="font-extrabold text-text">cryptographic</strong> &mdash; target, selector and
           value ceiling are checked from the transaction itself, whatever anyone claims &mdash; while code
           identity is <strong className="font-extrabold text-text">economic</strong>: a false claim about
-          which bytes asked is provable fraud against a bond. Any project asserting otherwise without a
-          TEE in the diagram is overclaiming, and one follow-up question exposes it.
+          which bytes asked is provable fraud against a <Term name="bond">bond</Term>, and the penalty is
+          a <Term name="slash">slash</Term> rather than a takedown request. Any project asserting
+          otherwise without a TEE in the diagram is overclaiming, and one follow-up question exposes it.
         </p>
       </Card>
     </Section>

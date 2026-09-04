@@ -11,6 +11,7 @@
 import { useSnapshot } from "@/components/data";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { ReviewerPanel } from "@/components/reviewers";
+import { Term } from "@/components/term";
 import { Card, Empty, HashChip, Pill, Section, Stat, Table, Td, Th, cx } from "@/components/ui";
 import { WriteAction } from "@/components/write-action";
 import { formatBondWith } from "@/lib/bond";
@@ -116,9 +117,11 @@ export default function PublishersPage() {
           description={
             <>
               A publisher deposits collateral and locks part of it against every version they
-              publish. If they ever ship two different byte sets under one version string, anyone
-              can prove it on chain and take that bond. No committee, no judgement about whether
-              the code was malicious &mdash; just a contradiction the chain can check.
+              publish. If they ever ship two different byte sets under one version string &mdash;{" "}
+              <Term name="equivocation">equivocation</Term> &mdash; anyone can prove it on chain and{" "}
+              <Term name="slash">slash</Term> that <Term name="bond">bond</Term>. No committee, no
+              judgement about whether the code was malicious &mdash; just a contradiction the chain can
+              check.
             </>
           }
         >

@@ -38,6 +38,7 @@
 import type { ReviewerSet } from "@/lib/model";
 import { Card, HashChip, Pill, Section, Stat, Table, Td, Th, cx } from "@/components/ui";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
+import { Term } from "@/components/term";
 
 /**
  * Formats a signed fixed-point summary.
@@ -73,9 +74,10 @@ export function ReviewerPanel({ reviewers }: { reviewers: ReviewerSet }) {
               The Reputation Registry lets anyone leave feedback, and its own security notes say
               unfiltered aggregation is spam-vulnerable &mdash; <code>getSummary</code> takes a
               mandatory client set for exactly that reason. The standard asks for a curated set and
-              does not provide one. <code>LockstepLens</code> provides it: an address counts as a
+              does not provide one. The <Term name="lens">Lens</Term> provides it: an address counts as a
               reviewer for a publisher only if it currently approves one of that publisher&rsquo;s
-              live pins, which means it has those exact bytes authorised against its own funds.
+              live <Term name="pin">pins</Term>, which means it has those exact bytes authorised against
+              its own funds.
             </>
           }
         >

@@ -34,6 +34,7 @@ import { useIdentity } from "@/components/identity";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { SettingsPanel } from "@/components/settings-panel";
 import { useSettings } from "@/components/settings";
+import { Term } from "@/components/term";
 import { Verify } from "@/components/verify";
 import { readConfig } from "@/lib/chain";
 import { Button, Card, Empty, HashChip, Pill, Section, Stat, cx } from "@/components/ui";
@@ -191,10 +192,11 @@ function Profile() {
               The contract asks for exactly this pairing in guardStorageSlot()'s own doc comment.
             */}
             <p className="text-xs leading-relaxed font-semibold text-faint">
-              Two checks, not one. The slot call proves the code is LockstepGuard; the code comparison
-              proves this account is pointed at it. Either alone can be satisfied while the other is
-              not, which is why <code className="hash">guardStorageSlot()</code> asks for both in its
-              own documentation.
+              Two checks, not one. The slot call proves the code is the{" "}
+              <Term name="guard">guard</Term>; the code comparison proves this account&rsquo;s{" "}
+              <Term name="delegation">delegation</Term> is pointed at it. Either alone can be satisfied
+              while the other is not, which is why <code className="hash">guardStorageSlot()</code> asks
+              for both in its own documentation.
             </p>
 
             {/*
