@@ -138,7 +138,16 @@ function PointAtYourAccount() {
   );
 }
 
-export function Quickstart() {
+/**
+ * @param embedded Render as the onboarding stage rather than as a dismissible dashboard panel.
+ *
+ * Two differences, both because the stage and the panel answer to different things. Embedded ignores
+ * `quickstartDismissed`, since hiding the panel on the dashboard should not blank the onboarding step for
+ * someone who comes back to it. And it drops the hide button, because on the stage the way forward is the
+ * page's own acknowledge action -- two competing dismissals would leave the reader guessing which one
+ * counted.
+ */
+export function Quickstart({ embedded = false }: { embedded?: boolean } = {}) {
   const { snapshot } = useSnapshot();
   const { settings, loaded, update } = useSettings();
   const still = useReducedMotion();
@@ -152,7 +161,8 @@ export function Quickstart() {
    * Otherwise the panel appears for a frame and then vanishes for everyone who already dismissed it,
    * which is a worse first impression than a slightly later one.
    */
-  if (!loaded || settings.quickstartDismissed) return null;
+  if (!loaded) return null;
+  if (settings.quickstartDismissed && !embedded) return null;
 
   const pct = Math.round((state.done / state.total) * 100);
 
@@ -182,14 +192,16 @@ export function Quickstart() {
                 {state.done} of {state.total}
               </span>
             ) : null}
-            <Button
-              onClick={() => update({ quickstartDismissed: true })}
-              tone="neutral"
-              variant="quiet"
-              size="sm"
-            >
-              {state.complete ? "Done" : "Hide"}
-            </Button>
+            {embedded ? null : (
+              <Button
+                onClick={() => update({ quickstartDismissed: true })}
+                tone="neutral"
+                variant="quiet"
+                size="sm"
+              >
+                {state.complete ? "Done" : "Hide"}
+              </Button>
+            )}
           </div>
         </div>
 

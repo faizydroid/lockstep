@@ -26,8 +26,13 @@ interface SettingsApi {
   /** False until stored settings have been read. Guards anything that must not flash. */
   readonly loaded: boolean;
   readonly update: (patch: Partial<Settings>) => void;
-  /** Clears an individual override. Distinct from `update`, since `undefined` in a patch is ambiguous. */
-  readonly clear: (key: "rpcUrl" | "account" | "deployBlock") => void;
+  /**
+   * Clears an individual override. Distinct from `update`, since `undefined` in a patch is ambiguous.
+   *
+   * `profile` is in here rather than only settable because it is the reader's own data sitting in their
+   * own browser, and anything that can write it must be able to remove it. There is no server to ask.
+   */
+  readonly clear: (key: "rpcUrl" | "account" | "deployBlock" | "profile") => void;
   readonly completeStep: (id: string) => void;
   readonly reset: () => void;
 }
@@ -83,7 +88,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
    * override silently keeps it — which is the one failure this whole module is supposed to prevent.
    */
   const clear = useCallback(
-    (key: "rpcUrl" | "account" | "deployBlock") => {
+    (key: "rpcUrl" | "account" | "deployBlock" | "profile") => {
       setSettings((current) => {
         const next = { ...current };
         delete next[key];

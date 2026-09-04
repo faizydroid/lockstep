@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { SnapshotProvider } from "@/components/data";
 import { Field } from "@/components/field";
+import { FlowGate } from "@/components/flow-gate";
 import { IdentityProvider } from "@/components/identity";
 import { Nav } from "@/components/nav";
 import { VisitTracker } from "@/components/quickstart";
@@ -95,6 +96,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   so adding a route to VISIT_STEPS starts counting without anyone wiring it up.
                 */}
                 <VisitTracker />
+
+                {/*
+                  Moves a first-time reader through landing, profile and onboarding before the dashboard.
+
+                  Mounted here for the same reason as the tracker above, and renders nothing. It is a
+                  redirect rather than a permission — a static export cannot gate a file request — and
+                  components/flow-gate.tsx is explicit about that so the distinction survives.
+                */}
+                <FlowGate />
 
                 <Nav />
 

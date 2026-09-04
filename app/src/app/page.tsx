@@ -1,74 +1,49 @@
 "use client";
 
 /**
- * Overview.
+ * The landing page.
  *
- * Rebuilt around one decision: the page leads with the mechanism, not with statistics. The previous
- * version opened with a headline and then four equal stat tiles, which is the layout of every
- * dashboard ever made and told a first-time reader nothing about what the product does.
+ * ## What changed and why
  *
- * Now the fold is the gate -- a call arriving at the guard, which you can operate -- and the numbers
- * come after, because a total only means something once you know what it counts. The hierarchy is
- * deliberately uneven: one enormous figure, a wide interactive panel, then smaller supporting
- * columns. Equal-weight grids read as "we had four things"; uneven ones read as an argument.
+ * This route used to be the landing page and the dashboard at once: a pitch, then a scoreboard, then a
+ * ledger and two list columns. That made the first screen serve two readers with opposite questions. A
+ * first-time reader is asking "what is this and why should I believe it"; a returning one is asking "is
+ * anything wrong with my account". Answering both on one page means the second reader scrolls past a
+ * poster every single visit, and the first meets an instrument they have no context for.
+ *
+ * So the instrument moved to `/dashboard` and this page keeps only the argument.
+ *
+ * ## The order is the argument
+ *
+ *   the claim          headline and pitch, plus who it is not for
+ *   the mechanism      the settlement gate, which the reader operates themselves
+ *   the evidence       two real fingerprints that disagree
+ *   the boundary       what it does not stop
+ *   the invitation     connect, or look around
+ *
+ * The ask is last on purpose. Everything above it works without a wallet, which is the whole reciprocity
+ * argument from the onboarding material: a product that demands something before it gives anything reads
+ * like a restaurant asking for a card before showing a menu. The gate in particular is the product's
+ * entire thesis in one operable panel, and it is free.
  */
 
-import Link from "next/link";
-
 import { useSnapshot } from "@/components/data";
-import { FingerprintDiff, FingerprintMark } from "@/components/fingerprint";
+import { FingerprintDiff } from "@/components/fingerprint";
 import { SettlementGate } from "@/components/gate";
-import {
-  CountUp,
-  Reveal,
-  RevealGroup,
-  RevealItem,
-  motion,
-  useReducedMotion,
-} from "@/components/motion";
 import { Limits, NotFor } from "@/components/limits";
-import { Quickstart } from "@/components/quickstart";
-import { Scoreboard } from "@/components/scoreboard";
-import { Button, Card, Pill, Section, StatePill, cx } from "@/components/ui";
-import { formatBond, formatCount, timeAgo } from "@/lib/format";
-import type { DataSource } from "@/lib/model";
-import { displayName } from "@/lib/untrusted";
+import { Reveal, motion, useReducedMotion } from "@/components/motion";
+import { StartHere } from "@/components/start";
+import { Card, Pill, Section } from "@/components/ui";
 
-export default function OverviewPage() {
+export default function LandingPage() {
   const { snapshot } = useSnapshot();
-  const { totals, pricing, pins, drifted, blocked } = snapshot;
-
-  const headline = drifted[0];
+  const headline = snapshot.drifted[0];
 
   return (
-    /*
-     * Was `space-y-24`. Ninety-six pixels between every section is a magazine rhythm, and this page
-     * has seven of them, so it cost about 280px of scroll on top of the hero. Fourteen still reads
-     * as deliberate separation without making the reader work for it.
-     */
     <div className="space-y-14 sm:space-y-16 2xl:space-y-20">
       <Hero />
 
-      {/*
-        Before the scoreboard, because a first-time reader's question is "what is this and what do I
-        do" while a returning one's is "is anything wrong". It removes itself once dismissed, so the
-        returning case pays nothing for it.
-      */}
-      <Quickstart />
-
-      {/*
-        The state of the account, delivered by the mascot, before anything else.
-
-        This is where Duolingo puts its streak and XP row, and the position is right for the same
-        reason: a returning user's first question is "is anything wrong", and it should be answered
-        above the fold without reading. Every figure in it is a ratio over registry data -- see
-        lib/health.ts for the ones that were cut for being unfalsifiable.
-      */}
-      <Reveal delay={0.06}>
-        <Scoreboard snapshot={snapshot} />
-      </Reveal>
-
-      {/* The mechanism, before any statistic about it. */}
+      {/* The mechanism, before any statistic about it and before anything is asked for. */}
       <Reveal delay={0.1}>
         <SettlementGate />
       </Reveal>
@@ -102,9 +77,6 @@ export default function OverviewPage() {
                   {headline.diff.added.length === 1 ? "power" : "powers"} the approved version never
                   had
                 </span>
-                <Button href="/drift" tone="revoked" variant="quiet" size="sm" className="ml-auto">
-                  See what changed
-                </Button>
               </div>
             </div>
           </Card>
@@ -116,109 +88,13 @@ export default function OverviewPage() {
 
         Position is the argument. Showing what it catches and then, in the next breath, what it does not
         is what makes the first half credible to a reader who was going to look for the edges anyway.
-        Burying it below the numbers would turn it into a disclaimer.
+        Burying it below the invitation would turn it into small print.
       */}
       <Limits />
 
-      <Ledger totals={totals} pricing={pricing} source={snapshot.source} />
-
-      {/* Two unequal columns: the pin list carries more weight than the refusal note beside it. */}
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] 2xl:gap-14">
-        <Section
-          eyebrow="Most recent"
-          title="Pins"
-          aside={
-            <Button href="/pins" tone="pinned" variant="quiet" size="sm">
-              All pins
-            </Button>
-          }
-        >
-          <RevealGroup className="space-y-3">
-            {pins.slice(0, 5).map((pin) => (
-              <RevealItem key={pin.pinId}>
-                <Link href={{ pathname: "/pins", query: { pin: pin.pinId } }} className="block">
-                  <Card interactive className="p-5">
-                    <div className="flex flex-wrap items-center gap-4">
-                      {/* The pin's face, from its own bytes. Recognisable across pages. */}
-                      <div className="chunk rounded-lg bg-raise p-2">
-                        <FingerprintMark hash={pin.skillHash} px={30} />
-                      </div>
-
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="font-display text-lg leading-tight font-extrabold break-words text-text">
-                          {displayName(pin.skillName)}
-                          {pin.skillVersion === undefined ? null : (
-                            <span className="ml-2 text-sm font-bold text-faint">
-                              {displayName(pin.skillVersion, "")}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs font-semibold text-faint">
-                          {pin.capabilities.length}{" "}
-                          {pin.capabilities.length === 1 ? "capability" : "capabilities"}
-                          {pin.capabilities.some((c) => c.highRisk)
-                            ? ` \u00b7 ${pin.capabilities.filter((c) => c.highRisk).length} high risk`
-                            : ""}{" "}
-                          &middot; {timeAgo(pin.publishedAt)}
-                        </p>
-                      </div>
-
-                      <StatePill state={pin.state} />
-                    </div>
-                  </Card>
-                </Link>
-              </RevealItem>
-            ))}
-          </RevealGroup>
-        </Section>
-
-        <Section eyebrow="Refused at settlement" title="Blocked calls">
-          {blocked.length === 0 ? (
-            <Card>
-              <p className="font-display text-lg font-extrabold text-text">
-                Nothing to show here yet
-              </p>
-              <p className="mt-2 text-sm leading-relaxed font-semibold text-muted">
-                A refusal emits no event, deliberately: a log written before a revert is rolled back
-                and never reaches an indexer. An earlier version did emit one, which made a refusal
-                cost more gas than a success while still telling nobody. Reading them needs a node
-                that can replay reverted transactions, which is the watcher&rsquo;s job rather than a
-                browser&rsquo;s.
-              </p>
-            </Card>
-          ) : (
-            <RevealGroup className="space-y-3">
-              {blocked.slice(0, 4).map((attempt) => (
-                <RevealItem key={attempt.txHash}>
-                  <Card className="p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1.5">
-                        <Pill tone="revoked">refused</Pill>
-                        <p className="text-sm font-bold text-text">{attempt.reason}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-faint">
-                        {timeAgo(attempt.timestamp)}
-                      </span>
-                    </div>
-
-                    {attempt.attestedSkillHash === undefined ||
-                    attempt.pinnedSkillHash === undefined ? null : (
-                      <div className="mt-5 border-t-2 border-line pt-5">
-                        <FingerprintDiff
-                          approved={attempt.pinnedSkillHash}
-                          current={attempt.attestedSkillHash}
-                          px={76}
-                          labels={{ approved: "pinned", current: "attested" }}
-                        />
-                      </div>
-                    )}
-                  </Card>
-                </RevealItem>
-              ))}
-            </RevealGroup>
-          )}
-        </Section>
-      </div>
+      <Reveal>
+        <StartHere />
+      </Reveal>
     </div>
   );
 }
@@ -242,6 +118,11 @@ export default function OverviewPage() {
  * The paragraph itself lost its third sentence. What it said -- that the call is refused on chain
  * when the bytes change -- is demonstrated by the gate immediately below, and prose that describes
  * a working demonstration two hundred pixels above it is asking to be read twice.
+ *
+ * The buttons changed with the split. They used to link straight to `/drift` and `/pins`, which became
+ * a trap the moment this page got a flow behind it: a first-time reader would be steered back here by
+ * the gate, having clicked something that looked like it worked. They are flow actions now, and the
+ * product links live on the dashboard where a reader can actually follow them.
  */
 function Hero() {
   return (
@@ -274,19 +155,7 @@ function Hero() {
               Lockstep binds every fund-moving call to the exact skill version its owner approved.
             </p>
 
-            {/*
-              The fold now offers something to do. It had no call to action at all, which for the
-              first screen of a demo is a strange omission -- a reader convinced by the headline had
-              nowhere to go but scroll.
-            */}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button href="/drift" tone="revoked" size="sm">
-                See a refused call
-              </Button>
-              <Button href="/pins" tone="pinned" variant="quiet" size="sm">
-                Browse pins
-              </Button>
-            </div>
+            <StartHere compact />
 
             {/*
               Who it is not for, next to the pitch rather than buried.
@@ -332,115 +201,5 @@ function WordsRise({ text, delay = 0 }: { text: string; delay?: number }) {
         </span>
       ))}
     </>
-  );
-}
-
-/* -------------------------------------------------------------------- ledger */
-
-/**
- * The registry's numbers, as a ledger rather than a row of tiles.
- *
- * One figure is set enormous and the rest sit beside it in a rule-separated column. Four equal cards
- * make four facts look equally important; this says which one matters and lets the eye move down
- * through the others.
- */
-function Ledger({
-  totals,
-  pricing,
-  source,
-}: {
-  totals: { livePins: number; pins: number; publishers: number; bondLocked: bigint; slashed: bigint };
-  pricing: { bondAssetDecimals: number; bondAssetSymbol: string };
-  source: DataSource;
-}) {
-  const bondWhole = Number(totals.bondLocked / 10n ** BigInt(pricing.bondAssetDecimals));
-  const live = source.kind === "chain";
-
-  const rows = [
-    {
-      label: "Bond locked",
-      value: `${formatCount(bondWhole)} ${pricing.bondAssetSymbol}`,
-      hint: "Committed against live version claims, and not withdrawable while they stand",
-      tone: "text-pinned-ink",
-    },
-    {
-      label: "Publishers",
-      value: formatCount(totals.publishers),
-      hint: "Distinct addresses that have published at least one pin",
-      tone: "text-text",
-    },
-    {
-      label: "Bond slashed",
-      value: formatBond(totals.slashed, pricing.bondAssetDecimals),
-      hint: "Taken from publishers caught making conflicting version claims",
-      tone: totals.slashed > 0n ? "text-revoked-ink" : "text-faint",
-    },
-  ];
-
-  /*
-   * The heading has to change with the data, not just a badge somewhere near it.
-   *
-   * This section used to be titled "What is on chain right now" unconditionally, with the sample /
-   * live distinction living only in a thin pill at the top of the page. A reviewer read the figures
-   * as claims about a deployment and flagged, correctly, that a judge who opened a block explorer and
-   * found nothing would conclude the project was lying. The pill was doing its job and losing the
-   * argument, because a heading that says "on chain right now" outranks a 10px label thirty
-   * centimetres above it.
-   *
-   * So the title itself states which it is, and the caveat sits directly against the numbers.
-   */
-  return (
-    <Section
-      eyebrow={live ? "Registry" : "Registry \u00b7 sample"}
-      title={live ? "What is on chain right now" : "What this looks like with data in it"}
-      description={
-        live ? undefined : (
-          <>
-            No registry address is configured, so these are worked examples, not readings. Every
-            figure below is derived from the sample fixtures rather than a deployment &mdash; the
-            slashed total, for instance, is the sum of the bonds on pins the fixtures mark as slashed.
-            Point <code className="hash text-xs font-bold text-text">NEXT_PUBLIC_PIN_REGISTRY</code>{" "}
-            at a deployment and the same components read it instead.
-          </>
-        )
-      }
-    >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center 2xl:gap-16">
-        <Reveal>
-          <div>
-            <p className="shout text-[0.65rem] text-faint">
-              Live pins {live ? null : <span className="text-attention-ink">&middot; sample</span>}
-            </p>
-            {/* Deliberately oversized. One number should dominate, or none of them register. */}
-            <p className="font-display text-[5.5rem] leading-[0.85] font-extrabold tracking-[-0.04em] text-bonded-ink sm:text-[8rem] xl:text-[10rem]">
-              <CountUp value={totals.livePins} format={(n) => formatCount(Math.round(n))} />
-            </p>
-            <p className="measure mt-3 text-sm leading-relaxed font-semibold text-muted">
-              Versions that can currently vouch for a transaction. {totals.pins} have been published
-              in total, including those since revoked or slashed &mdash; a pin never disappears, it
-              stops being live.
-            </p>
-          </div>
-        </Reveal>
-
-        <RevealGroup className="divide-y-2 divide-line">
-          {rows.map((row) => (
-            <RevealItem key={row.label}>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-5">
-                <div className="space-y-1">
-                  <p className="shout text-[0.65rem] text-faint">{row.label}</p>
-                  <p className="measure text-xs leading-relaxed font-semibold text-muted">
-                    {row.hint}
-                  </p>
-                </div>
-                <p className={cx("font-display text-3xl leading-none font-extrabold", row.tone)}>
-                  {row.value}
-                </p>
-              </div>
-            </RevealItem>
-          ))}
-        </RevealGroup>
-      </div>
-    </Section>
   );
 }

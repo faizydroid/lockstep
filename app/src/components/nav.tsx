@@ -41,7 +41,18 @@ import { cx } from "./ui";
  * permanent second line would double the height of eight items to solve a problem a reader has once.
  */
 const LINKS = [
-  { href: "/", label: "Overview", icon: IconHome, outcome: "Is anything wrong right now" },
+  /*
+   * `/dashboard`, not `/`. The rail points at the instrument, not at the pitch.
+   *
+   * This item used to be "Overview" on `/`, when that route was both the landing page and the dashboard.
+   * The split gave each reader their own page, and the one holding a rail is by definition inside the
+   * product -- putting the marketing page in their primary navigation would make them scroll past an
+   * argument they have already accepted to reach the numbers.
+   *
+   * The landing page stays reachable: the Lockstep mark at the top of the rail links to it, in both the
+   * drawer and the mobile bar, which is where a reader looks for a home link anyway.
+   */
+  { href: "/dashboard", label: "Dashboard", icon: IconHome, outcome: "Is anything wrong right now" },
   { href: "/pins", label: "Pins", icon: IconPin, outcome: "What each skill is allowed to do" },
   { href: "/drift", label: "Drift", icon: IconDrift, outcome: "What changed since you approved it" },
   { href: "/approvals", label: "Approvals", icon: IconCheck, outcome: "What your agent may spend under" },

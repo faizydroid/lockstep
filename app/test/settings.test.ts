@@ -160,6 +160,11 @@ describe("serialise", () => {
       motion: "full",
       completedSteps: ["connect-wallet"],
       quickstartDismissed: true,
+      // The first-run flow's state. Included here rather than in a separate case so this assertion
+      // keeps failing whenever a field is added to Settings without being persisted.
+      onboardingAcknowledged: true,
+      skippedSetup: false,
+      profile: { displayName: "Ada", role: "owner", org: "Kuru" },
     };
 
     expect(parse(serialise(settings))).toEqual(settings);
@@ -170,6 +175,7 @@ describe("serialise", () => {
     expect("rpcUrl" in written).toBe(false);
     expect("account" in written).toBe(false);
     expect("deployBlock" in written).toBe(false);
+    expect("profile" in written).toBe(false);
   });
 
   it("does not throw on a bigint, which plain JSON.stringify would", () => {

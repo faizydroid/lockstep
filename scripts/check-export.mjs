@@ -52,16 +52,30 @@ const PAGES = {
    * failing a build over; the drawing is decoration. Matching a specific sentence would tie this
    * script to whichever mood the fixtures happen to produce.
    */
+  /*
+   * The landing page: the argument, and nothing that belongs to the instrument.
+   *
+   * The scoreboard and ledger assertions moved to `dashboard` when the route split. Worth knowing why the
+   * mascot check stayed here: it is matched via the settlement gate's Verdict, not the scoreboard, and the
+   * gate is on this page because it is the demonstration a reader gets before anything is asked of them.
+   */
   index: [
     "A lockfile for agent money",
-    "Live pins",
     "233f0359",
     "1eac5d90",
     "NOT_PINNED",
-    "Integrity",
-    "Bond coverage",
-    "approved skills still match",
     'aria-label="Guard',
+
+    /*
+     * The invitation, and the escape from it.
+     *
+     * "Look around first" is the assertion with teeth. The requested flow is landing then connect, and
+     * built as a wall that flow would lose exactly the reader this product is for -- a sceptic who will
+     * not produce a wallet to read an argument. It would also claim an authorisation a static export
+     * cannot perform. If this string disappears, the gate has become a wall.
+     */
+    "Look around first",
+    "No signature is requested",
 
     /*
      * The gate's teaching scaffolding.
@@ -91,6 +105,41 @@ const PAGES = {
     "the code you approved",
     "the code that is asking",
     "Settlement",
+  ],
+  /*
+   * The dashboard: what the landing page used to carry below its own pitch.
+   *
+   * "Integrity" and "Bond coverage" prove the scoreboard rendered its derived figures rather than just its
+   * frame, and "approved skills still match" proves a denominator reached the page -- a ring showing a
+   * percentage with no denominator is the failure mode that check exists for.
+   */
+  dashboard: [
+    "Live pins",
+    "Integrity",
+    "Bond coverage",
+    "approved skills still match",
+    "Blocked calls",
+  ],
+  /*
+   * The two flow stages.
+   *
+   * The profile assertions are the important ones on this whole list. That page asks for a name and a role,
+   * which is the shape of a signup, and it is not one -- there is no server in this architecture to send
+   * anything to. The disclosure is what keeps the form from teaching a reader something false about where
+   * their details went, and it is exactly the kind of copy a tidy-up deletes because the page still works
+   * perfectly without it.
+   */
+  "start/profile": [
+    "Who is reading?",
+    "Where this goes",
+    "no server behind it",
+    "not asked for an email",
+    "Skip this",
+  ],
+  "start/onboarding": [
+    "Here is where you stand",
+    "Nothing below is ticked for turning up",
+    "Go to the dashboard",
   ],
   pins: ["Published pins", "kuru-quote"],
   drift: ["What changed since you approved it", "Gained", "Dropped", "approve(address,uint256)"],

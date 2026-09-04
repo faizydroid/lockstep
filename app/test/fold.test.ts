@@ -60,8 +60,13 @@ describe("the overview fold", () => {
   });
 
   it("gives the fold something to do", () => {
+    /*
+     * Was `<Button href=`. The hero's two buttons used to link straight to /drift and /pins, and the
+     * first-run flow turned that into a trap: a first-time reader would click one and be steered back
+     * here by the gate, having apparently broken something. The call to action is a flow action now.
+     */
     const hero = /function Hero\(\)[\s\S]*?\n}/.exec(overview)?.[0] ?? "";
-    expect(hero, "the hero had no call to action at all").toMatch(/<Button\s+href=/);
+    expect(hero, "the hero had no call to action at all").toMatch(/<StartHere\b/);
   });
 
   it("does not go back to a 96px section rhythm", () => {
@@ -173,11 +178,37 @@ describe("copy that is load-bearing", () => {
     expect(limits).toMatch(/overclaiming/);
   });
 
-  it("puts the boundary on the overview, before the numbers", () => {
+  it("puts the boundary after the demonstration and before the ask", () => {
+    /*
+     * This used to assert the boundary came before `<Ledger`, which lived on the same page. The ledger
+     * moved to /dashboard with the route split, so the original assertion could only ever pass by
+     * accident. The decision it was protecting is still here and is now sharper, because the order on
+     * the landing page is the argument:
+     *
+     *   the gate demonstrates the mechanism, the boundary says what it does not catch, and only then is
+     *   the reader asked for anything.
+     *
+     * Stating a limit before the ask is what makes the ask credible. Putting it after would make it
+     * small print on a page the reader has already committed to.
+     */
+    const gateAt = overview.indexOf("<SettlementGate />");
     const limitsAt = overview.indexOf("<Limits />");
-    const ledgerAt = overview.indexOf("<Ledger");
-    expect(limitsAt).toBeGreaterThan(-1);
-    expect(limitsAt).toBeLessThan(ledgerAt);
+    const askAt = overview.indexOf("<StartHere />");
+
+    expect(gateAt, "the gate is not on the landing page").toBeGreaterThan(-1);
+    expect(limitsAt, "the boundary is not on the landing page").toBeGreaterThan(-1);
+    expect(askAt, "the closing invitation is not on the landing page").toBeGreaterThan(-1);
+
+    expect(gateAt).toBeLessThan(limitsAt);
+    expect(limitsAt).toBeLessThan(askAt);
+  });
+
+  it("keeps the instrument off the landing page", () => {
+    // The split's whole point. A returning reader should not pay for the pitch to see the scoreboard,
+    // and a first-time reader should not meet a ledger before knowing what it counts.
+    for (const marker of ["<Scoreboard", "<Ledger", "<Quickstart"]) {
+      expect(overview, `${marker} belongs on /dashboard`).not.toContain(marker);
+    }
   });
 
   it("says who the product does not help", () => {
