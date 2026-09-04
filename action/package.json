@@ -1,0 +1,25 @@
+{
+    "name":  "@lockstep/action",
+    "version":  "0.0.1",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "build":  "esbuild src/entry.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from\u0027module\u0027;const require=createRequire(import.meta.url);\"",
+                    "test":  "vitest run",
+                    "typecheck":  "tsc --noEmit"
+                },
+    "dependencies":  {
+                         "@lockstep/cli":  "*",
+                         "@lockstep/runtime":  "*",
+                         "viem":  "2.56.3"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "22.13.1",
+                            "esbuild":  "0.25.0",
+                            "typescript":  "5.7.3",
+                            "vitest":  "3.2.7"
+                        },
+    "exports":  {
+                    "./main":  "./src/main.ts"
+                }
+}

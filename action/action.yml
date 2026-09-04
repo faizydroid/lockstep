@@ -1,0 +1,60 @@
+name: Lockstep Pin
+description: Hash a skill, publish its pin, and bind its version so a silent update cannot inherit approval.
+author: Lockstep
+
+branding:
+  icon: lock
+  color: blue
+
+inputs:
+  skill-dir:
+    description: Directory containing SKILL.md and lockstep.json.
+    required: true
+  rpc-url:
+    description: Monad RPC URL.
+    required: false
+    default: https://testnet-rpc.monad.xyz
+  chain-id:
+    description: 143 for Monad mainnet, 10143 for testnet.
+    required: false
+    default: "10143"
+  pin-registry:
+    description: PinRegistry address.
+    required: true
+  publisher-private-key:
+    description: >
+      Publisher signing key. Store as a repository secret and never inline it.
+      Only used to sign the publish transaction; the workflow prints the derived
+      address but never the key.
+    required: false
+  dry-run:
+    description: >
+      Hash and price the pin without publishing. Requires no key. Recommended on
+      pull requests, so a capability change is visible in review before it can be
+      published from a merge.
+    required: false
+    default: "false"
+  fail-on-capability-change:
+    description: >
+      Fail the job when the manifest declares capabilities the previous pin did not.
+      Turns a widened blast radius into a red check instead of a silent release.
+    required: false
+    default: "true"
+
+outputs:
+  skill-hash:
+    description: Canonical skill hash (lockstep-skill-hash/v2).
+    value: ${{ steps.pin.outputs.skill-hash }}
+  version-id:
+    description: Canonical version identifier committed on chain.
+    value: ${{ steps.pin.outputs.version-id }}
+  pin-id:
+    description: Pin identifier, when published.
+    value: ${{ steps.pin.outputs.pin-id }}
+  bond-required:
+    description: Bond the pin requires, in the bond asset's smallest unit.
+    value: ${{ steps.pin.outputs.bond-required }}
+
+runs:
+  using: node20
+  main: dist/index.js
