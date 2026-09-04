@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Address } from "viem";
 
 import { sampleSnapshot } from "../src/lib/fixtures";
-import { VISIT_STEPS, nextStep, quickstart } from "../src/lib/quickstart";
+import { REFUSAL_STEP, VISIT_STEPS, nextStep, quickstart } from "../src/lib/quickstart";
 import type { Snapshot } from "../src/lib/model";
 import { GUARD_STORAGE_SLOT } from "../src/lib/profile";
 
@@ -223,5 +223,33 @@ describe("nextStep", () => {
 
     expect(state.complete).toBe(false);
     expect(nextStep(state)).toBeUndefined();
+  });
+});
+
+/**
+ * The refusal step is satisfied two ways, and the difference is the point.
+ *
+ * Arriving at `/drift` counts, which is also true of someone who landed there and scrolled past
+ * everything. Watching the settlement gate actually close counts too, and that one required flipping a
+ * switch and waiting for the sequence — the reader causing a refusal rather than being near one.
+ *
+ * Both write the same id, so the weaker path still gives credit. What this locks is that they *are* the
+ * same id: if the gate ever wrote its own, the two would drift apart and the diagram would start awarding
+ * a step the panel does not know about.
+ */
+describe("REFUSAL_STEP", () => {
+  it("is the same id the route visit writes", () => {
+    expect(REFUSAL_STEP).toBe(VISIT_STEPS["/drift"]);
+  });
+
+  it("satisfies the refusal step on its own, with no route visit", () => {
+    // The gate lives on the overview, so someone can cause a refusal without ever opening /drift.
+    const state = quickstart(liveSnapshot(), [REFUSAL_STEP]);
+    expect(state.steps.find((s) => s.id === "saw-drift")?.done).toBe(true);
+  });
+
+  it("is a storage-safe id, since it is persisted like any other step", () => {
+    // lib/settings.ts drops step ids outside this shape, which would silently discard the credit.
+    expect(REFUSAL_STEP).toMatch(/^[a-z0-9-]{1,40}$/);
   });
 });

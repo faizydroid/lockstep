@@ -146,3 +146,55 @@ describe("design decisions worth pinning", () => {
     expect(ui).toMatch(/mood = "watching"/);
   });
 });
+
+/**
+ * Copy that carries an argument, and would survive a tidy-up looking like nothing was lost.
+ *
+ * The limitations panel is the strongest single thing added from the onboarding material: stating a
+ * boundary raises credibility with an audience that was going to probe for it anyway. Every limit in it is
+ * already in the README, so a refactor that removed the panel would leave the claims intact and the
+ * honesty invisible. Same for the wallet priming, which is the only permission-shaped moment in the app.
+ */
+describe("copy that is load-bearing", () => {
+  const limits = readFileSync(join(APP, "components", "limits.tsx"), "utf8");
+  const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
+  const account = readFileSync(join(APP, "components", "account-control.tsx"), "utf8");
+  const navSrc = readFileSync(join(APP, "components", "nav.tsx"), "utf8");
+
+  it("names the four limits rather than one soft disclaimer", () => {
+    for (const limit of ["stolen key", "hostile from its first publish", "cryptographically", "does not move funds"]) {
+      expect(limits, limit).toContain(limit);
+    }
+  });
+
+  it("names the cryptographic / economic split, which is what makes the list a threat model", () => {
+    expect(limits).toMatch(/cryptographic/);
+    expect(limits).toMatch(/economic/);
+    expect(limits).toMatch(/overclaiming/);
+  });
+
+  it("puts the boundary on the overview, before the numbers", () => {
+    const limitsAt = overview.indexOf("<Limits />");
+    const ledgerAt = overview.indexOf("<Ledger");
+    expect(limitsAt).toBeGreaterThan(-1);
+    expect(limitsAt).toBeLessThan(ledgerAt);
+  });
+
+  it("says who the product does not help", () => {
+    expect(limits).toMatch(/Probably not for you if/);
+    expect(limits).toMatch(/does not move funds/);
+  });
+
+  it("states that connecting requests no signature, before the wallet popup", () => {
+    // A crypto developer's default assumption about a connect button is that something will ask them to
+    // sign. Only saying so fixes that, and it has to be said before the prompt, not after.
+    expect(account).toMatch(/No signature is requested/);
+    expect(account).toMatch(/no server to send it to/);
+  });
+
+  it("gives every nav item an outcome line", () => {
+    // Seven of eight labels are coinages of this project and mean nothing on a first read.
+    const items = navSrc.match(/outcome: "/g) ?? [];
+    expect(items).toHaveLength(8);
+  });
+});

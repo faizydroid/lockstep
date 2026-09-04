@@ -26,6 +26,7 @@ import {
   motion,
   useReducedMotion,
 } from "@/components/motion";
+import { Limits, NotFor } from "@/components/limits";
 import { Quickstart } from "@/components/quickstart";
 import { Scoreboard } from "@/components/scoreboard";
 import { Button, Card, Pill, Section, StatePill, cx } from "@/components/ui";
@@ -108,6 +109,15 @@ export default function OverviewPage() {
           </Card>
         </Section>
       )}
+
+      {/*
+        The boundary, immediately after the gate that demonstrates the mechanism.
+
+        Position is the argument. Showing what it catches and then, in the next breath, what it does not
+        is what makes the first half credible to a reader who was going to look for the edges anyway.
+        Burying it below the numbers would turn it into a disclaimer.
+      */}
+      <Limits />
 
       <Ledger totals={totals} pricing={pricing} source={snapshot.source} />
 
@@ -276,6 +286,16 @@ function Hero() {
                 Browse pins
               </Button>
             </div>
+
+            {/*
+              Who it is not for, next to the pitch rather than buried.
+
+              The onboarding material's rule is that you cannot onboard someone you do not understand,
+              and that knowing the non-audience is a constraint worth using. A reader who spends five
+              minutes working out the product does not apply to them concludes it is vague; one who is
+              told in three lines concludes it is specific.
+            */}
+            <NotFor />
           </div>
         </div>
       </Reveal>

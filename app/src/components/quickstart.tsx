@@ -16,13 +16,16 @@
  */
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import type { Address } from "viem";
 
 import { useSnapshot } from "./data";
+import { useIdentity } from "./identity";
 import { Reveal, SPRING_SOFT, motion, useReducedMotion } from "./motion";
 import { useSettings } from "./settings";
 import { Button, Card, Pill, cx } from "./ui";
 import { VISIT_STEPS, nextStep, quickstart } from "@/lib/quickstart";
+import { isAllowedAddress } from "@/lib/settings";
 
 /**
  * Records that a tracked route was visited.
@@ -43,6 +46,96 @@ export function VisitTracker() {
   }, [pathname, loaded, completeStep]);
 
   return null;
+}
+
+/**
+ * The missing half of the loop.
+ *
+ * Three of the five steps — enforcement, approving, publishing — can only become true when the dashboard
+ * is reading the reader's *own* account. Nothing told them that. So somebody who actually ran the three
+ * commands above came back, saw nothing change, and was stuck at two of five with no indication why. The
+ * plumbing already existed: `settings.account` is overridable and the source bar already labels it. What
+ * was missing was the sentence connecting the terminal to the page.
+ *
+ * A wallet connect would also satisfy it, and is offered first because it needs no copy-paste. The input
+ * exists because the account a publisher uses in CI is usually not one they hold in a browser.
+ */
+function PointAtYourAccount() {
+  const { settings, update, clear } = useSettings();
+  const { available, connected, connect, connecting } = useIdentity();
+  const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState<string | undefined>(undefined);
+
+  const submit = () => {
+    const candidate = draft.trim();
+    if (candidate === "") {
+      clear("account");
+      setProblem(undefined);
+      return;
+    }
+    if (!isAllowedAddress(candidate)) {
+      setProblem("Needs a 20-byte hex address, and not the zero address.");
+      return;
+    }
+    update({ account: candidate as Address });
+    setProblem(undefined);
+  };
+
+  if (settings.account !== undefined || connected) {
+    return (
+      <p className="text-xs leading-relaxed font-semibold text-bonded-ink">
+        Reading your account now. The three steps above will tick themselves as the chain says so &mdash;
+        there is nothing here to mark done by hand.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 border-t-2 border-line pt-4">
+      <p className="measure text-xs leading-relaxed font-semibold text-muted">
+        Already run them? This dashboard is reading a demo account, so your pin will not appear. Point it
+        at yours and the three steps above resolve from chain state.
+      </p>
+
+      <div className="flex flex-wrap items-start gap-2">
+        {available && !connected ? (
+          <Button onClick={() => void connect()} disabled={connecting} tone="pinned" size="sm">
+            {connecting ? "Waiting for wallet\u2026" : "Connect wallet"}
+          </Button>
+        ) : null}
+
+        <input
+          type="text"
+          spellCheck={false}
+          autoComplete="off"
+          value={draft}
+          placeholder="or paste the address the CLI printed"
+          aria-label="Account address to read"
+          aria-invalid={problem !== undefined}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setProblem(undefined);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submit();
+          }}
+          className="hash chunk min-w-0 flex-1 rounded-lg bg-sunken px-3 py-2 text-xs text-text placeholder:text-faint"
+        />
+        <Button onClick={submit} disabled={draft.trim() === ""} tone="neutral" variant="quiet" size="sm">
+          Read it
+        </Button>
+      </div>
+
+      {problem === undefined ? null : (
+        <p role="alert" className="text-xs font-semibold text-revoked-ink">
+          {problem}
+        </p>
+      )}
+      <p className="text-xs leading-relaxed text-faint">
+        A public read, and it grants nothing. Clearable in Account &rarr; settings.
+      </p>
+    </div>
+  );
 }
 
 export function Quickstart() {
@@ -178,15 +271,17 @@ export function Quickstart() {
           so is better than linking somewhere that cannot help.
         */}
         {next === undefined && !state.complete ? (
-          <div className="border-t-2 border-line bg-raise px-6 py-4">
+          <div className="space-y-4 border-t-2 border-line bg-raise px-6 py-4">
             <p className="measure text-xs leading-relaxed font-semibold text-muted">
               Everything left happens in a terminal, and that is the design rather than a gap. Approving
               and publishing both commit a claim about exact bytes, and only the machine holding those
               bytes can make it honestly.
             </p>
-            <pre className="mt-3 overflow-x-auto rounded-lg bg-sunken p-3 text-xs leading-relaxed text-muted">
+            <pre className="overflow-x-auto rounded-lg bg-sunken p-3 text-xs leading-relaxed text-muted">
               <code className="hash">{"lockstep hash ./skill\nlockstep publish ./skill\nlockstep approve ./skill"}</code>
             </pre>
+
+            <PointAtYourAccount />
           </div>
         ) : null}
       </Card>

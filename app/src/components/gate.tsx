@@ -42,8 +42,11 @@ import { fingerprintDiff, fingerprintOf } from "@/lib/fingerprint";
 import { APPROVED_HASH, DRIFTED_HASH } from "@/lib/fixtures";
 import { shortHash } from "@/lib/format";
 
+import { REFUSAL_STEP } from "@/lib/quickstart";
+
 import { HashFingerprint } from "./fingerprint";
 import { Guard } from "./guard";
+import { useSettings } from "./settings";
 import {
   AnimatePresence,
   Burst,
@@ -62,6 +65,7 @@ type Phase = "idle" | "travelling" | "checking" | "settled" | "refused";
 
 export function SettlementGate() {
   const still = useReducedMotion();
+  const { completeStep } = useSettings();
   const [shipping, setShipping] = useState<Shipping>("approved");
   const [phase, setPhase] = useState<Phase>("idle");
   /* Bumped on every run, so Burst and Shake replay rather than staying mounted and inert. */
@@ -127,6 +131,21 @@ export function SettlementGate() {
   const replay = () => start(80);
 
   const mood = phase === "settled" ? "settled" : phase === "refused" ? "blocked" : "watching";
+
+  /*
+   * A refusal the reader actually caused satisfies the quickstart's second step.
+   *
+   * That step used to be satisfied by arriving at `/drift`, which is true of someone who landed there and
+   * scrolled past everything. Watching this gate close is a strictly stronger event: it required flipping
+   * the switch and waiting for the sequence. The route visit stays as an alternative satisfier, so nobody
+   * loses credit — this just adds the better trigger, and makes the diagram load-bearing rather than
+   * ornamental.
+   *
+   * Only on `refused`. A settled call is the happy path and demonstrates nothing about enforcement.
+   */
+  useEffect(() => {
+    if (phase === "refused") completeStep(REFUSAL_STEP);
+  }, [phase, completeStep]);
 
   return (
     <div className="pop relative rounded-3xl bg-panel p-6 sm:p-8">

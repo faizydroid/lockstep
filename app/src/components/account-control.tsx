@@ -63,8 +63,26 @@ export function AccountControl() {
         <Button tone="pinned" size="sm" full onClick={() => void connect()} disabled={connecting}>
           {connecting ? "Waiting for wallet\u2026" : "Connect wallet"}
         </Button>
+        {/*
+          Said before the wallet popup, not after.
+
+          The pattern this borrows is a custom screen ahead of an OS permission prompt, which the
+          onboarding material reports meaningfully improves accept rates. It matters more here than in a
+          consumer app: a crypto developer's default assumption about a connect button is that something
+          will ask them to sign, and that assumption is wrong in a way only stating it can fix.
+
+          Every clause is true of the build. Reads only, no signature is ever requested, the three calls
+          are the ones lib/chain.ts makes, and there is no server to send an address to because this is a
+          static export.
+        */}
         <p className="text-[0.65rem] leading-snug font-semibold text-faint">
-          Shows your approvals and lets you revoke. Approving a version stays in the CLI.
+          Read-only. <strong className="font-extrabold text-muted">No signature is requested</strong> and
+          no transaction is sent &mdash; connecting only tells this page which account&rsquo;s approvals,
+          executions and delegation to read.
+        </p>
+        <p className="text-[0.6rem] leading-snug font-semibold text-faint">
+          The address stays in this browser; there is no server to send it to. Approving a version stays
+          in the CLI, always.
         </p>
         {error === undefined ? null : (
           <p className="text-[0.65rem] leading-snug font-bold text-revoked-ink">{error}</p>

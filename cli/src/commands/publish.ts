@@ -188,6 +188,7 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
     skillDir,
     skillName: manifest.name,
     pinId,
+    publisher: account.address,
     bond: quote,
     highRiskCount: highRisk.length,
   });
@@ -225,6 +226,7 @@ async function writeBadge(options: {
   readonly skillDir: string;
   readonly skillName: string;
   readonly pinId: `0x${string}`;
+  readonly publisher: `0x${string}`;
   readonly bond: bigint;
   readonly highRiskCount: number;
 }): Promise<void> {
@@ -263,6 +265,16 @@ async function writeBadge(options: {
   process.stdout.write(
     `\npinId        ${pinId}\n` +
       `badge        ${target}\n\n` +
+      /*
+       * The pointer back to the dashboard.
+       *
+       * Without this line a publisher who ran the command opened the dashboard, saw a demo account, and
+       * concluded nothing had happened. The dashboard cannot guess which address to read, and the
+       * quickstart's back half is unreachable until it is told.
+       */
+      `See it: ${DASHBOARD_URL}/pins?pin=${pinId}\n` +
+      `Your account is ${options.publisher} -- paste that into the dashboard's quickstart, or connect\n` +
+      `the same wallet, and its approvals and enforcement status resolve from chain state.\n\n` +
       `Paste into your README:\n\n` +
       `  ${snippet.markdown}\n\n` +
       `The image is a relative path on purpose -- the badge cannot phone home, so nobody learns which\n` +

@@ -72,6 +72,19 @@ const PAGES = {
      * None of that is load-bearing for the build, which is exactly why it needs a test -- a refactor
      * that tidied the labels away would leave a panel that renders perfectly and explains nothing.
      */
+    /*
+     * The boundary panel.
+     *
+     * The strongest thing taken from the onboarding material: stating a limit raises credibility with an
+     * audience that was going to probe for it. Every limit in it is already in the README, so removing the
+     * panel would leave every claim intact and the honesty invisible — which is exactly the kind of
+     * deletion that looks like a tidy-up.
+     */
+    "What this does not stop",
+    "hostile from its first publish",
+    "overclaiming",
+    "Probably not for you if",
+
     "Choose what the publisher ships",
     "The publisher ships",
     "The skill",

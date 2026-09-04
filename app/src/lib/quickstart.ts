@@ -38,6 +38,17 @@ export const VISIT_STEPS = {
   "/badge": "saw-badge",
 } as const;
 
+/**
+ * The id the refusal step is stored under.
+ *
+ * Satisfied two ways, and the difference matters. Arriving at `/drift` counts, which is true of someone
+ * who landed there and scrolled past everything. Watching the settlement gate close counts too, and that
+ * one required flipping a switch and waiting — it is the reader causing a refusal rather than being near
+ * one. Both write this id, so the weaker path still gives credit and the stronger path is what the
+ * diagram is for.
+ */
+export const REFUSAL_STEP = VISIT_STEPS["/drift"];
+
 export interface QuickstartStep {
   readonly id: string;
   /** The outcome, not the feature. "See a call refused", not "Visit the drift page". */

@@ -30,14 +30,24 @@ import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion
 import { ThemeToggle } from "./theme-toggle";
 import { cx } from "./ui";
 
+/*
+ * Every item carries an outcome line as well as a label.
+ *
+ * Seven of the eight labels are coinages of this project -- pin, drift, bond, badge -- and mean nothing
+ * on a first read. The quickstart already learned this lesson and titles its steps by outcome rather than
+ * by destination; the nav is the primary wayfinding and was still naming features.
+ *
+ * Shown always in the mobile drawer, where there is room, and on hover or focus in the rail, where a
+ * permanent second line would double the height of eight items to solve a problem a reader has once.
+ */
 const LINKS = [
-  { href: "/", label: "Overview", icon: IconHome },
-  { href: "/pins", label: "Pins", icon: IconPin },
-  { href: "/drift", label: "Drift", icon: IconDrift },
-  { href: "/approvals", label: "Approvals", icon: IconCheck },
-  { href: "/publishers", label: "Publishers", icon: IconPublisher },
-  { href: "/bonds", label: "Bonds", icon: IconCoins },
-  { href: "/badge", label: "Badge", icon: IconShield },
+  { href: "/", label: "Overview", icon: IconHome, outcome: "Is anything wrong right now" },
+  { href: "/pins", label: "Pins", icon: IconPin, outcome: "What each skill is allowed to do" },
+  { href: "/drift", label: "Drift", icon: IconDrift, outcome: "What changed since you approved it" },
+  { href: "/approvals", label: "Approvals", icon: IconCheck, outcome: "What your agent may spend under" },
+  { href: "/publishers", label: "Publishers", icon: IconPublisher, outcome: "Who has money at stake" },
+  { href: "/bonds", label: "Bonds", icon: IconCoins, outcome: "What a lie costs a publisher" },
+  { href: "/badge", label: "Badge", icon: IconShield, outcome: "Show a pin in your README" },
   /*
    * Account last, and it carries settings with it rather than getting its own item.
    *
@@ -45,7 +55,7 @@ const LINKS = [
    * Profile and settings answer the same question -- things about me, as opposed to things about the
    * registry -- so they are two sections of one route, reachable at /account#settings.
    */
-  { href: "/account", label: "Account", icon: IconAccount },
+  { href: "/account", label: "Account", icon: IconAccount, outcome: "Whether anything is enforcing it" },
 ] as const;
 
 /*
@@ -203,7 +213,7 @@ function RailBody({
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
                   className={cx(
-                    "shout relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.7rem] transition-colors",
+                    "group/nav shout relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.7rem] transition-colors",
                     active ? "text-pinned-ink" : "text-muted hover:bg-raise hover:text-text",
                   )}
                 >
@@ -217,7 +227,19 @@ function RailBody({
                   <span className="relative grid place-items-center">
                     <Icon heavy={active} />
                   </span>
-                  <span className="relative">{link.label}</span>
+                  <span className="relative min-w-0">
+                    <span className="block">{link.label}</span>
+                    {/*
+                      The outcome line. `title` as well, so it is reachable by hover on a device with no
+                      pointer-fine hover and by anything reading the accessibility tree.
+                    */}
+                    <span
+                      title={link.outcome}
+                      className="mt-0.5 block truncate text-[0.6rem] leading-tight font-semibold tracking-normal normal-case opacity-0 transition-opacity duration-200 group-hover/nav:opacity-70 group-focus-visible/nav:opacity-70 lg:opacity-0"
+                    >
+                      {link.outcome}
+                    </span>
+                  </span>
                 </Link>
               </li>
             );
