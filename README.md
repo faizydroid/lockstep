@@ -501,6 +501,41 @@ boundary is key custody: the executor holds no funds.
 See [`FINDINGS.md`](./FINDINGS.md) for measured results, bugs the tests caught, and
 what remains unverified.
 
+## How this gets distributed
+
+One mechanism, and it is the badge. A publisher who posts a bond has done something costly and
+reputationally positive, and the badge is the proof — so the thing they want to show off and the thing
+that spreads the registry are the same object. Nothing else here is a growth tactic.
+
+**It arrives at the moment of maximum reason to want it.** `lockstep publish` used to end with a
+transaction hash. A hash is a receipt. It now writes the SVG into the skill directory and prints the
+paste-ready line, because the only point in the flow where someone has just done the costly thing and
+is watching a terminal is right then. The GitHub Action does the same in its run summary, which is
+where a publisher looks after CI, with the SVG in a collapsed block.
+
+**The badge is a file, not a URL, and that decides everything else.** A hosted badge —
+`https://…/badge/<pin>.svg` in an `<img>` — reports every README view to whoever runs the host: which
+repositories carry a pin, how often they are read, from where. For a supply-chain security product that
+is a map of its own users' security posture, served to a third party. So there is no badge host and
+there will not be one. The publisher commits the SVG and references it relatively; the link beside it is
+absolute and goes to the live registry, because a badge nobody can check is decoration.
+
+**The cost of that, stated rather than skipped: distribution with no measurement.** Nobody can count
+badge impressions or attribute a visit to one. The only available signals are GitHub code search for
+`lockstep-*.svg` and referrer-less traffic to the dashboard — and `Referrer-Policy: no-referrer` is set
+deliberately, so even that is thin. Every growth playbook assumes you can instrument the funnel. Here
+the highest-value surface is structurally unmeasurable, and the alternative was a tracker.
+
+**Amber is what makes green worth having.** A bonded pin that can still call
+`approve(address,uint256)` renders amber, not green: the publisher is accountable *and* the power is
+real. A badge that were always green would be decoration, and the distinction is what makes a green one
+a claim.
+
+Two things were considered and rejected. A referral or points scheme, because a reward bolted onto
+something nobody wants to show off does nothing, and the badge already works without one. And anything
+resembling engagement inflation — bought installs, seeded reviews, name-squatting on trending terms —
+which for a product whose entire pitch is verifiable provenance would refute the pitch.
+
 ## How this makes money
 
 Marked by how defensible each line is, because a plan that presents a guess and a

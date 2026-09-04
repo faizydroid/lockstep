@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { badgeMarkdown, renderBadge, type BadgeState } from "../src/badge.ts";
+import {
+  badgeFileName,
+  badgeMarkdown,
+  badgeSnippet,
+  pinUrl,
+  renderBadge,
+  type BadgeState,
+} from "../src/badge.ts";
 
 describe("renderBadge", () => {
   it.each<BadgeState>(["bonded", "pinned", "unpinned", "revoked", "equivocated"])(
@@ -87,5 +94,118 @@ describe("badgeMarkdown", () => {
 
   it("accepts custom alt text", () => {
     expect(badgeMarkdown("a", "b", "custom")).toContain("![custom]");
+  });
+});
+
+describe("badgeFileName", () => {
+  it("slugs a normal skill name", () => {
+    expect(badgeFileName("kuru-quote")).toBe("lockstep-kuru-quote.svg");
+    expect(badgeFileName("Kuru Quote")).toBe("lockstep-kuru-quote.svg");
+  });
+
+  it("collapses anything that is not path-safe, since this becomes a path and a markdown URL", () => {
+    expect(badgeFileName("a/b")).toBe("lockstep-a-b.svg");
+    expect(badgeFileName("skill name!@#$")).toBe("lockstep-skill-name.svg");
+    expect(badgeFileName("a)](javascript:alert(1))")).toBe("lockstep-a-javascript-alert-1.svg");
+  });
+
+  it("drops dots entirely rather than emitting a name nobody can explain", () => {
+    // Legal in a filename, and `lockstep-..-..-etc-passwd.svg` for `../../etc/passwd` is not a name
+    // anyone should have to reason about. There were no separators left to traverse with either way.
+    expect(badgeFileName("../../etc/passwd")).toBe("lockstep-etc-passwd.svg");
+    expect(badgeFileName("v1.2.3")).toBe("lockstep-v1-2-3.svg");
+  });
+
+  it("collapses runs of dashes", () => {
+    expect(badgeFileName("a///b")).toBe("lockstep-a-b.svg");
+  });
+
+  it("never produces a traversal or an absolute path", () => {
+    for (const name of ["../../..", "/etc/passwd", "C:\\windows", "..", "."]) {
+      const file = badgeFileName(name);
+      expect(file.includes("/"), name).toBe(false);
+      expect(file.includes("\\"), name).toBe(false);
+      expect(file.startsWith("lockstep-"), name).toBe(true);
+    }
+  });
+
+  it("falls back rather than emitting a bare prefix", () => {
+    expect(badgeFileName("")).toBe("lockstep-pin.svg");
+    expect(badgeFileName("!!!")).toBe("lockstep-pin.svg");
+    expect(badgeFileName("---")).toBe("lockstep-pin.svg");
+  });
+});
+
+describe("pinUrl", () => {
+  const pin = `0x${"ab".repeat(32)}`;
+
+  it("builds a dashboard link", () => {
+    expect(pinUrl("https://lockstep.dev", pin)).toBe(`https://lockstep.dev/pins?pin=${pin}`);
+  });
+
+  it("does not double the slash when the base has a trailing one", () => {
+    expect(pinUrl("https://lockstep.dev/", pin)).toBe(`https://lockstep.dev/pins?pin=${pin}`);
+    expect(pinUrl("https://lockstep.dev///", pin)).toBe(`https://lockstep.dev/pins?pin=${pin}`);
+  });
+});
+
+describe("badgeSnippet", () => {
+  const pin = `0x${"cd".repeat(32)}`;
+
+  it("uses a relative image and an absolute link, which is the whole design", () => {
+    // Relative image or it phones home; absolute link because a README is read on github.com and the
+    // registry is not there.
+    const snippet = badgeSnippet({ skillName: "kuru-quote", pinId: pin, dashboard: "https://lockstep.dev" });
+
+    expect(snippet.fileName).toBe("lockstep-kuru-quote.svg");
+    expect(snippet.markdown).toContain("(lockstep-kuru-quote.svg)");
+    expect(snippet.markdown).not.toContain("https://lockstep.dev/lockstep-");
+    expect(snippet.markdown).toContain(`https://lockstep.dev/pins?pin=${pin}`);
+  });
+
+  it("produces markdown in the shape a README expects", () => {
+    const snippet = badgeSnippet({ skillName: "kuru-quote", pinId: pin, dashboard: "https://lockstep.dev" });
+    expect(snippet.markdown).toBe(
+      `[![Lockstep pin for kuru-quote](lockstep-kuru-quote.svg)](${snippet.linkUrl})`,
+    );
+  });
+
+  it("does not let a skill name inject a link into the publisher's README", () => {
+    /*
+     * A real hole this test found, not a hypothetical. The alt text interpolated the raw skill name,
+     * so `evil](https://phish.example)(` terminated the markdown link early and smuggled a second,
+     * attacker-chosen link into whatever README the snippet was pasted into -- pasted by the
+     * publisher, from output they had every reason to trust.
+     */
+    const snippet = badgeSnippet({
+      skillName: "evil](https://phish.example)(",
+      pinId: pin,
+      dashboard: "https://lockstep.dev",
+    });
+
+    expect(snippet.fileName).not.toContain(")");
+    expect(snippet.fileName).not.toContain("]");
+
+    /*
+     * The property that matters is structural, not textual.
+     *
+     * `phish.example` survives as inert alt text, because `.` is legitimately wanted in a name like
+     * `kuru-quote v1.2`. Text is not a link. What must not survive is the bracket-paren sequence that
+     * would end the markdown early, so this asserts exactly two `](` -- one closing the image, one
+     * closing the link -- and that the only URL is ours.
+     */
+    expect(snippet.markdown.match(/\]\(/g)).toHaveLength(2);
+    expect(snippet.markdown.match(/https?:\/\//g)).toHaveLength(1);
+    expect(snippet.markdown).toContain(`](${snippet.linkUrl})`);
+  });
+
+  it("keeps a readable alt text for an ordinary name", () => {
+    const snippet = badgeSnippet({ skillName: "kuru-quote", pinId: pin, dashboard: "https://lockstep.dev" });
+    expect(snippet.markdown).toContain("Lockstep pin for kuru-quote");
+  });
+
+  it("falls back to a usable alt text when nothing survives", () => {
+    const snippet = badgeSnippet({ skillName: "]]](((", pinId: pin, dashboard: "https://lockstep.dev" });
+    expect(snippet.markdown).toContain("Lockstep pin for pin");
   });
 });

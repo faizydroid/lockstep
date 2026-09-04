@@ -9,6 +9,7 @@
                     "typecheck":  "tsc --noEmit"
                 },
     "dependencies":  {
+                         "@lockstep/badge":  "*",
                          "@lockstep/cli":  "*",
                          "@lockstep/runtime":  "*",
                          "viem":  "2.56.3"

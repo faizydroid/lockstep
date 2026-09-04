@@ -2,14 +2,27 @@
  * `lockstep publish` - pin a skill's current bytes and lock its bond.
  */
 
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { formatUnits } from "viem";
 
+import { badgeSnippet, renderBadge } from "@lockstep/badge";
 import { hashSkillDirectory } from "@lockstep/runtime";
 
 import { pinRegistryAbi } from "../abi.ts";
 import { publicClientFor, resolveEnv, signerFor, chainFor } from "../env.ts";
 import { loadManifest } from "../manifest.ts";
 import { HIGH_RISK_LABELS, isHighRiskSelector } from "../risk.ts";
+
+/**
+ * Where a badge links to.
+ *
+ * A constant rather than configuration, because it is the address of the public registry viewer and a
+ * publisher pasting a badge into their README wants the canonical one. Making it settable would mean a
+ * badge could link somewhere that is not this registry, which is the badge's only claim.
+ */
+const DASHBOARD_URL = "https://lockstep.dev";
 
 export interface PublishOptions {
   readonly skillDir: string | undefined;
@@ -153,6 +166,109 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
   process.stdout.write(`\npublished    ${hash}\n`);
   const receipt = await client.waitForTransactionReceipt({ hash });
   process.stdout.write(`status       ${receipt.status}\n`);
-  return receipt.status === "success" ? 0 : 1;
+
+  if (receipt.status !== "success") return 1;
+
+  /*
+   * The pin id comes from the registry, not from a local keccak.
+   *
+   * It is `keccak256(abi.encode(publisher, skillHash))` and reimplementing that here would work until
+   * it did not. This repo already has a test suite whose whole purpose is catching hand-written copies
+   * of on-chain shapes drifting from the contract, so paying one `eth_call` to ask the authority is the
+   * consistent choice. `computePinId` is `pure`, so it costs nothing but a round trip.
+   */
+  const pinId = (await client.readContract({
+    address: env.registry,
+    abi: pinRegistryAbi,
+    functionName: "computePinId",
+    args: [account.address, hashed.skillHash],
+  })) as `0x${string}`;
+
+  await writeBadge({
+    skillDir,
+    skillName: manifest.name,
+    pinId,
+    bond: quote,
+    highRiskCount: highRisk.length,
+  });
+
+  return 0;
+}
+
+/**
+ * Writes the badge and prints the snippet, at the moment the publisher has just succeeded.
+ *
+ * This is the only point in the whole flow where someone has done the costly, reputationally positive
+ * thing and is waiting on a terminal to tell them it worked. It used to print a transaction hash and
+ * stop. A hash is a receipt; the badge is something they might actually want, and the moment to offer
+ * it is now rather than in a documentation page they will not open.
+ *
+ * ## Why a file and not a URL
+ *
+ * The badge is written into the skill directory and referenced by a relative path. A hosted badge would
+ * report every README view to whoever runs the host — which repositories carry a pin, how often they
+ * are read, from where — and for a supply-chain security product that is a map of its own users'
+ * posture handed to a third party. So there is no badge host and there will not be one.
+ *
+ * The cost of that choice, stated because it is real: **distribution with no measurement.** Nobody can
+ * count badge impressions or attribute a visit to one. The only signals available are GitHub code
+ * search for the filename and referrer-less traffic to the dashboard. That is the price of the badge
+ * not being a tracker, and it is the right trade for this product.
+ *
+ * ## Why it is not `git add`ed
+ *
+ * Writing a file into someone's working tree is already at the edge of what a publish command should
+ * do. Staging or committing it would be further, and a CLI that touches git during a publish is a CLI
+ * people stop trusting with credentials.
+ */
+async function writeBadge(options: {
+  readonly skillDir: string;
+  readonly skillName: string;
+  readonly pinId: `0x${string}`;
+  readonly bond: bigint;
+  readonly highRiskCount: number;
+}): Promise<void> {
+  const snippet = badgeSnippet({
+    skillName: options.skillName,
+    pinId: options.pinId,
+    dashboard: DASHBOARD_URL,
+  });
+
+  /*
+   * Bond above zero and no high-risk capability is the only green state.
+   *
+   * Amber for a bonded pin that can still call something like `approve` is the badge's whole point: the
+   * publisher is accountable and the power is real, and collapsing those into one colour would make the
+   * green meaningless. `renderBadge` decides this; the CLI only supplies the facts.
+   */
+  const svg = renderBadge({
+    state: options.bond > 0n ? "bonded" : "pinned",
+    bondWholeUnits: Number(options.bond / 1_000_000n),
+    highRiskCount: options.highRiskCount,
+  });
+
+  const target = join(options.skillDir, snippet.fileName);
+  const pinId = options.pinId;
+
+  try {
+    await writeFile(target, svg, "utf8");
+  } catch (error) {
+    // A publish that succeeded on chain must not report failure because a file could not be written.
+    // The pin is real either way; the badge is a convenience.
+    const why = error instanceof Error ? error.message : String(error);
+    process.stdout.write(`\npin published. could not write the badge (${why}), which changes nothing on chain.\n`);
+    return;
+  }
+
+  process.stdout.write(
+    `\npinId        ${pinId}\n` +
+      `badge        ${target}\n\n` +
+      `Paste into your README:\n\n` +
+      `  ${snippet.markdown}\n\n` +
+      `The image is a relative path on purpose -- the badge cannot phone home, so nobody learns which\n` +
+      `repositories carry a pin. The link is absolute so a reader can check the claim against the live\n` +
+      `registry rather than trusting the colour. A badge nobody can verify is decoration.\n` +
+      `Commit the SVG alongside your README; it is a snapshot of this pin, and the link is the truth.\n`,
+  );
 }
 

@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { renderBadge, badgeMarkdown } from "@lockstep/badge";
+import { renderBadge, badgeSnippet } from "@lockstep/badge";
 import type { BadgeInput, BadgeState } from "@lockstep/badge";
 
 import { useSnapshot } from "@/components/data";
@@ -39,12 +39,22 @@ export default function BadgePage() {
 
   const svg = useMemo(() => renderBadge(input), [input]);
 
-  const markdown = badgeMarkdown(
-    "https://lockstep.dev/badge/kuru-quote.svg",
-    "https://lockstep.dev/pins?pin=0x\u2026",
-  );
-
+  /*
+   * Built by the same helper the CLI and the Action use, so this preview cannot drift from what a
+   * publisher actually gets.
+   *
+   * It used to show a hosted URL -- `https://lockstep.dev/badge/kuru-quote.svg` -- which contradicted
+   * the sentence directly above it about the badge not phoning home. A hosted image reports every
+   * README view to whoever runs the host. The image path is relative because it is a file the publisher
+   * commits; the link is absolute because a README is read on github.com and the registry is not there.
+   */
   const livePin = snapshot.pins.find((p) => p.state === "bonded");
+
+  const snippet = badgeSnippet({
+    skillName: livePin?.skillName ?? "kuru-quote",
+    pinId: livePin?.pinId ?? `0x${"0".repeat(64)}`,
+    dashboard: "https://lockstep.dev",
+  });
 
   return (
     <div className="space-y-14">
@@ -142,11 +152,16 @@ export default function BadgePage() {
                 Paste into a README
               </p>
               <pre className="mt-4 overflow-x-auto rounded-xl bg-sunken p-4 text-xs leading-relaxed text-muted">
-                <code className="hash">{markdown}</code>
+                <code className="hash">{snippet.markdown}</code>
               </pre>
               <p className="mt-3 text-xs leading-relaxed text-faint">
                 The badge links to the pin it describes, so a reader can check the claim rather than
                 take the colour on trust. A badge nobody can verify is decoration.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-faint">
+                <code className="hash text-text">{snippet.fileName}</code> is a file you commit, which
+                is why the image path is relative. <code className="hash">lockstep publish</code> writes
+                it for you and prints this line; the GitHub Action puts both in the run summary.
               </p>
             </Card>
 

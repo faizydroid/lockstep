@@ -24,9 +24,18 @@ import { createPublicClient, createWalletClient, formatUnits, http, isAddress, t
 import { privateKeyToAccount } from "viem/accounts";
 import { monad, monadTestnet } from "viem/chains";
 
+import { badgeSnippet, renderBadge } from "@lockstep/badge";
 import { hashSkillDirectory } from "@lockstep/runtime";
 
 import { loadManifest, isHighRiskSelector, HIGH_RISK_LABELS, registryAbi } from "./shared.ts";
+
+/**
+ * Where a badge links to. Matches the CLI's constant deliberately.
+ *
+ * Not configurable, for the same reason it is not in the CLI: a badge's only claim is that it points at
+ * this registry, and letting a workflow input change that removes the claim.
+ */
+const DASHBOARD_URL = "https://lockstep.dev";
 
 function input(name: string, fallback = ""): string {
   return process.env[`INPUT_${name.toUpperCase().replace(/-/g, "_")}`] ?? fallback;
@@ -229,8 +238,62 @@ export async function main(): Promise<void> {
   if (receipt.status !== "success") fail(`publish reverted: ${hash}`);
 
   await setOutput("pin-id", pinId);
-  await summary(`\n✅ Published \`${pinId}\` in \`${hash}\``);
+
+  /*
+   * The run summary is where a publisher actually looks after CI, so the badge goes there.
+   *
+   * This used to be one line with a tick in it. A tick is a receipt; the badge is something a publisher
+   * might want, and offering it at the moment their release just succeeded costs nothing and is the only
+   * moment they are paying attention to this job.
+   *
+   * The image path is relative and stays that way. A hosted badge would report every README view to
+   * whoever runs the host — which repositories carry a pin, how often they are read — and for a
+   * supply-chain security product that is a map of its own users' posture handed to a third party. The
+   * cost is that this buys distribution with no measurement at all, which is the right trade and is
+   * stated in the README rather than quietly hoped past.
+   */
+  const snippet = badgeSnippet({ skillName: manifest.name, pinId, dashboard: DASHBOARD_URL });
+  const badgeSvg = renderBadge({
+    state: bond > 0n ? "bonded" : "pinned",
+    bondWholeUnits: Number(bond / 1_000_000n),
+    highRiskCount: highRisk.length,
+  });
+
+  await summary(
+    [
+      ``,
+      `### Published`,
+      ``,
+      `| | |`,
+      `|---|---|`,
+      `| pin | \`${pinId}\` |`,
+      `| tx | \`${hash}\` |`,
+      `| bond locked | ${formatUnits(bond, 6)} |`,
+      ``,
+      `#### Badge`,
+      ``,
+      `Write this file to \`${snippet.fileName}\` and paste the line below into your README.`,
+      ``,
+      "```markdown",
+      snippet.markdown,
+      "```",
+      ``,
+      `<details><summary>The SVG</summary>`,
+      ``,
+      "```svg",
+      badgeSvg,
+      "```",
+      ``,
+      `</details>`,
+      ``,
+      `The image is a relative path deliberately: the badge cannot phone home, so nobody learns which`,
+      `repositories carry a pin. The link is absolute so a reader can check the claim against the live`,
+      `registry instead of trusting the colour.`,
+    ].join("\n"),
+  );
+
   process.stdout.write(`published ${pinId} in ${hash}\n`);
+  process.stdout.write(`badge markdown: ${snippet.markdown}\n`);
 }
 
 /**
