@@ -1,0 +1,31 @@
+# Toolchain fetched by scripts, not source. ~100MB.
+.tools/
+
+# Node
+node_modules/
+*.tsbuildinfo
+
+# Next.js build output and static export. Generated, ~megabytes, and rebuilt by CI.
+app/.next/
+app/out/
+next-env.d.ts
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Test and build logs
+*.log
+
+# Secrets. Never commit a key or an RPC URL with an API key in it.
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Isolated probe install for runtime inspection. Not part of the build.
+.scratch/

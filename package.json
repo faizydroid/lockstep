@@ -1,0 +1,29 @@
+{
+    "name":  "lockstep",
+    "version":  "0.0.1",
+    "private":  true,
+    "description":  "A lockfile for agent money. Skill provenance enforced on-chain at settlement.",
+    "license":  "MIT",
+    "type":  "module",
+    "workspaces":  [
+                       "runtime",
+                       "plugin",
+                       "cli",
+                       "watcher",
+                       "action",
+                       "sandbox",
+                       "badge",
+                       "app",
+                       "e2e"
+                   ],
+    "scripts":  {
+                    "test":  "npm run test --workspaces --if-present",
+                    "build":  "npm run build --workspaces --if-present",
+                    "test:unit":  "npm run test --workspace @lockstep/runtime --workspace @lockstep/openclaw-plugin --workspace @lockstep/cli --workspace @lockstep/watcher --workspace @lockstep/sandbox --workspace @lockstep/badge --workspace @lockstep/app",
+                    "test:e2e":  "npm run test --workspace @lockstep/e2e",
+                    "typecheck":  "npm run typecheck --workspaces --if-present"
+                },
+    "engines":  {
+                    "node":  "\u003e=22.18.0"
+                }
+}

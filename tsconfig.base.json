@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+
+    // Nothing in this repo compiles. Every package points main, exports and bin at its
+    // .ts sources, and Node runs them directly by stripping types. tsc is a checker here,
+    // never a build step, so emit stays off and the emit-only options that used to sit in
+    // this file are gone: they described output that was never produced.
+    "noEmit": true,
+
+    // Imports name the file that exists on disk, so "./canonical.ts", not the
+    // "./canonical.js" that a build would have emitted. Node resolves specifiers
+    // literally and will not guess at the extension.
+    "allowImportingTsExtensions": true
+
+    // "erasableSyntaxOnly" belongs here and is deliberately absent: it needs a newer
+    // TypeScript than the 5.7.3 this repo pins, and tsc rejects it as an unknown option.
+    // It would catch syntax that type stripping cannot handle -- enums, namespaces,
+    // constructor parameter properties -- which Node refuses at import time.
+    //
+    // e2e/test/entrypoints.test.ts covers that ground instead, by running each entry
+    // point with plain node and checking it starts. That is the stronger check of the
+    // two: it also catches an import that resolves under vitest but not under node,
+    // which is the failure that shipped a CLI nobody could execute.
+  }
+}
