@@ -115,6 +115,18 @@ contract LockstepGuard {
     /// @dev Exposed so indexers and wallet UIs can read an account's approvals
     ///      directly via `eth_getStorageAt` without an RPC call per key, and so a
     ///      test can assert the derivation matches the documented namespace.
+    ///
+    ///      **A storage read alone is not evidence that an account is protected.**
+    ///      Delegation under EIP-7702 replaces an account's *code*, not its storage, and
+    ///      an account carries exactly one delegation indicator. So delegating an account
+    ///      that was using this guard to some other implementation — `gator create` and
+    ///      any other 7702 upgrade flow do exactly this — leaves every approval sitting
+    ///      untouched in this slot while nothing enforces them. Reading storage then
+    ///      reports an account as guarded when it is not, and the handover is silent.
+    ///
+    ///      Any consumer of this slot must also check that the account's code equals
+    ///      `0xef0100 || address(this)` before treating an approval as live. Established
+    ///      by test, not by inspection: see `Eip7702ExclusivityTest`.
     function guardStorageSlot() external pure returns (bytes32) {
         return GUARD_STORAGE_SLOT;
     }
