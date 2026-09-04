@@ -15,7 +15,7 @@ import { createPublicClient, http } from "viem";
 import type { Address, Hex, PublicClient } from "viem";
 import { monad, monadTestnet } from "viem/chains";
 
-import { erc20Abi, lockstepGuardAbi, pinRegistryAbi } from "./abi";
+import { erc20Abi, lockstepGuardAbi, lockstepLensAbi, pinRegistryAbi } from "./abi";
 import { sampleSnapshot } from "./fixtures";
 import type {
   Approval,
@@ -24,10 +24,13 @@ import type {
   Execution,
   Pin,
   Publisher,
+  ReputationScore,
+  ReviewerCheck,
+  ReviewerSet,
   Snapshot,
   Totals,
 } from "./model";
-import { pinStateOf } from "./model";
+import { isLive, pinStateOf } from "./model";
 
 /**
  * Configuration, read from the environment at build time.
@@ -66,6 +69,25 @@ export interface AppConfig {
    * Empty means "discover from logs", which is correct on a local chain and on a fresh deployment.
    */
   readonly pinIds: readonly Hex[];
+  /**
+   * `LockstepLens`, if one is deployed on this chain.
+   *
+   * Optional because it genuinely is. The Lens reads two ERC-8004 registries that this project
+   * does not own and cannot deploy, so a chain without them has no Lens and the dashboard has to
+   * work anyway. Absent means the reviewer section does not render at all, which is the right
+   * behaviour: an empty panel would imply a reading that never happened.
+   */
+  readonly lens?: Address;
+  /**
+   * ERC-8004 agent id to score, if any.
+   *
+   * Separate from the Lens address because having a Lens and having something to read with it are
+   * different states. `getSummary` is keyed by agent id, and nothing on chain maps a Lockstep
+   * publisher to one -- ERC-8004 registration is a thing a publisher does, not something this
+   * registry can infer. So until a publisher registers, this stays unset and the interface says
+   * why instead of showing a zero.
+   */
+  readonly agentId?: bigint;
 }
 
 export function readConfig(): AppConfig {
@@ -74,6 +96,8 @@ export function readConfig(): AppConfig {
   const registry = process.env.NEXT_PUBLIC_PIN_REGISTRY;
   const account = process.env.NEXT_PUBLIC_ACCOUNT_ADDRESS;
   const rawDeployBlock = process.env.NEXT_PUBLIC_DEPLOY_BLOCK;
+  const lens = process.env.NEXT_PUBLIC_LOCKSTEP_LENS;
+  const agentId = parseAgentId(process.env.NEXT_PUBLIC_ERC8004_AGENT_ID);
 
   return {
     chainId,
@@ -87,7 +111,26 @@ export function readConfig(): AppConfig {
     pinIds: parsePinIds(process.env.NEXT_PUBLIC_PIN_IDS),
     ...(isAddressish(registry) ? { registry: registry as Address } : {}),
     ...(isAddressish(account) ? { account: account as Address } : {}),
+    ...(isAddressish(lens) ? { lens: lens as Address } : {}),
+    ...(agentId === undefined ? {} : { agentId }),
   };
+}
+
+/**
+ * ERC-8004 agent ids are token ids, so zero is not a valid one.
+ *
+ * Treating zero as unset matters more than it looks: an unset environment variable read with a
+ * `?? 0n` default would make the dashboard query agent 0 forever and report "no reputation" as
+ * though it had asked about the right thing.
+ */
+function parseAgentId(value: string | undefined): bigint | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  try {
+    const n = BigInt(value.trim());
+    return n > 0n ? n : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Comma or whitespace separated 32-byte hex ids. Anything malformed is dropped, not guessed at. */
@@ -295,6 +338,15 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
     slashed: pins.filter((p) => p.slashed).reduce((sum, p) => sum + p.requiredBond, 0n),
   };
 
+  /*
+   * The Lens read is deliberately allowed to fail on its own.
+   *
+   * It reads two registries this project does not own, on a chain where they may not exist, so a
+   * failure there says nothing about whether the registry read succeeded. Letting it throw would
+   * drop the whole page to sample data and blame the wrong contract.
+   */
+  const reviewers = await readReviewers(client, config, pins, publishers);
+
   return {
     source: { kind: "chain", chainId: config.chainId, registry, blockNumber },
     totals,
@@ -302,6 +354,7 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
     approvals,
     publishers,
     executions,
+    ...(reviewers === undefined ? {} : { reviewers }),
     // Refusals leave no log to read, by design: one emitted before a revert is rolled back.
     // Recovering them needs a trace-capable RPC replaying reverted transactions, which is the
     // watcher's job and not something to do from a browser.
@@ -370,6 +423,269 @@ async function readPricing(client: PublicClient, registry: Address): Promise<Bon
     bondAssetSymbol,
   };
 }
+
+/**
+ * `LockstepLens`'s view of who counts as a reviewer.
+ *
+ * ## Why this is a separate read that is allowed to fail
+ *
+ * The Lens reads two ERC-8004 registries that this project neither deployed nor controls. On a
+ * chain where they do not exist there is no Lens, and on a chain where they do, they are
+ * upgradeable behind a key that is not ours. So a failure here is a statement about a dependency
+ * rather than about Lockstep, and it must not take the page down: `undefined` means the reviewer
+ * section does not render, which is honest, whereas an empty list would assert that the question
+ * was asked and answered.
+ *
+ * Nothing in the enforcement path touches this. `LockstepGuard.execute` reads `PinRegistry` and
+ * nothing else, so the worst an upgrade downstream of here can do is make a displayed score
+ * wrong.
+ *
+ * ## Why the candidate list is what it is
+ *
+ * The Lens takes candidates and verifies each one; it does not discover them, deliberately, since
+ * discovering them on chain would mean enumerating a mapping. So the caller supplies a list and
+ * the Lens decides. This dashboard can honestly see two kinds of address: the account it is
+ * configured for (or the connected wallet), and the publishers in the registry. That is a small
+ * set, and it is the whole set this app has grounds to propose -- which is worth being plain
+ * about, because a longer list would look more convincing while being no more true.
+ *
+ * The interesting result is the one that is checkable: an account that approves a live pin from a
+ * publisher is eligible, and an address that does not is not, and neither answer comes from here.
+ */
+async function readReviewers(
+  client: PublicClient,
+  config: AppConfig,
+  pins: readonly Pin[],
+  publishers: readonly Publisher[],
+): Promise<ReviewerSet | undefined> {
+  const lens = config.lens;
+  if (lens === undefined) return undefined;
+
+  const livePinIds = pins.filter(isLive).map((p) => p.pinId);
+  // `isEligibleReviewer` reverts `EmptyPinSet` on an empty array rather than returning false,
+  // because "eligible against nothing" is a malformed question, not a negative answer.
+  if (livePinIds.length === 0) return undefined;
+
+  /*
+   * Call sites are written out rather than funnelled through a `read(name, args)` helper.
+   *
+   * The helper `readPricing` uses works because every function it calls is nullary. Here the
+   * argument lists differ per function, and a helper typed `readonly unknown[]` throws away
+   * exactly the check that matters: viem infers `args` from the ABI and the literal function name,
+   * so `weightedScore` called with four arguments instead of five is a compile error at the call
+   * site and nothing at all through a helper. viem also narrows `functionName` to the view and pure
+   * functions of the ABI, which is why no `LensView` union is needed to keep a write out of a read.
+   */
+  const at = { address: lens, abi: lockstepLensAbi } as const;
+
+  let identityRegistry: Address;
+  let reputationRegistry: Address;
+  let maxCandidates: bigint;
+  try {
+    // Read what it actually reads. Asserting this from configuration would be a claim about a
+    // deployment rather than a reading of one, which is the distinction this whole app is about.
+    [identityRegistry, reputationRegistry, maxCandidates] = await Promise.all([
+      client.readContract({ ...at, functionName: "identity" }) as Promise<Address>,
+      client.readContract({ ...at, functionName: "reputation" }) as Promise<Address>,
+      client.readContract({ ...at, functionName: "MAX_CANDIDATES" }) as Promise<bigint>,
+    ]);
+  } catch {
+    // No code at the configured address, or a contract that is not a Lens. Either way there is
+    // nothing to show and nothing about the rest of the page is affected.
+    return undefined;
+  }
+
+  const candidates = proposeCandidates(config, publishers, Number(maxCandidates));
+
+  let eligible: readonly Address[] = [];
+  try {
+    eligible = (await client.readContract({
+      ...at,
+      functionName: "eligibleReviewers",
+      args: [candidates, livePinIds],
+    })) as readonly Address[];
+  } catch {
+    // A revert here is `TooManyCandidates`, which `proposeCandidates` already prevents, or a
+    // transport failure. Treat it as "nobody verified" rather than inventing eligibility.
+    eligible = [];
+  }
+
+  const eligibleSet = new Set(eligible.map((a) => a.toLowerCase()));
+  const checks: readonly ReviewerCheck[] = candidates.map((candidate) => ({
+    candidate,
+    eligible: eligibleSet.has(candidate.toLowerCase()),
+    basis:
+      config.account !== undefined && candidate.toLowerCase() === config.account.toLowerCase()
+        ? "account"
+        : "publisher",
+  }));
+
+  const scores = await readScores(client, lens, config, eligible, livePinIds);
+  const caveat = describeCandidateWeakness(checks, config, publishers);
+
+  return {
+    lens,
+    identityRegistry,
+    reputationRegistry,
+    pinsChecked: livePinIds,
+    checks,
+    ...scores,
+    ...(caveat === undefined ? {} : { candidateCaveat: caveat }),
+  };
+}
+
+/**
+ * Says so when the reading cannot demonstrate the filter.
+ *
+ * A filter that excludes nothing is indistinguishable from no filter, and on a small deployment
+ * that is the normal state rather than a bug. Two cases matter and both are checkable here:
+ *
+ *   - Every candidate came back eligible. The table then shows the rule agreeing, not the rule
+ *     discriminating, and a reader cannot tell those apart from a column of green pills.
+ *   - The account being read is also a publisher. Then "this reviewer has the publisher's bytes
+ *     approved against its own funds" is one address vouching for itself, which is exactly true
+ *     and exactly not evidence of independent review.
+ *
+ * Neither is hidden, because a demonstration that quietly proves less than it appears to is the
+ * same failure this product exists to prevent, one layer up.
+ */
+export function describeCandidateWeakness(
+  checks: readonly ReviewerCheck[],
+  config: Pick<AppConfig, "account">,
+  publishers: readonly Pick<Publisher, "address">[],
+): string | undefined {
+  if (checks.length === 0) return undefined;
+
+  const allEligible = checks.every((c) => c.eligible);
+  const selfReview =
+    config.account !== undefined &&
+    publishers.some((p) => p.address.toLowerCase() === config.account?.toLowerCase());
+
+  if (selfReview && allEligible) {
+    return "Every candidate here is also a publisher in this registry, so what the rule confirms is an address vouching for its own release. That is true and it is not independent review. The filter is doing arithmetic it cannot fail on this input; the case worth seeing is an address with no approved pin being excluded, which needs a second party.";
+  }
+  if (allEligible) {
+    return "Every candidate offered came back eligible, so this reading shows the rule agreeing rather than the rule excluding anyone. A filter that removes nothing looks identical to no filter, which is worth saying out loud.";
+  }
+  if (selfReview) {
+    return "One of the candidates is also a publisher here, so its verdict is partly a statement about itself.";
+  }
+  return undefined;
+}
+
+/**
+ * The addresses this dashboard can honestly put forward as candidates.
+ *
+ * Deduplicated case-insensitively, because the same address arriving from configuration in one
+ * casing and from a log in another would be counted twice by the Lens's own de-duplication only
+ * if the bytes matched -- and EIP-55 checksummed hex from one source and lowercase from another
+ * are the same address with different bytes.
+ *
+ * Truncated to the Lens's own bound rather than to a number chosen here, so the limit stays a
+ * property of the contract. Exceeding it reverts `TooManyCandidates`, which would show as "nobody
+ * is eligible" and be read as a finding.
+ */
+function proposeCandidates(
+  config: AppConfig,
+  publishers: readonly Publisher[],
+  maxCandidates: number,
+): readonly Address[] {
+  const seen = new Set<string>();
+  const out: Address[] = [];
+
+  const push = (address: Address | undefined) => {
+    if (address === undefined) return;
+    const key = address.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(address);
+  };
+
+  // The account first, because it is the one a reader is looking for.
+  push(config.account);
+  for (const publisher of publishers) push(publisher.address);
+
+  const bound = Number.isFinite(maxCandidates) && maxCandidates > 0 ? maxCandidates : 256;
+  return out.slice(0, bound);
+}
+
+/**
+ * The filtered and unfiltered summaries, or the reason there are none.
+ *
+ * Both are keyed by an ERC-8004 agent id, and **nothing on chain maps a Lockstep publisher to
+ * one**: registering an agent is something a publisher does in a registry this project does not
+ * own. The Lens offers `publisherOf(agentId)` in that direction only, which cannot be inverted
+ * without enumerating the registry.
+ *
+ * So when no agent id is configured, this returns a sentence rather than a number. That is the
+ * accurate report of the situation, and it is a statement about adoption rather than about the
+ * code: the filter works, and there is nothing registered to point it at yet.
+ */
+async function readScores(
+  client: PublicClient,
+  lens: Address,
+  config: AppConfig,
+  eligible: readonly Address[],
+  livePinIds: readonly Hex[],
+): Promise<Pick<ReviewerSet, "filtered" | "unfiltered" | "scoresUnavailable">> {
+  const agentId = config.agentId;
+  if (agentId === undefined) {
+    return {
+      scoresUnavailable:
+        "No ERC-8004 agent id is configured. getSummary is keyed by agent, and nothing on chain maps a publisher to one \u2014 registering an agent is the publisher's own act in a registry Lockstep does not own. The eligibility filter above needs no agent and is reading live.",
+    };
+  }
+
+  const at = { address: lens, abi: lockstepLensAbi } as const;
+
+  // Settled rather than `all`: the unfiltered figure existing while the filtered one reverts
+  // `NoEligibleClients` is not an error, it is the finding. One must not hide the other.
+  const [unfilteredResult, filteredResult] = await Promise.allSettled([
+    client.readContract({ ...at, functionName: "unfilteredScore", args: [agentId, "", ""] }),
+    eligible.length === 0
+      ? Promise.reject(new Error("no eligible reviewers"))
+      : client.readContract({
+          ...at,
+          functionName: "weightedScore",
+          args: [agentId, eligible, livePinIds, "", ""],
+        }),
+  ]);
+
+  let unfiltered: ReputationScore | undefined;
+  if (unfilteredResult.status === "fulfilled") {
+    const [count, value, decimals] = unfilteredResult.value as readonly [bigint, bigint, number];
+    unfiltered = { count, value, decimals: Number(decimals), reviewers: [] };
+  }
+
+  let filtered: ReputationScore | undefined;
+  if (filteredResult.status === "fulfilled") {
+    const [count, value, decimals, reviewers] = filteredResult.value as readonly [
+      bigint,
+      bigint,
+      number,
+      readonly Address[],
+    ];
+    filtered = { count, value, decimals: Number(decimals), reviewers };
+  }
+
+  if (unfiltered === undefined && filtered === undefined) {
+    return {
+      scoresUnavailable: `Agent ${agentId.toString()} has no feedback either registry will summarise. NoEligibleClients is the expected answer for an agent nobody has reviewed, and is not a fault.`,
+    };
+  }
+
+  return {
+    ...(unfiltered === undefined ? {} : { unfiltered }),
+    ...(filtered === undefined
+      ? {
+          scoresUnavailable:
+            "The filtered summary reverted NoEligibleClients: nobody with a verifiable stake in these pins has left feedback. That is the honest reading, and it is exactly what the unfiltered figure beside it cannot tell you.",
+        }
+      : { filtered }),
+  };
+}
+
+
 
 /**
  * Every pin, rebuilt from logs plus one struct read each.

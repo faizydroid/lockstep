@@ -10,6 +10,7 @@
 
 import { useSnapshot } from "@/components/data";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
+import { ReviewerPanel } from "@/components/reviewers";
 import { Card, Empty, HashChip, Pill, Section, Stat, Table, Td, Th, cx } from "@/components/ui";
 import { WriteAction } from "@/components/write-action";
 import { formatBondWith } from "@/lib/bond";
@@ -19,7 +20,7 @@ import { formatBps, formatDuration } from "@/lib/format";
 
 export default function PublishersPage() {
   const { snapshot } = useSnapshot();
-  const { publishers, pricing, pins } = snapshot;
+  const { publishers, pricing, pins, reviewers } = snapshot;
 
   const slashed = publishers.filter((p) => p.hasEquivocated);
 
@@ -223,6 +224,14 @@ export default function PublishersPage() {
           </Reveal>
         </>
       )}
+
+      {/*
+        Rendered only when a LockstepLens is configured and answering.
+        Its absence is meaningful rather than a gap: the Lens reads two ERC-8004 registries this
+        project neither deployed nor controls, so a chain without them has no Lens. An empty panel
+        would imply a reading that never happened.
+      */}
+      {reviewers === undefined ? null : <ReviewerPanel reviewers={reviewers} />}
 
       <Reveal>
         <Card className="bg-raise">

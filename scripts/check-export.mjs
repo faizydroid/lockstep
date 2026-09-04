@@ -241,9 +241,8 @@ function checkTheming(index, problems) {
  * wired, because a bundle with no write fragments at all would satisfy a one-sided check while
  * silently shipping a dashboard whose buttons do nothing.
  */
-function checkWriteBoundary(problems) {
-  process.stdout.write("\nwrite boundary\n");
-
+/** Every emitted JS chunk, concatenated. The bundle is where client-only wiring is visible. */
+function readBundle() {
   const chunks = [];
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
@@ -253,7 +252,13 @@ function checkWriteBoundary(problems) {
     }
   };
   walk(OUT);
-  const bundle = chunks.join("\n");
+  return chunks.join("\n");
+}
+
+function checkWriteBoundary(problems) {
+  process.stdout.write("\nwrite boundary\n");
+
+  const bundle = readBundle();
 
   if (bundle === "") {
     problems.push("no JavaScript chunks were found in the export");
@@ -293,6 +298,72 @@ function checkWriteBoundary(problems) {
   const stated = textOf(index).includes("Approving a skill version happens in the CLI");
   process.stdout.write(`  boundary stated in UI  ${stated ? "ok" : "MISSING"}\n`);
   if (!stated) problems.push("the export does not tell the reader that approving happens in the CLI");
+}
+
+/**
+ * The ERC-8004 reviewer panel, checked in the bundle rather than in the HTML.
+ *
+ * It cannot be checked in the exported markup, and the reason is worth writing down: the panel
+ * renders from a chain read that happens in the browser, and it renders nothing at all unless a
+ * `LockstepLens` is configured and answering. So the static HTML is correctly empty here, and
+ * grepping `publishers.html` for it would fail while everything worked.
+ *
+ * What the bundle can prove is that the wiring shipped: the ABI fragments the Lens needs, the
+ * configuration key that switches it on, and -- most importantly -- the caveat copy. That last one
+ * is the check with teeth. A Sybil filter that excludes nobody renders as a column of green pills,
+ * which reads as the filter working, and on the live deployment the only candidate is also the only
+ * publisher. If the honest disclaimer is dropped in a refactor the interface starts overclaiming,
+ * which is the exact failure this product exists to prevent, one layer up.
+ */
+function checkLensWiring(problems) {
+  process.stdout.write("\nERC-8004 reviewer panel\n");
+
+  const bundle = readBundle();
+  if (bundle === "") {
+    problems.push("no JavaScript chunks were found in the export");
+    return;
+  }
+
+  const fragment = (fn) => new RegExp(`name\\s*:\\s*["']${fn}["']`);
+
+  // The reads the panel makes. Without a fragment viem cannot encode the call, and the panel
+  // renders nothing rather than failing loudly.
+  for (const fn of ["eligibleReviewers", "isEligibleReviewer", "weightedScore", "unfilteredScore"]) {
+    const present = fragment(fn).test(bundle);
+    process.stdout.write(`  ${fn.padEnd(22)} ${present ? "present, ok" : "MISSING"}\n`);
+    if (!present) {
+      problems.push(`the bundle has no ABI fragment for ${fn}, so the reviewer panel cannot read it`);
+    }
+  }
+
+  /*
+   * `NEXT_PUBLIC_*` values are inlined at build time, so an unset one leaves no trace at all. The
+   * switch is therefore checked by looking for the deployed address itself, case-insensitively:
+   * minifiers preserve string contents, but the source and the chain disagree on EIP-55 casing.
+   */
+  const lensWired = /0x3338c4f5c8eefeacf8e41d6ac47b63c466175664/i.test(bundle);
+  process.stdout.write(`  lens address inlined   ${lensWired ? "ok" : "NOT CONFIGURED"}\n`);
+  if (!lensWired) {
+    problems.push(
+      "NEXT_PUBLIC_LOCKSTEP_LENS is not in the bundle, so the deployed dashboard will not read the Lens",
+    );
+  }
+
+  // The honesty, and the reason this function exists.
+  const caveats = [
+    "vouching for its own release",
+    "removes nothing looks identical to no filter",
+    "registering an agent is the publisher's own act",
+  ];
+  for (const phrase of caveats) {
+    const present = bundle.includes(phrase);
+    process.stdout.write(`  caveat ${phrase.slice(0, 34).padEnd(35)} ${present ? "ok" : "MISSING"}\n`);
+    if (!present) {
+      problems.push(
+        `the bundle no longer carries the caveat "${phrase}", so the reviewer panel can overclaim`,
+      );
+    }
+  }
 }
 
 function main() {
@@ -343,6 +414,8 @@ function main() {
   }
 
   checkWriteBoundary(problems);
+
+  checkLensWiring(problems);
 
   checkTheming(index, problems);
 

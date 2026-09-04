@@ -157,6 +157,12 @@ Solidity write function fails the suite until somebody rules on it, and a typo i
 fails too rather than looking like coverage. Verified by deleting a rule and confirming
 the suite goes red.
 
+`LockstepLens` needs no row in that table, and the reason is structural rather than an
+oversight: every function it has is `view`, so there is nothing to sign. viem's
+`readContract` narrows `functionName` to the view and pure entries of an ABI, so a write
+added to the Lens later could not reach the read path even by mistake — it would fail to
+compile at the call site.
+
 ### Why the code hash and the capability set are separate commitments
 
 A related suggestion is to hash the code and its allowed calldata into a single
@@ -318,17 +324,17 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 289 tests across seven packages
+npm run test:unit          # 312 tests across seven packages
 npm run typecheck
 
 cd contracts
 forge test -vv             # 127 tests, gas and bond-velocity figures in the output
 
 cd ..
-npm run test:e2e           # 74 tests against a live Anvil chain
+npm run test:e2e           # 76 tests against a live Anvil chain
 ```
 
-**490 tests total**, counted by running all three: 289 unit, 127 contract, 74 end-to-end.
+**515 tests total**, counted by running all three: 312 unit, 127 contract, 76 end-to-end.
 
 | package | tests |
 |---|---|
@@ -338,9 +344,9 @@ npm run test:e2e           # 74 tests against a live Anvil chain
 | `sandbox` | 17 |
 | `watcher` | 15 |
 | `badge` | 15 |
-| `app` | 108 |
+| `app` | 131 |
 | `contracts` (Foundry) | 127 |
-| `e2e` | 74 |
+| `e2e` | 76 |
 
 The e2e suites skip with a message rather than failing if Anvil is not present. They cover
 the full flow with real EIP-7702 delegation, the `ChainAdapter` that submits transactions,
@@ -541,7 +547,7 @@ exists at all — and it is also why the enforcement has to be free.
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured.** Guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling |
-| Dashboard (Next.js static export) | Done, 108 tests, reading the live deployment. The write boundary is enforced structurally, not by convention — see below |
+| Dashboard (Next.js static export) | Done, 131 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
 | **ERC-8004 registries on chain 10143** | **Identified on chain**, not copied from docs that render client-side. `tokenURI` returns the ERC-8004 spec URI. Both are UUPS proxies behind one EOA — a declared dependency, and enforcement never reads them. See below |
 | ERC-8004 registries on chain 143 (mainnet) | Not checked. The addresses above are testnet |
 
@@ -613,6 +619,29 @@ The Sybil filter then answers against live state, both directions:
 
 The second row is the one that would have broken a naive implementation: a single
 undelegated candidate in a batch must not take down the whole query.
+
+**The dashboard reads it, and says what the reading does not prove.** `/publishers` grows a
+reviewer panel when `NEXT_PUBLIC_LOCKSTEP_LENS` is set, and the interesting part is a caveat rather
+than a number. On this deployment the only publisher and the configured account are the *same*
+address, `0x209C…aFF2`, so every candidate the dashboard can honestly offer comes back verified — a
+column of green ticks that reads as the filter working when in fact it has been handed nothing to
+reject. The panel says exactly that, in those terms, because a demonstration that quietly proves
+less than it appears to is the same failure this product exists to prevent, one layer up.
+
+Three consequences worth stating, since they shape what the panel is:
+
+- **The registry addresses are read off the Lens, not taken from config.** `identity` and
+  `reputation` are `immutable`, so what it reads is a fact about the deployment; asserting it from
+  an environment variable would be a claim about one.
+- **No score pair is shown, and the reason is adoption, not code.** `getSummary` is keyed by an
+  ERC-8004 agent id, and nothing on chain maps a Lockstep publisher to one — registering an agent is
+  the publisher's own act in a registry this project does not own, and the Lens only resolves that
+  direction. `NEXT_PUBLIC_ERC8004_AGENT_ID` is deliberately unset. Agent 1 on this chain is real and
+  has nine feedback entries, but it is not a Lockstep publisher, so scoring it would put a number on
+  screen that means nothing about any skill in this registry.
+- **The caveat is checked in CI.** `scripts/check-export.mjs` greps the bundle for the disclaimer
+  copy, so a refactor that drops it fails the build. That check exists because the honest version and
+  the overclaiming version of this panel are visually identical.
 
 **EIP-7702 works.** The account's code is `0xef0100` followed by the guard's address:
 

@@ -231,6 +231,73 @@ export const guardErrorsAbi = [
   { type: "error", name: "NotSelf", inputs: [] },
 ] as const;
 
+/**
+ * `LockstepLens`, the ERC-8004 reader. Views only, because that is all it has.
+ *
+ * Every fragment here is `view`, which is why this ABI needs no entry in lib/policy.ts: the
+ * write boundary governs what the browser may *sign*, and there is nothing here to sign. If a
+ * write is ever added to the contract, `WRITE_RULES` and `CONTRACTS` in the policy tests have
+ * to grow with it, and the `LensView` union in lib/chain.ts turns that omission into a compile
+ * error rather than a silent gap.
+ *
+ * `MAX_CANDIDATES` is a Solidity `constant` and compiles to `view`, not `pure` -- worth stating
+ * because the artifact comparison in e2e/test/abi.test.ts checks `stateMutability` exactly.
+ */
+export const lockstepLensAbi = [
+  // --- what it reads, read from the contract rather than trusted from config ---
+  { type: "function", name: "pins", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "address" }] },
+  { type: "function", name: "identity", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "address" }] },
+  { type: "function", name: "reputation", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "address" }] },
+  { type: "function", name: "MAX_CANDIDATES", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+
+  // --- the Sybil filter ---
+  { type: "function", name: "isEligibleReviewer", stateMutability: "view", inputs: [{ name: "account", type: "address" }, { name: "pinIds", type: "bytes32[]" }], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "eligibleReviewers", stateMutability: "view", inputs: [{ name: "candidates", type: "address[]" }, { name: "pinIds", type: "bytes32[]" }], outputs: [{ name: "eligible", type: "address[]" }] },
+
+  /*
+   * The two scores, which only mean something side by side.
+   *
+   * `unfilteredScore` is the number a Sybil attacker moves at will and the contract says never to
+   * use it as a trust signal. It is here precisely so the interface can show it next to the
+   * filtered one, since the gap between them is the argument for the filter.
+   *
+   * Both return a signed `int128` with a separate decimals scale, so neither can be formatted by
+   * the unsigned helpers in lib/bond.ts.
+   */
+  { type: "function", name: "unfilteredScore", stateMutability: "view", inputs: [{ name: "agentId", type: "uint256" }, { name: "tag1", type: "string" }, { name: "tag2", type: "string" }], outputs: [{ name: "count", type: "uint64" }, { name: "summaryValue", type: "int128" }, { name: "summaryValueDecimals", type: "uint8" }] },
+  {
+    type: "function",
+    name: "weightedScore",
+    stateMutability: "view",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "candidates", type: "address[]" },
+      { name: "pinIds", type: "bytes32[]" },
+      { name: "tag1", type: "string" },
+      { name: "tag2", type: "string" },
+    ],
+    outputs: [
+      { name: "count", type: "uint64" },
+      { name: "summaryValue", type: "int128" },
+      { name: "summaryValueDecimals", type: "uint8" },
+      { name: "reviewers", type: "address[]" },
+    ],
+  },
+  { type: "function", name: "publisherOf", stateMutability: "view", inputs: [{ name: "agentId", type: "uint256" }], outputs: [{ name: "", type: "address" }] },
+
+  /*
+   * Reverts the UI has to tell apart from a transport failure.
+   *
+   * `NoEligibleClients` is the interesting one. It is not an error in the usual sense: it means the
+   * filter emptied the client set, which is the correct answer when nobody with a stake has left
+   * feedback. Rendering it as a failure would hide the finding, and rendering it as a zero would
+   * invent one.
+   */
+  { type: "error", name: "TooManyCandidates", inputs: [{ name: "count", type: "uint256" }, { name: "max", type: "uint256" }] },
+  { type: "error", name: "NoEligibleClients", inputs: [] },
+  { type: "error", name: "EmptyPinSet", inputs: [] },
+] as const;
+
 /** Minimal ERC-20 surface, for reading the bond asset's decimals and symbol. */
 export const erc20Abi = [
   { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint8" }] },

@@ -30,6 +30,7 @@ import {
   pinRegistryAbi as appRegistryAbi,
   lockstepGuardAbi as appGuardAbi,
   guardErrorsAbi as appGuardErrorsAbi,
+  lockstepLensAbi as appLensAbi,
 } from "@lockstep/app/abi";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
@@ -101,6 +102,16 @@ const subjects: readonly Subject[] = [
   { label: "@lockstep/app pinRegistryAbi", contract: "PinRegistry", abi: appRegistryAbi as readonly Fragment[] },
   { label: "@lockstep/app lockstepGuardAbi", contract: "LockstepGuard", abi: appGuardAbi as readonly Fragment[] },
   { label: "@lockstep/app guardErrorsAbi", contract: "LockstepGuard", abi: appGuardErrorsAbi as readonly Fragment[] },
+  /*
+   * The Lens matters here more than its size suggests.
+   *
+   * Its two score functions return four and three values respectively, in an order nothing else
+   * enforces, and `summaryValue` is a signed `int128` sitting between a `uint64` and a `uint8`.
+   * Decoding is positional, so transposing the count and the value would produce plausible
+   * numbers rather than an error -- the same class of failure as the nine-field `Pin` struct that
+   * this file was written for.
+   */
+  { label: "@lockstep/app lockstepLensAbi", contract: "LockstepLens", abi: appLensAbi as readonly Fragment[] },
 ];
 
 describe("hand-written ABIs match the compiled contracts", () => {

@@ -171,6 +171,76 @@ export interface Snapshot {
   readonly blocked: readonly BlockedAttempt[];
   readonly drifted: readonly DriftedSkill[];
   readonly pricing: BondPricing;
+  /**
+   * ERC-8004 reviewer eligibility, when a `LockstepLens` is configured.
+   *
+   * Optional rather than required, and the distinction carries meaning. The Lens is a separate
+   * deployment that reads two registries this project does not own, so "no Lens configured" and
+   * "a Lens that found nothing" are different facts and the interface must not flatten them into
+   * an empty list.
+   */
+  readonly reviewers?: ReviewerSet;
+}
+
+/**
+ * One candidate, and whether the Lens counts it as a reviewer.
+ *
+ * `basis` records why the address was a candidate at all, because that is the part a reader needs
+ * in order to judge the answer. An address is only a candidate here because the dashboard could
+ * see it; the Lens decides eligibility, and it decides it from chain state rather than from
+ * whatever list was handed in.
+ */
+export interface ReviewerCheck {
+  readonly candidate: Address;
+  readonly eligible: boolean;
+  readonly basis: "account" | "publisher";
+}
+
+/** An ERC-8004 summary as the registry computes it: a signed value with its own scale. */
+export interface ReputationScore {
+  readonly count: bigint;
+  readonly value: bigint;
+  readonly decimals: number;
+  /** Addresses the summary was computed over. Empty for the unfiltered figure. */
+  readonly reviewers: readonly Address[];
+}
+
+/**
+ * What the Lens reports, including what it could not report and why.
+ *
+ * The registry addresses are read back off the Lens rather than copied from configuration. Its
+ * `identity` and `reputation` are immutable, so what it actually reads is a fact about the
+ * deployment, and asserting it from an environment variable would be a claim rather than a
+ * reading -- in an interface whose whole subject is the difference between those two things.
+ */
+export interface ReviewerSet {
+  readonly lens: Address;
+  readonly identityRegistry: Address;
+  readonly reputationRegistry: Address;
+  /** Live pins the eligibility question was asked against. */
+  readonly pinsChecked: readonly Hex[];
+  readonly checks: readonly ReviewerCheck[];
+  /** Naive aggregation over every client. The number a Sybil attacker moves at will. */
+  readonly unfiltered?: ReputationScore;
+  /** The same call over verified reviewers only. */
+  readonly filtered?: ReputationScore;
+  /**
+   * Why the score pair is missing, when it is.
+   *
+   * Almost always the honest answer rather than a fault: `getSummary` needs an ERC-8004 agent id,
+   * and a publisher who has not registered an agent has no reputation to read. Saying that is
+   * more useful than showing a zero.
+   */
+  readonly scoresUnavailable?: string;
+  /**
+   * Set when the candidate set cannot show the rule doing anything.
+   *
+   * A filter that excludes nothing looks identical to no filter, and on a small deployment that is
+   * the usual case: if every address offered turns out to be eligible, the panel is showing the
+   * rule agree rather than the rule discriminate. A reader cannot tell those apart from the table
+   * alone, so the difference is stated rather than left to be inferred.
+   */
+  readonly candidateCaveat?: string;
 }
 
 export type DataSource =
