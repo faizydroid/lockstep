@@ -131,22 +131,28 @@ jobs:
         run: npx envio codegen
         working-directory: indexer
 
-      # What codegen actually emitted.
+      # What codegen actually emitted, and which binary produced it.
       #
-      # Kept rather than deleted after debugging. Codegen writes `generated/` and prints
-      # nothing about its shape, the directory cannot exist on the Windows machine this is
-      # developed on, and the handlers' `import from "generated"` resolves through a tsconfig
-      # path mapping that has to name a real file. When that mapping is wrong the failure is
-      # TS2307 plus twenty cascading implicit-any errors, which says nothing about the cause.
-      # This turns that into a two-second answer.
+      # Kept rather than deleted after debugging. Codegen writes its bindings somewhere and
+      # prints nothing about where; the directory cannot exist on the Windows machine this is
+      # developed on; and the handlers' `import from "generated"` resolves through a tsconfig
+      # path mapping that has to name a real file. When that is wrong the failure is TS2307
+      # plus twenty cascading implicit-any errors, which say nothing about the cause.
+      #
+      # The version and resolved path are printed too, because the first theory here was a
+      # wrong path mapping and the actual finding was that codegen exits 0 while producing no
+      # `generated/` at all — which is a question about the binary, not the mapping.
       - name: Show generated bindings
         run: |
-          echo "--- top level ---"
-          ls -la generated/ || echo "no generated directory"
-          echo "--- package.json, if any ---"
-          cat generated/package.json 2>/dev/null || echo "none"
-          echo "--- candidate entry points ---"
-          find generated -maxdepth 2 -name "index*" -o -maxdepth 2 -name "*.gen.ts" | head -40
+          echo "--- envio version and resolved binary ---"
+          npx envio --version || true
+          ls -la node_modules/.bin/ | grep -i envio || echo "no envio in .bin"
+          echo "--- indexer directory after codegen ---"
+          ls -la
+          echo "--- anything named generated, anywhere ---"
+          find . -maxdepth 3 -name "generated" -not -path "./node_modules/*" || echo "none"
+          echo "--- any .gen.ts or .res.js produced ---"
+          find . -maxdepth 4 \( -name "*.gen.ts" -o -name "*.res.js" \) -not -path "./node_modules/*" | head -30 || echo "none"
         working-directory: indexer
 
       # `npm run typecheck`, not `npx tsc`.
