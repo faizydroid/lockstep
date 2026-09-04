@@ -11,11 +11,30 @@
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useSnapshot } from "./data";
+import { useSettings } from "./settings";
 import { HashChip, Pill } from "./ui";
+import { rpcHost } from "@/lib/settings";
 
 export function SourceBanner() {
   const { status, snapshot } = useSnapshot();
   const { source } = snapshot;
+  const { settings } = useSettings();
+
+  /*
+   * One short label naming which setting is in effect, or nothing.
+   *
+   * Deliberately terse and deliberately present. The full explanation lives in Account; what this bar
+   * owes a reader is that the numbers beside it are not the default build's.
+   */
+  const host = rpcHost(settings);
+  const override =
+    host !== undefined
+      ? `custom RPC \u00b7 ${host}`
+      : settings.account !== undefined
+        ? "custom account"
+        : settings.deployBlock !== undefined
+          ? "custom start block"
+          : undefined;
 
   return (
     <div className="gutter relative z-10 w-full pt-3">
@@ -80,6 +99,24 @@ export function SourceBanner() {
               <span className="hidden sm:inline">
                 <HashChip value={source.registry} kind="address" emphasis="quiet" />
               </span>
+
+              {/*
+                Settings that change what is read have to say so here.
+
+                This is the condition attached to allowing an RPC or account override at all. Without
+                it, a reader could point the dashboard at their own endpoint and every page would look
+                exactly as canonical as the default build -- which is the one thing this app's own
+                argument does not permit. The host is shown and never the path, since a self-hosted
+                endpoint routinely carries a key in it.
+              */}
+              {override === undefined ? null : (
+                <>
+                  <span className="text-faint">&middot;</span>
+                  <Pill tone="attention" title="A setting is changing what this page reads. Clear it in Account, settings.">
+                    {override}
+                  </Pill>
+                </>
+              )}
             </>
           ) : (
             <>

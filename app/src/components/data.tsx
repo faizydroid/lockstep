@@ -20,6 +20,7 @@ import { sampleSnapshot } from "@/lib/fixtures";
 import type { Snapshot } from "@/lib/model";
 
 import { useIdentity } from "./identity";
+import { useSettings } from "./settings";
 
 type State =
   | { readonly status: "loading"; readonly snapshot: Snapshot }
@@ -54,15 +55,35 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
    */
   const { address, ready } = useIdentity();
 
+  /*
+   * Settings override the build's configuration, and a connected wallet overrides both.
+   *
+   * The precedence is deliberate and it is the order of how specific each source is about *whose*
+   * view this is. The build ships a default account so a visitor sees something real; a setting is a
+   * reader deliberately looking at some other address; a connected wallet is the strongest statement
+   * of all, because the person is holding the key.
+   *
+   * `settingsLoaded` is waited on for the same reason `ready` is: firing the first read against the
+   * build's RPC and then immediately redoing it against an overridden one doubles every request on a
+   * rate-limited endpoint, which is the specific way this page falls back to sample data.
+   */
+  const { settings, loaded: settingsLoaded } = useSettings();
+
   useEffect(() => {
     // Wait for the session to restore, or the first read fires with no address and is then redone.
-    if (!ready) return;
+    if (!ready || !settingsLoaded) return;
 
     let cancelled = false;
 
     void (async () => {
       const base = readConfig();
-      const config = address === undefined ? base : { ...base, account: address };
+      const config = {
+        ...base,
+        ...(settings.rpcUrl === undefined ? {} : { rpcUrl: settings.rpcUrl }),
+        ...(settings.deployBlock === undefined ? {} : { deployBlock: settings.deployBlock }),
+        ...(settings.account === undefined ? {} : { account: settings.account }),
+        ...(address === undefined ? {} : { account: address }),
+      };
       const snapshot = await loadSnapshot(config);
       if (!cancelled) setState({ status: "ready", snapshot });
     })();
@@ -70,7 +91,7 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [address, ready]);
+  }, [address, ready, settingsLoaded, settings.rpcUrl, settings.deployBlock, settings.account]);
 
   return <SnapshotContext.Provider value={state}>{children}</SnapshotContext.Provider>;
 }

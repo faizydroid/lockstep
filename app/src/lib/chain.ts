@@ -17,12 +17,14 @@ import { monad, monadTestnet } from "viem/chains";
 
 import { erc20Abi, lockstepGuardAbi, lockstepLensAbi, pinRegistryAbi } from "./abi";
 import { sampleSnapshot } from "./fixtures";
+import { describeGuard, isDelegatedTo, parseDelegation } from "./profile";
 import type {
   Approval,
   BondPricing,
   Capability,
   Execution,
   Pin,
+  AccountProfile,
   Publisher,
   ReputationScore,
   ReviewerCheck,
@@ -88,6 +90,15 @@ export interface AppConfig {
    * why instead of showing a zero.
    */
   readonly agentId?: bigint;
+  /**
+   * `LockstepGuard`'s address, used to check that an account is delegated to *this* guard.
+   *
+   * `LockstepGuard.guardStorageSlot()` carries the instruction in its own doc comment: a consumer of
+   * that slot must also check the account's code equals `0xef0100 || address(this)` before treating an
+   * approval as live. Without this value that check cannot be made, so an account delegated to some
+   * other implementation would read as guarded.
+   */
+  readonly guard?: Address;
 }
 
 export function readConfig(): AppConfig {
@@ -97,6 +108,7 @@ export function readConfig(): AppConfig {
   const account = process.env.NEXT_PUBLIC_ACCOUNT_ADDRESS;
   const rawDeployBlock = process.env.NEXT_PUBLIC_DEPLOY_BLOCK;
   const lens = process.env.NEXT_PUBLIC_LOCKSTEP_LENS;
+  const guard = process.env.NEXT_PUBLIC_LOCKSTEP_GUARD;
   const agentId = parseAgentId(process.env.NEXT_PUBLIC_ERC8004_AGENT_ID);
 
   return {
@@ -112,6 +124,7 @@ export function readConfig(): AppConfig {
     ...(isAddressish(registry) ? { registry: registry as Address } : {}),
     ...(isAddressish(account) ? { account: account as Address } : {}),
     ...(isAddressish(lens) ? { lens: lens as Address } : {}),
+    ...(isAddressish(guard) ? { guard: guard as Address } : {}),
     ...(agentId === undefined ? {} : { agentId }),
   };
 }
@@ -329,6 +342,17 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
       ? { approvals: [], executions: [] }
       : await readAccountEvents(client, config.account, blockNumber, config.deployBlock);
 
+  /*
+   * Allowed to fail on its own, like the Lens read below.
+   *
+   * An account that cannot be read says nothing about whether the registry could be, and dropping the
+   * whole page to sample data over one `eth_getCode` would blame the wrong thing.
+   */
+  const accountProfile =
+    config.account === undefined
+      ? undefined
+      : await readAccountProfile(client, config, config.account).catch(() => undefined);
+
   const totals: Totals = {
     pins: pins.length,
     livePins: pins.filter((p) => p.state === "bonded" || p.state === "pinned").length,
@@ -354,6 +378,7 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
     approvals,
     publishers,
     executions,
+    ...(accountProfile === undefined ? {} : { account: accountProfile }),
     ...(reviewers === undefined ? {} : { reviewers }),
     // Refusals leave no log to read, by design: one emitted before a revert is rolled back.
     // Recovering them needs a trace-capable RPC replaying reverted transactions, which is the
@@ -421,6 +446,50 @@ async function readPricing(client: PublicClient, registry: Address): Promise<Bon
     unbondingDelay,
     bondAssetDecimals,
     bondAssetSymbol,
+  };
+}
+
+/**
+ * Whether anything is currently enforcing this account's approvals.
+ *
+ * Two independent checks, because they answer different questions and can disagree — which is the
+ * case that matters. `eth_getCode` says whether the account is delegated and to what; calling
+ * `guardStorageSlot()` says whether the code it is delegated to actually is LockstepGuard. An account
+ * can carry a perfectly valid 7702 indicator pointing at something else entirely, and then its
+ * approvals sit in storage unread while nothing about the storage looks wrong.
+ *
+ * `LockstepGuard.guardStorageSlot()` asks for exactly this pairing in its own doc comment. Doing only
+ * the address comparison would trust configuration; doing only the slot call would not notice the
+ * account being pointed elsewhere.
+ */
+async function readAccountProfile(
+  client: PublicClient,
+  config: AppConfig,
+  account: Address,
+): Promise<AccountProfile> {
+  const code = await client.getCode({ address: account }).catch(() => undefined);
+  const delegation = parseDelegation(code);
+
+  /*
+   * Only ask for the slot when there is a delegation to ask about.
+   *
+   * On an undelegated EOA the call has no code to run and errors, and on a contract it is a question
+   * about the wrong thing. Skipping it keeps `unanswered` meaning "delegated, but would not answer",
+   * which is a genuinely different state from "not delegated".
+   */
+  let slot: Hex | undefined;
+  if (delegation.kind === "delegated") {
+    slot = await client
+      .readContract({ address: account, abi: lockstepGuardAbi, functionName: "guardStorageSlot" })
+      .then((value) => value as Hex)
+      .catch(() => undefined);
+  }
+
+  return {
+    address: account,
+    delegation,
+    guard: describeGuard(slot),
+    pointedAtConfiguredGuard: isDelegatedTo(delegation, config.guard),
   };
 }
 

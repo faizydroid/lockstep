@@ -38,6 +38,14 @@ const LINKS = [
   { href: "/publishers", label: "Publishers", icon: IconPublisher },
   { href: "/bonds", label: "Bonds", icon: IconCoins },
   { href: "/badge", label: "Badge", icon: IconShield },
+  /*
+   * Account last, and it carries settings with it rather than getting its own item.
+   *
+   * Seven was already a lot for a primary rail; nine would make it a list to scan rather than a menu.
+   * Profile and settings answer the same question -- things about me, as opposed to things about the
+   * registry -- so they are two sections of one route, reachable at /account#settings.
+   */
+  { href: "/account", label: "Account", icon: IconAccount },
 ] as const;
 
 /*
@@ -323,6 +331,24 @@ function IconShield() {
   return (
     <Glyph>
       <path d="M12 3.5 19 6v6c0 4-3 7-7 8.5-4-1.5-7-4.5-7-8.5V6l7-2.5Z" />
+    </Glyph>
+  );
+}
+
+/**
+ * A key, for the account.
+ *
+ * Not the usual head-and-shoulders silhouette, which would be wrong here in a way worth naming: the
+ * account is not a person, it is a keypair. `IconPublisher` already uses the person glyph for the
+ * thing that genuinely is an actor with a reputation, and reusing it would collapse a distinction the
+ * rest of the app is careful about.
+ */
+function IconAccount() {
+  return (
+    <Glyph>
+      <circle cx="8.5" cy="8.5" r="4" />
+      <path d="M11.4 11.6 20 20.5" />
+      <path d="M16.5 17 14.5 19" />
     </Glyph>
   );
 }

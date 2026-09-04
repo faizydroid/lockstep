@@ -29,3 +29,12 @@ Thumbs.db
 
 # Isolated probe install for runtime inspection. Not part of the build.
 .scratch/
+
+# Research input: ~674KB of third-party video transcripts on design, onboarding, growth and
+# monetisation, used as reference while building those surfaces.
+#
+# Deliberately not committed. It is someone else's copyrighted material, it is not source, and a
+# security project's repository is the last place to be casually redistributing scraped text. What
+# was learned from it lives in the code and in the README as our own words, with the reasoning
+# stated so a reader can disagree with it.
+Skills/

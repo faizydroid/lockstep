@@ -116,6 +116,7 @@ jobs:
           NEXT_PUBLIC_DEPLOY_BLOCK: "59431400"
           NEXT_PUBLIC_PIN_IDS: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401"
           NEXT_PUBLIC_LOCKSTEP_LENS: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664"
+          NEXT_PUBLIC_LOCKSTEP_GUARD: "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510"
         run: npm run build --workspace @lockstep/app
 
       # A green build only proves it compiled. This checks the exported HTML actually contains

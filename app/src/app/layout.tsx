@@ -5,6 +5,7 @@ import { Field } from "@/components/field";
 import { IdentityProvider } from "@/components/identity";
 import { Nav } from "@/components/nav";
 import { RouteShell } from "@/components/route-shell";
+import { SettingsProvider } from "@/components/settings";
 import { SourceBanner } from "@/components/source-banner";
 import { THEME_SCRIPT, ThemeProvider } from "@/components/theme";
 
@@ -49,44 +50,49 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Field />
 
           {/*
-            Identity outside the snapshot provider, because the snapshot depends on the connected
-            address and not the other way round.
+            The provider order is the dependency order, outermost first.
+
+            Settings are read by the snapshot -- RPC URL, account, deploy block -- so they sit above
+            it. Identity is above it for the same reason: a connected wallet decides whose approvals
+            are shown. Neither reads chain state, and that direction should stay one-way.
           */}
-          <IdentityProvider>
-            <SnapshotProvider>
-              <Nav />
-
-              {/*
-                Offset by the rail's width, and only from `lg`.
-
-                The rail is `fixed`, so it is out of flow and content would otherwise run underneath
-                it. Padding on this wrapper rather than a margin on <main> keeps the banner and footer
-                in the same column as the content, which matters because all three use the full-bleed
-                `.gutter` and would otherwise disagree about where the page starts.
-              */}
-              <div className="lg:pl-[var(--rail)]">
-                <SourceBanner />
+          <SettingsProvider>
+            <IdentityProvider>
+              <SnapshotProvider>
+                <Nav />
 
                 {/*
-                  `pt-5`, was `pt-8`. The banner already contributes its own top padding, so the two
-                  stacked to 48px of nothing between the chrome and the first real element on every
-                  page.
-                */}
-                <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">
-                  <RouteShell>{children}</RouteShell>
-                </main>
+                  Offset by the rail's width, and only from `lg`.
 
-                <footer className="gutter relative z-10 w-full pb-12">
-                  <div className="chunk rounded-xl bg-raise px-6 py-5 text-xs leading-relaxed font-semibold text-faint">
-                    Approving a skill version happens in the CLI, never here. An approval is a claim
-                    about exact bytes, and only the machine holding those bytes can make it honestly
-                    &mdash; a web page asking you to sign a hash it fetched is the shape of the attack
-                    this project exists to stop.
-                  </div>
-                </footer>
-              </div>
-            </SnapshotProvider>
-          </IdentityProvider>
+                  The rail is `fixed`, so it is out of flow and content would otherwise run underneath
+                  it. Padding on this wrapper rather than a margin on <main> keeps the banner and
+                  footer in the same column as the content, which matters because all three use the
+                  full-bleed `.gutter` and would otherwise disagree about where the page starts.
+                */}
+                <div className="lg:pl-[var(--rail)]">
+                  <SourceBanner />
+
+                  {/*
+                    `pt-5`, was `pt-8`. The banner already contributes its own top padding, so the
+                    two stacked to 48px of nothing between the chrome and the first real element on
+                    every page.
+                  */}
+                  <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">
+                    <RouteShell>{children}</RouteShell>
+                  </main>
+
+                  <footer className="gutter relative z-10 w-full pb-12">
+                    <div className="chunk rounded-xl bg-raise px-6 py-5 text-xs leading-relaxed font-semibold text-faint">
+                      Approving a skill version happens in the CLI, never here. An approval is a claim
+                      about exact bytes, and only the machine holding those bytes can make it honestly
+                      &mdash; a web page asking you to sign a hash it fetched is the shape of the
+                      attack this project exists to stop.
+                    </div>
+                  </footer>
+                </div>
+              </SnapshotProvider>
+            </IdentityProvider>
+          </SettingsProvider>
         </ThemeProvider>
       </body>
     </html>

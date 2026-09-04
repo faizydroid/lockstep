@@ -85,6 +85,12 @@ const PAGES = {
   publishers: ["Publishers", "Challenger reward", "equivocat"],
   bonds: ["What a pin costs to publish", "Declared capabilities", "Bond required"],
   badge: ["The badge", "Paste into a README", "Why amber exists"],
+  /*
+   * The account page renders its profile from a client-side chain read and its settings behind a tab,
+   * so almost none of it is in the static HTML. Only the frame is checked here; the parts that matter
+   * are asserted against the bundle in `checkSettingsBoundary` below.
+   */
+  account: ["Account", "identity, not authority"],
 };
 
 /*
@@ -368,6 +374,55 @@ function checkLensWiring(problems) {
   }
 }
 
+/**
+ * The rule that makes a settings panel safe in this app, checked in the bundle.
+ *
+ * Settings are behind a tab and rendered client-side, so none of this reaches the static HTML. It is
+ * checked anyway, and these are the assertions with teeth rather than the ones that are easy:
+ *
+ * The registry address must not be settable. Everything else in that panel is transport or
+ * presentation; the registry is the one value that decides whether anything on screen is about
+ * Lockstep at all, and a control that repointed it would turn this dashboard into a way to produce
+ * authoritative-looking screenshots of some other registry. A future contributor who finds RPC and
+ * account overrides will look for it, so the *stated reason* for its absence has to survive too —
+ * without that paragraph the gap reads as an oversight and gets helpfully filled in.
+ *
+ * And an override that changes what is read must be disclosed in the source bar. That disclosure is
+ * the condition attached to allowing the overrides in the first place.
+ */
+function checkSettingsBoundary(problems) {
+  process.stdout.write("\nsettings boundary\n");
+
+  const bundle = readBundle();
+  if (bundle === "") {
+    problems.push("no JavaScript chunks were found in the export");
+    return;
+  }
+
+  // A control bound to a registry field would need this env name in the client. Its absence is the
+  // check: the address arrives as NEXT_PUBLIC_PIN_REGISTRY, inlined at build time, never as state.
+  const settableRegistry = /setRegistry|registry:\s*draft|update\(\s*\{\s*registry/.test(bundle);
+  process.stdout.write(`  registry not settable  ${settableRegistry ? "SETTABLE -- must not be" : "ok"}\n`);
+  if (settableRegistry) {
+    problems.push("the bundle appears to let a setting change the registry address, which must stay a build-time constant");
+  }
+
+  const required = [
+    ["absence explained", "authoritative-looking screenshots"],
+    ["override disclosed", "custom RPC"],
+    ["rpc scheme refused", "http on localhost"],
+    ["credentials refused", "a key in localStorage is a key nobody remembers to clear"],
+  ];
+
+  for (const [label, phrase] of required) {
+    const present = bundle.includes(phrase);
+    process.stdout.write(`  ${label.padEnd(22)} ${present ? "ok" : "MISSING"}\n`);
+    if (!present) {
+      problems.push(`the bundle no longer carries "${phrase}", so the settings boundary is undocumented`);
+    }
+  }
+}
+
 function main() {
   if (!existsSync(OUT)) {
     process.stderr.write(
@@ -418,6 +473,8 @@ function main() {
   checkWriteBoundary(problems);
 
   checkLensWiring(problems);
+
+  checkSettingsBoundary(problems);
 
   checkTheming(index, problems);
 

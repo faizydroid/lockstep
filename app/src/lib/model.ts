@@ -13,6 +13,8 @@
 
 import type { Address, Hex } from "viem";
 
+import type { Delegation, GuardCheck } from "./profile";
+
 /**
  * Whether a pin can currently vouch for a transaction, and if not, why.
  *
@@ -180,6 +182,13 @@ export interface Snapshot {
    * an empty list.
    */
   readonly reviewers?: ReviewerSet;
+  /**
+   * The viewer's account, when one is configured or connected.
+   *
+   * Optional because "no account" is a real state with its own answer, not an empty version of an
+   * account. A dashboard with nobody connected is still fully useful for reading the registry.
+   */
+  readonly account?: AccountProfile;
 }
 
 /**
@@ -194,6 +203,27 @@ export interface ReviewerCheck {
   readonly candidate: Address;
   readonly eligible: boolean;
   readonly basis: "account" | "publisher";
+}
+
+/**
+ * What the account's own bytecode says about whether anything is enforcing its approvals.
+ *
+ * Carried on the snapshot rather than fetched per page because it is the most important single fact
+ * about a viewer's position, and because showing approvals without it shows the dangerous half:
+ * delegation changes code and not storage, so an account whose guard has been replaced still has every
+ * approval sitting in the ERC-7201 slot, unread, looking exactly as it did.
+ */
+export interface AccountProfile {
+  readonly address: Address;
+  readonly delegation: Delegation;
+  readonly guard: GuardCheck;
+  /**
+   * Code equals `0xef0100 || guard`, where `guard` is this build's configured address.
+   *
+   * Separate from `guard` above, and both are needed. This one can be false because config is unset
+   * rather than because anything is wrong, which is why it does not on its own mean unenforced.
+   */
+  readonly pointedAtConfiguredGuard: boolean;
 }
 
 /** An ERC-8004 summary as the registry computes it: a signed value with its own scale. */
