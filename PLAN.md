@@ -196,7 +196,12 @@ Rug pulls blocked · blocks from unpinned execution to slash · watcher lag · a
 
 **Do not integrate both Privy and Dynamic.** They compete for one slot and a half-wired second provider reads as bounty farming.
 
-**Verify in week 1:** ERC-8004 registry addresses on chain 143 (the docs render them client-side — read in a browser, confirm on monadscan.com, never copy from third-party repos).
+**Verify in week 1:** ERC-8004 registry addresses (the docs render them client-side — never copy from third-party repos).
+**Done for 10143**, and the warning held: fetching either the Monad guide or the QuickNode explorer
+returns a shell with no addresses. The right method turned out to be neither reading nor an explorer
+but *calling the contracts* — `tokenURI(1)` on the Identity Registry returns base64 JSON whose `type`
+is the ERC-8004 spec URI, which identifies it rather than making it plausible. Commands in
+`.env.example`. Chain 143 still unchecked.
 
 ---
 
@@ -211,7 +216,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 
 - [x] **Extract `keccak256(skill bytes)` from a running OpenClaw agent and attach it to a transaction.** `runtime/src/canonical.ts` hashes the loaded tree; `plugin/` attaches it. Settled on testnet: `0x0990fdb43e036ad9fdf2bdb8054ab836ef8a3ea391034b35880d262132762cec`.
 - [x] Measure gas for the guard check on testnet. **Settle 115,207** (verify 17,769 / transfer 39,822 / guard logic ~33.6k), **refuse 62,181** — refusing costs less than settling, so the safe path is also the cheap one.
-- [ ] Confirm ERC-8004 addresses on 143 / 10143 — **still open, and it is what blocks the `LockstepLens` deploy below.** The docs render them client-side.
+- [x] Confirm ERC-8004 addresses on 10143 — **identified on chain, not read from docs.** This plan's warning was correct: both the Monad guide and the QuickNode explorer render the addresses client-side and a fetch returns an empty shell. Identity `0x8004a818…4bd9e`, Reputation `0x8004b663…88713`, settled by `tokenURI(1)` returning the ERC-8004 spec URI. Both are UUPS proxies behind one EOA; recorded as a dependency in `LockstepLens.sol`. Chain 143 still unchecked.
 - [x] `PinRegistry` with `lockedBond` and blast-radius pricing — `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b`, verified, block 59428872.
 - [ ] **BD starts Monday.** Contact 10 publishers from Monad Agent Hub and ClawHub. Lead time is 4+ weeks; starting this in week 4 is starting it too late.
 
@@ -231,7 +236,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 ### Week 4 · Sep 23–29 — Surfaces
 - [x] Install-time UI: pin line, capability diff, approval queue — seven routes: `/`, `/pins`, `/approvals`, `/drift`, `/bonds`, `/publishers`, `/badge`.
 - [x] `lockstep-provenance` skill in MetaMask's own `domains/<domain>/skills/<name>/skill.md` layout → **MetaMask bounty**. Teaches a Gator operator when a `functionCall` scope is insufficient. Named to avoid colliding with the existing `skill/SKILL.md`, which does a different job.
-- [~] `LockstepLens` over ERC-8004 — written, 14 tests pass. **Undeployed**, because it takes registry addresses this plan has not yet confirmed on 10143. Deploying it against guesses would put an unverifiable contract on chain.
+- [x] `LockstepLens` over ERC-8004 — **live at `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664`**, block 59619349, reading the real registries. `script/DeployLens.s.sol` identifies the registries on chain before it will deploy, and refuses otherwise; `test/DeployLensChecks.t.sol` (15 tests) proves those checks fire on the live `tokenURI` payload and reject a lookalike. Immutables read back off chain, and the eligibility rule answers correctly against live state in both directions.
 - [x] Embeddable badge — `badge/`, plus the `/badge` route.
 - [ ] **First 3 third-party skills pinned**
 

@@ -50,6 +50,31 @@ interface IGuardedAccount {
 /// user on every transaction to improve a view. It is deferred deliberately, and
 /// `weightedScore` returns an unweighted summary over the eligible set until then.
 /// Do not describe this as exposure-weighted.
+///
+/// ## The registries this reads are upgradeable, and that is a trust assumption
+///
+/// Measured on Monad testnet 10143 rather than assumed. Both ERC-8004 registries are
+/// ERC-1967 proxies with byte-identical 130-byte proxy code, and the address they
+/// forward to lives in storage slot
+/// `0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc`
+/// (`keccak256("eip1967.proxy.implementation") - 1`). The admin slot is zero and
+/// `proxiableUUID()` on each implementation returns that same slot, so these are UUPS
+/// proxies, not transparent ones — the upgrade authority is `owner()` on the proxy
+/// itself. At the time of writing both registries return the **same** owner, and that
+/// address has no code, so it is a single EOA.
+///
+/// The consequence is worth stating in the contract that depends on it: a project whose
+/// thesis is that code identity should be pinned reads its reputation input from a
+/// contract whose code can be replaced by one key. `identity` and `reputation` are
+/// `immutable` here, so this contract will always point at the same *proxy* — which is
+/// the addressing behaviour you want, and is also exactly what makes the implementation
+/// behind it mutable without this contract noticing.
+///
+/// This is not a defect in ERC-8004 and not something a reader can fix. It is a
+/// dependency to declare, and the reason `LockstepLens` is a pure reader with no
+/// authority of its own: nothing this contract holds can be taken by an upgrade
+/// downstream of it, and the worst an upgrade can do is make a score wrong, not move
+/// money. Enforcement never consults it. Verification commands are in the README.
 contract LockstepLens {
     PinRegistry public immutable pins;
     IIdentityRegistry public immutable identity;

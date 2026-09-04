@@ -318,19 +318,34 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 174 tests across six packages
+npm run test:unit          # 289 tests across seven packages
 npm run typecheck
 
 cd contracts
-forge test -vv             # 100 tests, gas and bond-velocity figures in the output
+forge test -vv             # 127 tests, gas and bond-velocity figures in the output
 
 cd ..
-npm run test:e2e           # 28 tests against a live Anvil chain
+npm run test:e2e           # 74 tests against a live Anvil chain
 ```
 
-**302 tests total.** The e2e suites skip with a message rather than failing if Anvil is
-not present. They cover the full flow with real EIP-7702 delegation, the `ChainAdapter`
-that submits transactions, and the GitHub Action's two refusals.
+**490 tests total**, counted by running all three: 289 unit, 127 contract, 74 end-to-end.
+
+| package | tests |
+|---|---|
+| `runtime` | 41 |
+| `plugin` | 55 |
+| `cli` | 38 |
+| `sandbox` | 17 |
+| `watcher` | 15 |
+| `badge` | 15 |
+| `app` | 108 |
+| `contracts` (Foundry) | 127 |
+| `e2e` | 74 |
+
+The e2e suites skip with a message rather than failing if Anvil is not present. They cover
+the full flow with real EIP-7702 delegation, the `ChainAdapter` that submits transactions,
+every hand-written ABI fragment checked against the compiled artifacts, each package's entry
+point run by plain Node, and the GitHub Action's two refusals.
 
 ### Closing the last step
 
@@ -507,27 +522,28 @@ exists at all — and it is also why the enforcement has to be free.
 | Equivocation slashing | Done, 23 tests. Permissionless, half the bond to the challenger |
 | Bond accounting invariants | Done, 6 invariants over 4096 calls per campaign |
 | LockstepGuard (EIP-7702) | Done, 23 tests, gas measured |
-| LockstepLens (ERC-8004) | Done, 14 tests. Sybil filter: naive 74 vs filtered 35 |
+| **LockstepLens (ERC-8004)** | **Live at `0x3338c4F5…75664` on chain 10143**, reading the real registries. 14 unit tests plus 15 covering the deploy script's identification checks. Sybil filter: naive 74 vs filtered 35, and the eligibility rule answers correctly against live state both ways — see below |
 | Allowlist-layer comparison | Done, 5 tests. Same calldata, one layer permits, the other refuses |
 | **MetaMask Gator differential** | **Done, 7 tests** against a model of the real ERC-7710 `functionCall` caveat, not a straw man. Both layers enforce the same targets/selectors/value ceiling; only Lockstep refuses the poisoned bytes — see above |
 | **EIP-7702 exclusivity** | **Done, 5 tests.** An account carries one delegation indicator, so Gator and Lockstep cannot share an account. Approvals survive in storage while unenforced. The layers stack across accounts instead |
 | Bond-velocity benchmark | Done, 3 tests. 40x from 300ms vs 12s blocks |
-| OpenClaw plugin logic | Done, 46 tests |
+| OpenClaw plugin logic | Done, 55 tests |
 | CLI, with self-slash refusal | Done, 38 tests |
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
 | Badge | Done, 15 tests |
-| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. Workflows written; not yet run on a real runner |
+| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. Written and green in CI; not yet listed on the Marketplace, which needs the repo public |
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
-| End-to-end on a live chain | Done, 28 tests |
+| End-to-end on a live chain | Done, 74 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured.** Guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling |
 | Dashboard (Next.js static export) | Done, 108 tests, reading the live deployment. The write boundary is enforced structurally, not by convention — see below |
-| ERC-8004 addresses on chain 143 | Deterministic per third-party sources; not explorer-verified |
+| **ERC-8004 registries on chain 10143** | **Identified on chain**, not copied from docs that render client-side. `tokenURI` returns the ERC-8004 spec URI. Both are UUPS proxies behind one EOA — a declared dependency, and enforcement never reads them. See below |
+| ERC-8004 registries on chain 143 (mainnet) | Not checked. The addresses above are testnet |
 
 ### The kill gate, reproduced
 
@@ -566,11 +582,37 @@ and compared against the source.
 | PinRegistry | `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b` | 59428872 |
 | LockstepGuard | `0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510` | 59428911 |
 | MockBondAsset (mAUSD, 6dp) | `0xF9D382a5A851dAe325526ec0Aa1a9773221c033A` | 59428803 |
+| LockstepLens | `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664` | 59619349 |
 | Account, delegated via EIP-7702 | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | — |
 
 The bond asset is a freely mintable mock. That is correct on a test chain and refused on
 mainnet by the deploy script, because a registry whose bonds are worthless is worse than
 no registry.
+
+**`LockstepLens` reads the real ERC-8004 registries**, deployed by
+`script/DeployLens.s.sol` in tx
+`0x02b6e6b3b255b51c457c9a09c3c961d12d01f3b05c77128d76d9bafa92f185ce`. It exists as a
+separate script rather than a rerun of `Deploy.s.sol` on purpose: that script builds the
+system from nothing and would deploy a *second* registry, which would split the pins and
+make every address published here ambiguous.
+
+The script refuses to deploy until the addresses it is handed identify themselves — ERC-721
+support, `ownerOf(1)` and `getAgentWallet(1)` both answering, `getSummary` decoding with its
+mandatory client set, and decisively `tokenURI(1)` carrying the ERC-8004 spec URI. Those
+checks are in the script rather than in a README because a check in a shell history is not
+reproducible. `contracts/test/DeployLensChecks.t.sol` tests them against the live payload,
+including the case that matters: the reference is base64-encoded, so a plain substring scan
+finds nothing and a lookalike serving `{"name":"Agent"}` is rejected.
+
+The Sybil filter then answers against live state, both directions:
+
+| query | result |
+|---|---|
+| `isEligibleReviewer(0x209C…aFF2, [live pin])` | `true` — that account approves that publisher's pin |
+| `isEligibleReviewer(0x…dEaD, [live pin])` | `false`, and no revert — an undelegated address is ineligible, not an error |
+
+The second row is the one that would have broken a naive implementation: a single
+undelegated candidate in a batch must not take down the whole query.
 
 **EIP-7702 works.** The account's code is `0xef0100` followed by the guard's address:
 
@@ -675,6 +717,10 @@ truncating rather than presenting a partial history as complete.
 come from replaying each transaction with `cast run`, not from receipts. Anything that
 benchmarks Monad from `receipt.gasUsed` is measuring its own gas limit.
 
+Corroborated again by the `LockstepLens` deploy: `forge script` estimated 1,178,253 gas and
+the receipt reported `gasUsed: 1178253` — the same number to the unit, which is not what a
+real measurement looks like.
+
 **A 7702-delegated account cannot make a bare value transfer.** Sending 1 wei from
 `0x209C…aFF2` to a fresh address reverts and consumes the entire gas limit, reproduced at
 21,000, 60,000 and 150,000, with the fee reserve two orders of magnitude inside the balance.
@@ -683,6 +729,58 @@ benchmarks Monad from `receipt.gasUsed` is measuring its own gas limit.
 EVM is satisfied and the rejection happens above it. Contract calls from the same account
 work fine; every setup transaction here was one. The mechanism has been observed, not read,
 so this is a report rather than an explanation.
+
+Narrowed further since: **contract creation from the same delegated account also works.**
+`LockstepLens` was deployed by a `CREATE` transaction from `0x209C…aFF2` while that account
+was carrying `0xef0100c41ece…`, and it succeeded. So whatever rejects the transfer is
+specific to a plain value send rather than a general restriction on delegated senders, which
+narrows the search without closing it.
+
+### The ERC-8004 registries, identified on chain and not from documentation
+
+`PLAN.md` warned that the registry addresses render client-side in
+[Monad's ERC-8004 guide](https://docs.monad.xyz/guides/erc-8004) and must not be copied out
+of a third-party repo. That turned out to be exactly right: fetching both that page and the
+[QuickNode ERC-8004 explorer](https://erc-8004.quicknode.com/networks/monad-testnet) returns a
+shell with no addresses in it. So the candidates came from a search snippet, and were then
+**identified by calling them** rather than trusted:
+
+| Check | Result |
+|---|---|
+| `chain-id` | `10143` |
+| `name()` / `symbol()` | `"AgentIdentity"` / `"AGENT"` |
+| `supportsInterface(0x80ac58cd)` | `true` — ERC-721, as the spec requires |
+| `tokenURI(1)` | base64 JSON whose `type` is `https://eips.ethereum.org/EIPS/eip-8004#registration-v1` |
+| `ownerOf(1)` vs `getAgentWallet(1)` | same address, so the narrowed interface in `IERC8004.sol` matches |
+| `getClients(1)` on the reputation proxy | two real client addresses |
+| `getSummary(1, [client], "", "")` | answers, with `clientAddresses` mandatory as the spec states |
+
+The `tokenURI` carrying the ERC-8004 spec URI is what makes this an identification instead of
+a plausible guess. Verified addresses are now in `.env.example` with the commands above.
+
+**Both registries are UUPS proxies, and that is a dependency worth declaring.** Their code is
+byte-identical and 130 bytes long, forwarding to whatever sits in storage slot
+`0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc` — which is
+`keccak256("eip1967.proxy.implementation") - 1`, confirmed by hashing the string and comparing.
+
+| | Proxy | Implementation | Size |
+|---|---|---|---|
+| Identity | `0x8004a818…4bd9e` | `0x7274e874ca62410a93bd8bf61c69d8045e399c02` | 14,474 bytes |
+| Reputation | `0x8004b663…88713` | `0x16e0fa7f7c56b9a767e34b192b51f921be31da34` | 10,491 bytes |
+
+The admin slot is zero on both and `proxiableUUID()` returns the implementation slot, so the
+upgrade authority is `owner()` on the proxy — UUPS, and `UPGRADE_INTERFACE_VERSION()` reports
+`"5.0.0"`, OpenZeppelin v5. Both registries return the **same** owner, and that address has no
+code, so a single EOA can replace either implementation.
+
+Worth saying plainly, since it cuts against this project's own thesis: Lockstep argues that
+code identity should be pinned, and its reputation input comes from a contract whose code one
+key can swap. That is not a flaw in ERC-8004 and not something a reader can fix. What it does
+determine is where the dependency is allowed to sit. `LockstepLens` is a pure reader with no
+authority and no funds, and **the enforcement path never consults it** — `LockstepGuard.execute`
+reads `PinRegistry` and nothing else. The worst an upgrade downstream can do is make a
+displayed score wrong. It cannot move money, and that separation is the reason the trust
+assumption is acceptable rather than merely disclosed.
 
 ## License
 
