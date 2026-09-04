@@ -22,6 +22,7 @@
 import { useEffect, useState } from "react";
 import type { Hash } from "viem";
 
+import { explorerTxUrl } from "@/lib/chain";
 import { needsHardConfirm } from "@/lib/policy";
 import { buildWrite } from "@/lib/writes";
 import type { WriteName } from "@/lib/writes";
@@ -29,7 +30,7 @@ import type { WriteName } from "@/lib/writes";
 import { Guard } from "./guard";
 import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion";
 import { useIdentity } from "./identity";
-import { Button, Pill, cx } from "./ui";
+import { Button, HashChip, cx } from "./ui";
 
 type Phase =
   | { readonly kind: "idle" }
@@ -147,18 +148,17 @@ export function WriteAction({
         {label ?? request.cta}
       </Button>
 
-      {phase.kind === "sent" ? (
-        <Pill tone="bonded" className="ml-2" title={phase.hash}>
-          sent
-        </Pill>
-      ) : null}
-      {phase.kind === "failed" ? (
-        <span className="ml-2 text-xs font-bold text-revoked-ink">{phase.reason}</span>
-      ) : null}
+      {/*
+        The outcome stays in the dialog rather than collapsing to a pill beside the button.
 
+        It used to render a 40px `sent` pill whose only detail -- the transaction hash -- lived in a
+        `title` attribute, which is invisible on touch and to a keyboard. So the most consequential moment
+        in the product, an irreversible on-chain write, ended in a badge most readers could not read and
+        nobody could copy. Same defect the Term work removed, in a worse place.
+      */}
       <Confirm
-        open={phase.kind === "confirming" || phase.kind === "signing"}
-        busy={phase.kind === "signing"}
+        open={phase.kind !== "idle"}
+        phase={phase}
         request={request}
         hard={hard}
         typed={typed}
@@ -173,7 +173,7 @@ export function WriteAction({
 /** The dialog. Guard delivers it, because this is a consequence rather than a form. */
 function Confirm({
   open,
-  busy,
+  phase,
   request,
   hard,
   typed,
@@ -182,7 +182,7 @@ function Confirm({
   onConfirm,
 }: {
   open: boolean;
-  busy: boolean;
+  phase: Phase;
   request: ReturnType<typeof buildWrite>;
   hard: boolean;
   typed: string;
@@ -194,6 +194,8 @@ function Confirm({
   /* The word required for a power-granting action. Short, and not "yes", which is muscle memory. */
   const PHRASE = "authorize";
   const allowed = !hard || typed.trim().toLowerCase() === PHRASE;
+  const busy = phase.kind === "signing";
+  const settled = phase.kind === "sent" || phase.kind === "failed";
 
   return (
     <AnimatePresence>
@@ -221,19 +223,61 @@ function Confirm({
             transition={still ? { duration: 0 } : SPRING_SOFT}
           >
             <div className="flex items-start gap-4">
-              <Guard mood="alarmed" size={68} bob={false} label="Guard looks alarmed." />
+              {/*
+                The mascot's mood tracks the phase. Alarmed while a decision is pending, watchful once the
+                call is in flight -- not pleased. A sent transaction is not a settled one, and a happy
+                face here would be the interface asserting an outcome the chain has not returned yet.
+              */}
+              <Guard
+                mood={phase.kind === "sent" ? "watching" : "alarmed"}
+                size={68}
+                bob={false}
+                label={
+                  phase.kind === "sent"
+                    ? "Guard is watching for the transaction to settle."
+                    : "Guard looks alarmed."
+                }
+              />
 
               <div className="min-w-0 flex-1 space-y-3">
                 <h2 className="font-display text-xl leading-tight font-extrabold text-text">
-                  {request.title}
+                  {phase.kind === "sent"
+                    ? "Submitted, not yet settled"
+                    : phase.kind === "failed"
+                      ? "Nothing was sent"
+                      : request.title}
                 </h2>
 
-                <div className="pop rounded-xl bg-raise p-3 [--pop:var(--shade)]">
-                  <p className="shout text-[0.6rem] text-faint">What happens</p>
-                  <p className="mt-1 text-sm leading-relaxed font-semibold text-text">
-                    {request.effect}
-                  </p>
-                </div>
+                {settled ? null : (
+                  <div className="pop rounded-xl bg-raise p-3 [--pop:var(--shade)]">
+                    <p className="shout text-[0.6rem] text-faint">What happens</p>
+                    <p className="mt-1 text-sm leading-relaxed font-semibold text-text">
+                      {request.effect}
+                    </p>
+                  </div>
+                )}
+
+                {phase.kind === "sent" ? <Receipt hash={phase.hash} request={request} /> : null}
+
+                {phase.kind === "failed" ? (
+                  <div className="pop rounded-xl bg-revoked-tint p-3 [--line:var(--revoked-ink)] [--pop:var(--revoked-shade)]">
+                    <p className="shout text-[0.6rem] text-revoked-ink">Why</p>
+                    <p className="mt-1 text-sm leading-relaxed font-semibold text-revoked-ink">
+                      Nothing reached the chain, so nothing changed. Your approvals are exactly as they
+                      were.
+                    </p>
+                    {/*
+                      The raw string is kept, in a monospace block rather than as prose.
+                      
+                      It is usually an RPC or revert message written for a developer, and paraphrasing it
+                      would lose the one detail that makes it searchable. Presenting it as a quotation
+                      rather than as our own sentence is the honest framing.
+                    */}
+                    <pre className="mt-2 overflow-x-auto text-[0.65rem] leading-relaxed">
+                      <code className="hash select-all text-revoked-ink">{phase.reason}</code>
+                    </pre>
+                  </div>
+                ) : null}
 
                 {/*
                   The limit gets its own panel, not a footnote.
@@ -248,7 +292,7 @@ function Confirm({
                   </p>
                 </div>
 
-                {hard ? (
+                {hard && !settled ? (
                   <label className="block space-y-1.5">
                     <span className="shout text-[0.6rem] text-faint">
                       This grants power. Type {PHRASE} to continue.
@@ -264,33 +308,120 @@ function Confirm({
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <Button
-                    tone={hard ? "attention" : "revoked"}
-                    size="sm"
-                    onClick={onConfirm}
-                    disabled={busy || !allowed}
-                  >
-                    {busy ? "Check your wallet\u2026" : request.cta}
-                  </Button>
-                  <Button tone="neutral" variant="quiet" size="sm" onClick={onCancel} disabled={busy}>
-                    Cancel
-                  </Button>
+                  {settled ? (
+                    /*
+                      One button, and it says Close rather than Done.
+                      
+                      "Done" would claim the write succeeded. At this point the only fact available is that
+                      a transaction was accepted by an RPC, which is not the same thing and the panel above
+                      says so.
+                    */
+                    <Button tone="neutral" size="sm" onClick={onCancel}>
+                      Close
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        tone={hard ? "attention" : "revoked"}
+                        size="sm"
+                        onClick={onConfirm}
+                        disabled={busy || !allowed}
+                      >
+                        {busy ? "Check your wallet\u2026" : request.cta}
+                      </Button>
+                      <Button tone="neutral" variant="quiet" size="sm" onClick={onCancel} disabled={busy}>
+                        Cancel
+                      </Button>
+                    </>
+                  )}
                 </div>
 
-                <p className="text-[0.7rem] leading-snug font-semibold text-faint">
-                  Sent from{" "}
-                  <code className="hash text-[0.65rem]">{request.functionName}</code> to{" "}
-                  <code className="hash text-[0.65rem]">
-                    {request.to.slice(0, 10)}&hellip;{request.to.slice(-6)}
-                  </code>
-                  . Your wallet will show the same call before you sign.
-                </p>
+                {settled ? null : (
+                  <p className="text-[0.7rem] leading-snug font-semibold text-faint">
+                    Sent from{" "}
+                    <code className="hash text-[0.65rem]">{request.functionName}</code> to{" "}
+                    <code className="hash text-[0.65rem]">
+                      {request.to.slice(0, 10)}&hellip;{request.to.slice(-6)}
+                    </code>
+                    . Your wallet will show the same call before you sign.
+                  </p>
+                )}
               </div>
             </div>
           </motion.div>
         </div>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+/**
+ * What happened, in a form the reader can take away and check.
+ *
+ * The design material this came from makes two points that pull in opposite directions for a product like
+ * this one. The first is the Zeigarnik effect: an action whose completion is not shown nags at people, and
+ * they go looking for proof it worked. The second is the advice to celebrate completion -- confetti, a
+ * tick, a well done.
+ *
+ * The first applies here and the second does not. Two reasons. A write on this dashboard revokes an
+ * approval or challenges a publisher's bond; confetti on that would be celebrating a loss, and the one
+ * genuine milestone this product has -- a refused call -- is a security event rather than an achievement.
+ * And more importantly, a submitted transaction is not a settled one. Any celebratory state would be
+ * asserting an outcome the chain has not returned, which is precisely the claim-versus-reading confusion
+ * the whole product exists to attack.
+ *
+ * So: no celebration, and no green tick. The receipt states what is actually known, hands over the hash,
+ * and points at somewhere the reader can watch it settle for themselves.
+ */
+function Receipt({ hash, request }: { hash: Hash; request: ReturnType<typeof buildWrite> }) {
+  const url = explorerTxUrl(hash);
+
+  return (
+    <div className="space-y-3">
+      <div className="pop rounded-xl bg-raise p-3 [--pop:var(--shade)]">
+        <p className="shout text-[0.6rem] text-faint">Transaction</p>
+
+        {/*
+          A full HashChip, not a title attribute. This is the only artefact of an irreversible action and
+          the reader needs to be able to read it, copy it, and paste it somewhere else.
+        */}
+        <div className="mt-1.5">
+          <HashChip value={hash} />
+        </div>
+
+        <p className="mt-2 text-[0.7rem] leading-relaxed font-semibold text-muted">
+          Your wallet accepted <code className="hash text-[0.65rem]">{request.functionName}</code> and
+          returned this hash. That means it was submitted, not that it succeeded &mdash; a transaction can
+          still revert.
+        </p>
+      </div>
+
+      <div className="pop rounded-xl bg-attention-tint p-3 [--line:var(--attention)] [--pop:var(--attention-shade)]">
+        <p className="shout text-[0.6rem] text-attention-ink">Before you rely on it</p>
+        <p className="mt-1 text-sm leading-relaxed font-semibold text-attention-ink">
+          This dashboard will show the new state after its next read of the chain, which is not instant.
+          Until then the figures behind this dialog are the old ones.
+        </p>
+      </div>
+
+      {url === undefined ? null : (
+        /*
+          A plain link, opened in a new tab, and it says where it goes.
+          
+          An explorer is a third party. Naming it rather than styling it as a product button keeps the
+          trust boundary visible, which matters more here than on a page that only reads.
+        */
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="shout press pop-sm inline-flex items-center gap-1.5 rounded-lg bg-panel px-3 py-1.5 text-[0.6rem] text-muted [--pop:var(--shade)] hover:text-text"
+        >
+          Watch it settle on the explorer
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      )}
+    </div>
   );
 }
 

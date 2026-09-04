@@ -283,6 +283,25 @@ function clientFor(config: AppConfig): PublicClient {
 }
 
 /**
+ * Where a reader can go to watch a transaction settle.
+ *
+ * Read off viem's own chain definition rather than added to `AppConfig`. Both Monad chains ship a
+ * default block explorer, so a hardcoded URL here would be a second source of truth that can only ever
+ * be more wrong than the first -- and an explorer link that silently points at the wrong network is worse
+ * than no link, because it returns "not found" for a transaction that exists.
+ *
+ * Returns `undefined` rather than a guess if a chain ever ships without one, and every caller has to
+ * handle that. The alternative -- falling back to a mainnet explorer for a testnet hash -- produces
+ * exactly the false negative described above.
+ */
+export function explorerTxUrl(hash: string, config: AppConfig = readConfig()): string | undefined {
+  const chain = config.chainId === 143 ? monad : monadTestnet;
+  const base = chain.blockExplorers?.default.url;
+  if (base === undefined) return undefined;
+  return `${base.replace(/\/$/, "")}/tx/${hash}`;
+}
+
+/**
  * Everything the dashboard needs, or sample data with the reason stated.
  *
  * Falls back rather than throwing. A judge opening this during a presentation should see a
