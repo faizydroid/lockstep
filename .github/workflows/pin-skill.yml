@@ -1,0 +1,68 @@
+name: Pin skill
+
+# Publishing a pin belongs in CI, not on a laptop. The executable bit is not
+# representable on Windows filesystems, so a skill containing an executable script
+# hashes differently there — Linux CI is the only place a pin is reliably reproducible.
+#
+# Note the split: pull requests dry-run, which needs no key and makes a capability
+# change visible in review. Only a push to main publishes.
+
+on:
+  pull_request:
+    paths:
+      - "demo/skills/**"
+  push:
+    branches: [main]
+    paths:
+      - "demo/skills/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        skill:
+          - demo/skills/kuru-quote
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the action
+        run: npm run build --workspace @lockstep/action
+
+      # Dry run on pull requests. No key is needed, and the job summary shows the
+      # capability diff and bond price before anything is published.
+      - name: Price the pin
+        if: github.event_name == 'pull_request'
+        uses: ./action
+        with:
+          skill-dir: ${{ matrix.skill }}
+          pin-registry: ${{ vars.PIN_REGISTRY }}
+          chain-id: ${{ vars.CHAIN_ID || '10143' }}
+          rpc-url: ${{ vars.RPC_URL || 'https://testnet-rpc.monad.xyz' }}
+          dry-run: "true"
+
+      # Publish only from main. `fail-on-capability-change` stays at its default of
+      # true, so a widened blast radius turns the release red instead of shipping
+      # quietly and forcing every user to re-approve.
+      - name: Publish the pin
+        if: github.event_name != 'pull_request'
+        uses: ./action
+        with:
+          skill-dir: ${{ matrix.skill }}
+          pin-registry: ${{ vars.PIN_REGISTRY }}
+          chain-id: ${{ vars.CHAIN_ID || '10143' }}
+          rpc-url: ${{ vars.RPC_URL || 'https://testnet-rpc.monad.xyz' }}
+          publisher-private-key: ${{ secrets.PUBLISHER_PRIVATE_KEY }}

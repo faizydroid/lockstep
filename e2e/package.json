@@ -1,0 +1,23 @@
+{
+    "name":  "@lockstep/e2e",
+    "version":  "0.0.1",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "test":  "vitest run --testTimeout=180000"
+                },
+    "dependencies":  {
+                         "@lockstep/runtime":  "*",
+                         "viem":  "2.56.3",
+                         "@lockstep/openclaw-plugin":  "*",
+                         "@lockstep/action":  "*",
+                         "@lockstep/cli":  "*",
+                         "@lockstep/watcher":  "*",
+                         "@lockstep/app":  "*"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "22.13.1",
+                            "typescript":  "5.7.3",
+                            "vitest":  "3.2.7"
+                        }
+}

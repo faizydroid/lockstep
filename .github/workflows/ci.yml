@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # forge-std is a submodule. Without this the contracts do not compile, `forge test`
+      # fails at import resolution, and the failure looks like a Solidity error rather than
+      # a missing checkout option.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          # Must satisfy the root engines field, which requires >=22.18.0 because these
+          # packages have no build step: Node runs the .ts sources directly by stripping
+          # types, and that is only on by default from 22.18. On Node 20 the entry-point
+          # suite fails, since it hands each package's entry point to plain node.
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Verified checksum, same as the local instructions in the README. A security
+      # project that installs its own toolchain unverified would be hard to defend.
+      - name: Install Foundry
+        run: |
+          set -euo pipefail
+          mkdir -p .tools/dl
+          base=https://github.com/foundry-rs/foundry/releases/download/v1.8.1
+          curl -sSLo .tools/dl/foundry.tar.gz    "$base/foundry_v1.8.1_linux_amd64.tar.gz"
+          curl -sSLo .tools/dl/foundry.sha256    "$base/foundry_v1.8.1_linux_amd64.sha256"
+          expected=$(cut -d' ' -f1 .tools/dl/foundry.sha256)
+          actual=$(sha256sum .tools/dl/foundry.tar.gz | cut -d' ' -f1)
+          echo "expected: $expected"
+          echo "actual:   $actual"
+          case "$expected" in
+            [0-9a-f]*) ;;
+            *) echo "digest missing or malformed"; exit 1 ;;
+          esac
+          [ "$expected" = "$actual" ] || { echo "CHECKSUM MISMATCH"; exit 1; }
+          mkdir -p .tools/foundry
+          tar -xzf .tools/dl/foundry.tar.gz -C .tools/foundry
+          echo "$PWD/.tools/foundry" >> "$GITHUB_PATH"
+
+      # Foundry now runs BEFORE the JavaScript suites, which is a change of order rather than
+      # a cosmetic one.
+      #
+      # `contracts/out` is gitignored, and two test files read it: app/test/policy.test.ts
+      # compares the browser write-boundary allowlist against the compiled ABIs, and
+      # e2e/test/abi.test.ts checks every hand-written fragment against the artifacts. Both
+      # exist to catch drift between Solidity and TypeScript, so both need the artifacts to
+      # be present. With the old ordering they failed in CI on a missing directory while
+      # passing locally, where a build had already happened at some point.
+      - name: Build contracts
+        run: forge build
+        working-directory: contracts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Contract tests
+        run: forge test -vv
+        working-directory: contracts
+
+      # Needs the artifacts the contract build produces, and Anvil from the step above.
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+  # The dashboard builds as a static export, so this job proves the whole thing renders to
+  # files without a server. Separate from `test` because a Next build is slow and has no
+  # reason to block the contract and end-to-end suites.
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the dashboard
+        run: npm run build --workspace @lockstep/app
+
+      # A green build only proves it compiled. This checks the exported HTML actually contains
+      # the interface, that the fonts were emitted as local files rather than fetched from a
+      # CDN, and that the write boundary holds: no ABI fragment for approvePin, publish or
+      # execute reached the bundle, and the three narrowing writes did. It used to assert that
+      # no wallet surface existed at all, which was right while the dashboard was read-only and
+      # became wrong once it gained a connect flow.
+      - name: Check the export
+        run: node scripts/check-export.mjs
+
+  # Envio's CLI ships native binaries for linux and darwin only, so codegen cannot run
+  # on a Windows dev machine. This job is where the indexer's config, schema, and
+  # generated bindings actually get verified.
+  indexer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: indexer/package-lock.json
+
+      - name: Install
+        run: npm install
+        working-directory: indexer
+
+      # Fails if config.yaml, schema.graphql, and the handlers disagree — which is the
+      # only way to know the handlers compile against the bindings they import.
+      - name: Codegen
+        run: npx envio codegen
+        working-directory: indexer
+
+      - name: Typecheck handlers
+        run: npx tsc --noEmit
+        working-directory: indexer
