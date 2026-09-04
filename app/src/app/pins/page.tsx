@@ -20,6 +20,9 @@ import { bondBreakdown, formatBondWith } from "@/lib/bond";
 import { formatNative, timeAgo } from "@/lib/format";
 import type { Pin } from "@/lib/model";
 import { pinIdFromQuery } from "@/lib/untrusted";
+import { readConfig } from "@/lib/chain";
+import { useSettings } from "@/components/settings";
+import { Verify } from "@/components/verify";
 
 export default function PinsPage() {
   const { snapshot } = useSnapshot();
@@ -166,6 +169,18 @@ function PinDetail({ pin }: { pin: Pin }) {
   const breakdown = bondBreakdown(pin, snapshot.pricing);
   const highRisk = pin.capabilities.filter((c) => c.highRisk);
 
+  /*
+   * The endpoint the page actually read, including a settings override.
+   *
+   * `readConfig()` alone would print the build's RPC, so a reader who had repointed the dashboard at
+   * their own node would be handed a command checking a different endpoint from the one that produced the
+   * numbers above it. That is the exact class of mismatch this component exists to rule out.
+   */
+  const { settings } = useSettings();
+  const config = readConfig();
+  const registry = config.registry ?? "0x0000000000000000000000000000000000000000";
+  const rpcUrl = settings.rpcUrl ?? config.rpcUrl;
+
   return (
     <Card>
       <div className="space-y-7">
@@ -201,6 +216,24 @@ function PinDetail({ pin }: { pin: Pin }) {
               <HashChip value={pin.publisher} kind="address" />
             </Field>
           </dl>
+
+          {/*
+            The hash above is the whole claim this page makes about this pin, so the command that checks
+            it belongs next to it rather than in a docs page nobody opens.
+
+            `liveSkillHash` and not `getPin`: it returns bytes32 rather than a struct, so the expected
+            output is one line a reader can compare by eye, and it returns zero for a revoked or slashed
+            pin — which means the same command also checks the state badge above.
+          */}
+          <Verify
+            command={`cast call ${registry} "liveSkillHash(bytes32)(bytes32)" ${pin.pinId} --rpc-url ${rpcUrl}`}
+            expect={
+              pin.state === "revoked" || pin.state === "equivocated"
+                ? "0x000\u20260 \u2014 zero, because a revoked or slashed pin has no live hash. That is the same fact the badge above states."
+                : `${pin.skillHash} \u2014 the skill hash shown above, read straight off the registry.`
+            }
+            note="The registry answers with the hash the guard would compare against. If it disagreed with this page, this page would be wrong."
+          />
         </div>
 
         <div className="space-y-3 border-t-2 border-line pt-5">

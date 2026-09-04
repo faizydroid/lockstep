@@ -378,12 +378,19 @@ function checkLensWiring(problems) {
   // not open with a free stamp, which is only defensible because the first step is a real condition on
   // real state. "bytes on your disk" is why two steps have no button. A refactor into a conventional
   // pre-filled checklist would drop both and otherwise look fine.
+  //
+  // The last one is Verify's refusal. It is checked against the bundle rather than the HTML for the same
+  // reason as the quickstart's: which branch renders depends on the snapshot source, which is decided in
+  // the browser. A sample build must show the refusal and not a command, because a copyable command
+  // under an invented hash returns a mismatch the reader would blame on the product. If this string
+  // disappears, the guard has been deleted and the fixture pages start handing out false commands.
   const caveats = [
     "vouching for its own release",
     "removes nothing looks identical to no filter",
     "registering an agent is the publisher's own act",
     "the first is already true",
     "bytes on your disk",
+    "so there is nothing to verify against a chain",
   ];
   for (const phrase of caveats) {
     const present = bundle.includes(phrase);

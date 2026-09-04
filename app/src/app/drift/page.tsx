@@ -14,6 +14,7 @@ import { FingerprintDiff } from "@/components/fingerprint";
 import { GuardSays } from "@/components/guard";
 import { Pop, Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, HashDiff, Pill, Section, cx } from "@/components/ui";
+import { Verify } from "@/components/verify";
 import { formatNative } from "@/lib/format";
 import type { Capability, CapabilityDelta } from "@/lib/model";
 
@@ -116,6 +117,20 @@ export default function DriftPage() {
                 <div className="rounded-xl bg-sunken p-4">
                   <HashDiff approved={skill.approvedHash} current={skill.currentHash} />
                 </div>
+
+                {/*
+                  The one place `lockstep hash` is the right command rather than a chain read.
+                  
+                  Drift is a claim about bytes on a disk, so the check has to run against a disk. A reader
+                  who has the skill checked out can produce the right-hand hash themselves; nobody has to
+                  take the divergence on trust. `Verify` still refuses on a sample build, where these two
+                  hashes are fixtures and the command would return something unrelated.
+                */}
+                <Verify
+                  command={`npx lockstep hash "./${skill.skillName}"`}
+                  expect={`${skill.currentHash} \u2014 the right-hand hash above, computed from your own copy of the bytes.`}
+                  note="Point the path at wherever that skill is checked out; the name above is a label, not a guaranteed directory. This is the only check here that needs the skill locally, because drift is a statement about a disk rather than about the chain. The left-hand hash is what the registry holds; the right is what your disk says."
+                />
 
                 <Delta delta={skill.diff} />
               </div>

@@ -33,6 +33,9 @@ import { useSnapshot } from "@/components/data";
 import { useIdentity } from "@/components/identity";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { SettingsPanel } from "@/components/settings-panel";
+import { useSettings } from "@/components/settings";
+import { Verify } from "@/components/verify";
+import { readConfig } from "@/lib/chain";
 import { Button, Card, Empty, HashChip, Pill, Section, Stat, cx } from "@/components/ui";
 import { formatBondWith } from "@/lib/bond";
 import { delegationCopy } from "@/lib/profile";
@@ -88,6 +91,7 @@ function Profile() {
   const { account, approvals, executions, publishers, pricing } = snapshot;
   const { connected, address, available, connect, connecting, onCorrectChain, switchChain } =
     useIdentity();
+  const { settings } = useSettings();
 
   if (account === undefined) {
     return (
@@ -109,6 +113,9 @@ function Profile() {
   }
 
   const enforced = account.guard.kind === "confirmed" && account.pointedAtConfiguredGuard;
+
+  // The endpoint the page actually read, so a settings override is reflected in the printed command.
+  const rpcUrl = settings.rpcUrl ?? readConfig().rpcUrl;
   const publisher = publishers.find(
     (p) => p.address.toLowerCase() === account.address.toLowerCase(),
   );
@@ -189,6 +196,24 @@ function Profile() {
               not, which is why <code className="hash">guardStorageSlot()</code> asks for both in its
               own documentation.
             </p>
+
+            {/*
+              `cast code` rather than the slot call, because it is the check a reader can do without
+              knowing what the expected slot is. The delegation indicator is self-describing: 23 bytes
+              beginning ef0100, and the twenty after the prefix are the implementation. A reader can
+              compare that tail against the guard address on the same screen.
+            */}
+            <Verify
+              command={`cast code ${account.address} --rpc-url ${rpcUrl}`}
+              expect={
+                account.delegation.kind === "delegated"
+                  ? `0xef0100${account.delegation.implementation.slice(2)} \u2014 the 7702 indicator, then the implementation it points at.`
+                  : account.delegation.kind === "contract"
+                    ? "a long bytecode string \u2014 this is a contract, not a delegated EOA."
+                    : "0x \u2014 empty. Nothing is delegated, so nothing is enforcing."
+              }
+              note="23 bytes is the whole indicator, and there is room in it for exactly one address. That is why an account cannot carry two delegations, and why moving one silently stops enforcement."
+            />
           </div>
         </Card>
       </Reveal>
