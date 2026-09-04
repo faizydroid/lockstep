@@ -131,6 +131,24 @@ jobs:
         run: npx envio codegen
         working-directory: indexer
 
+      # What codegen actually emitted.
+      #
+      # Kept rather than deleted after debugging. Codegen writes `generated/` and prints
+      # nothing about its shape, the directory cannot exist on the Windows machine this is
+      # developed on, and the handlers' `import from "generated"` resolves through a tsconfig
+      # path mapping that has to name a real file. When that mapping is wrong the failure is
+      # TS2307 plus twenty cascading implicit-any errors, which says nothing about the cause.
+      # This turns that into a two-second answer.
+      - name: Show generated bindings
+        run: |
+          echo "--- top level ---"
+          ls -la generated/ || echo "no generated directory"
+          echo "--- package.json, if any ---"
+          cat generated/package.json 2>/dev/null || echo "none"
+          echo "--- candidate entry points ---"
+          find generated -maxdepth 2 -name "index*" -o -maxdepth 2 -name "*.gen.ts" | head -40
+        working-directory: indexer
+
       # `npm run typecheck`, not `npx tsc`.
       #
       # This package had no typescript dependency, so `npx tsc` resolved to a package
