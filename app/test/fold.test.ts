@@ -93,3 +93,56 @@ describe("the overview fold", () => {
     expect(layout).not.toMatch(/id="main"[^>]*pt-8/);
   });
 });
+
+/**
+ * Two design decisions that are invisible in a screenshot diff and easy to refactor away.
+ *
+ * The selected nav item used to change colour and gain a tinted box while keeping an identical icon,
+ * which is what a default iOS tab bar does. A selected icon that is visibly heavier reads as pressed
+ * rather than merely highlighted. And empty states were centred text in a box, in an app that already
+ * had a four-mood mascot delivering news everywhere else — which left the emptiest screens as the only
+ * ones with nothing on them.
+ */
+describe("design decisions worth pinning", () => {
+  const nav = readFileSync(join(APP, "components", "nav.tsx"), "utf8");
+  const ui = readFileSync(join(APP, "components", "ui.tsx"), "utf8");
+
+  it("draws the selected nav icon at a heavier stroke", () => {
+    expect(nav).toMatch(/strokeWidth=\{heavy \? 3\.2 : 2\.5\}/);
+  });
+
+  it("passes the active state into the icon, or the heavier weight never renders", () => {
+    // The half that is easy to lose: Glyph can accept `heavy` while the call site never sets it.
+    expect(nav).toMatch(/<Icon heavy=\{active\} \/>/);
+  });
+
+  it("keeps one icon set at two weights rather than two sets", () => {
+    // A filled variant would mean a second set of thirty-odd paths to keep in step, and the failure
+    // mode of two icon sets is that they drift and the nav ends up mixing styles.
+    expect(nav).not.toMatch(/fill="currentColor"/);
+  });
+
+  it("has the mascot deliver empty states", () => {
+    expect(ui).toMatch(/<Guard mood=\{mood\}/);
+  });
+
+  it("keeps the empty-state mascot decorative", () => {
+    // The title and paragraph beside it say everything; a screen reader announcing "Guard is watching"
+    // before them is noise. An empty label would leave an image with no accessible name, so the
+    // subtree is hidden instead.
+    // Sliced to the next top-level export rather than to the next `}`, which a non-greedy match finds
+    // at the end of the destructured parameter list instead of the end of the body.
+    const at = ui.indexOf("export function Empty(");
+    expect(at).toBeGreaterThan(-1);
+    const empty = ui.slice(at, ui.indexOf("\nexport ", at + 1));
+
+    expect(empty).toMatch(/<span aria-hidden>/);
+    expect(empty).not.toMatch(/label=""/);
+  });
+
+  it("defaults the empty-state mood to watching rather than to something sad", () => {
+    // Several of these states are correct outcomes -- no refusals recorded is good news -- and drawing
+    // that as disappointment would teach a reader that a healthy registry is a broken page.
+    expect(ui).toMatch(/mood = "watching"/);
+  });
+});

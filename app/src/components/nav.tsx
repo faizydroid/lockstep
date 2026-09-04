@@ -215,7 +215,7 @@ function RailBody({
                     />
                   ) : null}
                   <span className="relative grid place-items-center">
-                    <Icon />
+                    <Icon heavy={active} />
                   </span>
                   <span className="relative">{link.label}</span>
                 </Link>
@@ -249,15 +249,28 @@ function RailBody({
  * icon set beside 800-weight uppercase labels looks like it was borrowed from another product, and
  * that mismatch is the most common way a Duolingo-adjacent interface falls apart.
  */
-function Glyph({ children }: { children: ReactNode }) {
+/**
+ * @param heavy Selected state. Draws the same path at 3.2 instead of 2.5.
+ *
+ * The active item previously changed colour and gained a tinted box, and kept an identical icon.
+ * That is what the default iOS tab bar does, and it is the one place a nav can carry a little more
+ * signal for free: a selected icon that is visibly heavier reads as pressed rather than merely
+ * highlighted, and the eye finds it before it reads the label.
+ *
+ * Weight and not a filled variant, deliberately. Filling these would mean a second set of thirty-odd
+ * paths to keep in step with the first, and the failure mode of two icon sets is that they drift and
+ * the nav ends up mixing styles — which is the thing this comment already warns about below. One set,
+ * two weights, nothing to keep synchronised.
+ */
+function Glyph({ children, heavy = false }: { children: ReactNode; heavy?: boolean }) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 24 24"
-      className="size-[19px]"
+      className="size-[19px] transition-[stroke-width] duration-200"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth={heavy ? 3.2 : 2.5}
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -266,9 +279,9 @@ function Glyph({ children }: { children: ReactNode }) {
   );
 }
 
-function IconHome() {
+function IconHome({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <path d="M4 11.5 12 4l8 7.5" />
       <path d="M6 10.5V20h12v-9.5" />
     </Glyph>
@@ -276,9 +289,9 @@ function IconHome() {
 }
 
 /** A pin, for pinned versions. */
-function IconPin() {
+function IconPin({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <path d="M12 21v-6" />
       <path d="M8 5h8l-1.5 6.5h-5L8 5Z" />
       <path d="M9 5h6" />
@@ -287,9 +300,9 @@ function IconPin() {
 }
 
 /** Two paths that share an origin and diverge: drift, literally. */
-function IconDrift() {
+function IconDrift({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <path d="M4 12h5" />
       <path d="M9 12c4 0 4-6 11-6" />
       <path d="M9 12c4 0 4 6 11 6" />
@@ -299,17 +312,17 @@ function IconDrift() {
   );
 }
 
-function IconCheck() {
+function IconCheck({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <path d="M20 6.5 10 17l-5.5-5" />
     </Glyph>
   );
 }
 
-function IconPublisher() {
+function IconPublisher({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <circle cx="12" cy="8" r="3.5" />
       <path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" />
     </Glyph>
@@ -317,9 +330,9 @@ function IconPublisher() {
 }
 
 /** Stacked coins, for bonds. */
-function IconCoins() {
+function IconCoins({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <ellipse cx="12" cy="6.5" rx="7" ry="2.8" />
       <path d="M5 6.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5" />
       <path d="M5 11.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5" />
@@ -327,9 +340,9 @@ function IconCoins() {
   );
 }
 
-function IconShield() {
+function IconShield({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <path d="M12 3.5 19 6v6c0 4-3 7-7 8.5-4-1.5-7-4.5-7-8.5V6l7-2.5Z" />
     </Glyph>
   );
@@ -343,9 +356,9 @@ function IconShield() {
  * thing that genuinely is an actor with a reputation, and reusing it would collapse a distinction the
  * rest of the app is careful about.
  */
-function IconAccount() {
+function IconAccount({ heavy = false }: { heavy?: boolean }) {
   return (
-    <Glyph>
+    <Glyph heavy={heavy}>
       <circle cx="8.5" cy="8.5" r="4" />
       <path d="M11.4 11.6 20 20.5" />
       <path d="M16.5 17 14.5 19" />

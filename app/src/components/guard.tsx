@@ -31,7 +31,8 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
-import { cx } from "./ui";
+// From lib rather than from ./ui: ui.tsx imports this module now, because Empty draws the mascot.
+import { cx } from "@/lib/cx";
 
 export type Mood = "settled" | "watching" | "alarmed" | "blocked";
 

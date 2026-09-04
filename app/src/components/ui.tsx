@@ -31,11 +31,10 @@ import { commonPrefixLength, shortAddress, shortHash } from "@/lib/format";
 import type { PinState } from "@/lib/model";
 import { isSafeHref } from "@/lib/untrusted";
 
-import { Pressable, SPRING_FIRM, Spotlight, motion } from "./motion";
+import { cx } from "@/lib/cx";
 
-function cx(...parts: readonly (string | false | undefined | null)[]): string {
-  return parts.filter(Boolean).join(" ");
-}
+import { Guard } from "./guard";
+import { Pressable, SPRING_FIRM, Spotlight, motion } from "./motion";
 
 /* ------------------------------------------------------------------ surfaces */
 
@@ -756,15 +755,55 @@ export function Td({ children, className }: { children: ReactNode; className?: s
  * calls emit no logs, so that feed is empty unless a trace-capable node is watching. Saying so is
  * more useful than "no data".
  */
-export function Empty({ title, children }: { title: string; children?: ReactNode }) {
+/**
+ * @param mood Which face Guard wears. Defaults to `watching`, which is the honest one for "nothing
+ *        here yet" — an empty list is usually a real answer rather than a problem.
+ *
+ * Guard delivers empty states now, rather than them being centred text in a box.
+ *
+ * The mascot already existed with four moods and was being used on the overview and in the confirm
+ * dialog, which left the emptiest screens in the app as the only ones with nothing on them. That is
+ * backwards: an empty state is where a reader most needs to be told what would fill it and why it is
+ * blank, and a character saying it lands where a paragraph does not.
+ *
+ * `watching` and not a sad face. Several of these states are correct outcomes — no refusals recorded
+ * is good news, and drawing it as disappointment would teach a reader to read a healthy registry as a
+ * broken page.
+ */
+export function Empty({
+  title,
+  children,
+  mood = "watching",
+}: {
+  title: string;
+  children?: ReactNode;
+  mood?: "watching" | "settled" | "alarmed";
+}) {
   return (
-    <div className="pop rounded-xl bg-panel px-6 py-10 text-center">
-      <p className="font-display text-lg font-extrabold text-text">{title}</p>
-      {children === undefined ? null : (
-        <p className="measure mx-auto mt-2 text-sm leading-relaxed font-semibold text-muted">
-          {children}
-        </p>
-      )}
+    <div className="pop rounded-xl bg-panel px-6 py-10">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-5 text-center sm:flex-row sm:items-start sm:text-left">
+        {/*
+          `aria-hidden` on the wrapper, so the mascot is decorative here.
+
+          Guard normally carries `role="img"` and a spoken label, which is right where the face is the
+          message. In an empty state the title and paragraph beside it say everything, and a screen
+          reader announcing "Guard is watching" before them is noise. Hiding the subtree is the correct
+          way to say decorative; passing an empty label would leave an image with no accessible name.
+
+          `bob={false}` because an idling animation is charming in a dashboard header and fidgety
+          inside a panel someone is trying to read.
+        */}
+        <span aria-hidden>
+          <Guard mood={mood} size={72} bob={false} />
+        </span>
+
+        <div className="min-w-0">
+          <p className="font-display text-lg font-extrabold text-text">{title}</p>
+          {children === undefined ? null : (
+            <p className="mt-2 text-sm leading-relaxed font-semibold text-muted">{children}</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
