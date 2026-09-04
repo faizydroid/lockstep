@@ -358,10 +358,19 @@ function checkLensWiring(problems) {
   }
 
   // The honesty, and the reason this function exists.
+  //
+  // The last two are the quickstart's, checked here rather than against the HTML because the panel
+  // waits for stored settings before rendering — otherwise it would appear for a frame and vanish for
+  // everyone who had already dismissed it. "the first is already true" is the claim that the list does
+  // not open with a free stamp, which is only defensible because the first step is a real condition on
+  // real state. "bytes on your disk" is why two steps have no button. A refactor into a conventional
+  // pre-filled checklist would drop both and otherwise look fine.
   const caveats = [
     "vouching for its own release",
     "removes nothing looks identical to no filter",
     "registering an agent is the publisher's own act",
+    "the first is already true",
+    "bytes on your disk",
   ];
   for (const phrase of caveats) {
     const present = bundle.includes(phrase);

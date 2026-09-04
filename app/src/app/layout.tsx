@@ -4,6 +4,7 @@ import { SnapshotProvider } from "@/components/data";
 import { Field } from "@/components/field";
 import { IdentityProvider } from "@/components/identity";
 import { Nav } from "@/components/nav";
+import { VisitTracker } from "@/components/quickstart";
 import { RouteShell } from "@/components/route-shell";
 import { SettingsProvider } from "@/components/settings";
 import { SourceBanner } from "@/components/source-banner";
@@ -89,6 +90,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SettingsProvider>
             <IdentityProvider>
               <SnapshotProvider>
+                {/*
+                  Records visits to the routes the quickstart tracks. Mounted here rather than per page
+                  so adding a route to VISIT_STEPS starts counting without anyone wiring it up.
+                */}
+                <VisitTracker />
+
                 <Nav />
 
                 {/*

@@ -26,6 +26,7 @@ import {
   motion,
   useReducedMotion,
 } from "@/components/motion";
+import { Quickstart } from "@/components/quickstart";
 import { Scoreboard } from "@/components/scoreboard";
 import { Button, Card, Pill, Section, StatePill, cx } from "@/components/ui";
 import { formatBond, formatCount, timeAgo } from "@/lib/format";
@@ -45,6 +46,13 @@ export default function OverviewPage() {
      */
     <div className="space-y-14 sm:space-y-16 2xl:space-y-20">
       <Hero />
+
+      {/*
+        Before the scoreboard, because a first-time reader's question is "what is this and what do I
+        do" while a returning one's is "is anything wrong". It removes itself once dismissed, so the
+        returning case pays nothing for it.
+      */}
+      <Quickstart />
 
       {/*
         The state of the account, delivered by the mascot, before anything else.
