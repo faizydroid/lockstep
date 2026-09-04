@@ -1,0 +1,38 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+gas_reports = ["LockstepGuard", "PinRegistry"]
+# The guard sits in the signing path of funded accounts. Treat warnings as defects.
+deny = "warnings"
+
+[lint]
+# Style notes are excluded so that `deny = "warnings"` keeps its teeth. If the
+# build fails on naming conventions, someone eventually deletes the deny setting
+# and the substantive warnings stop failing too.
+#
+# `low-level-calls` is excluded because the guard's whole job is forwarding an
+# arbitrary call, and the gas suite deliberately measures raw `.call`.
+exclude_lints = [
+  "screaming-snake-case-immutable",
+  "screaming-snake-case-const",
+  "low-level-calls",
+  "multi-contract-file",
+  "literal-instead-of-constant",
+  "inline-assembly",
+]
+
+[profile.default.fuzz]
+runs = 512
+
+[profile.default.invariant]
+runs = 128
+depth = 32
+
+[rpc_endpoints]
+monad = "https://rpc.monad.xyz"
+monad_testnet = "https://testnet-rpc.monad.xyz"
