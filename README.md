@@ -377,7 +377,7 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 312 tests across seven packages
+npm run test:unit          # 418 tests across seven packages
 npm run typecheck
 
 cd contracts
@@ -387,7 +387,7 @@ cd ..
 npm run test:e2e           # 76 tests against a live Anvil chain
 ```
 
-**515 tests total**, counted by running all three: 312 unit, 127 contract, 76 end-to-end.
+**621 tests total**, counted by running all three: 418 unit, 127 contract, 76 end-to-end.
 
 | package | tests |
 |---|---|
@@ -396,8 +396,8 @@ npm run test:e2e           # 76 tests against a live Anvil chain
 | `cli` | 38 |
 | `sandbox` | 17 |
 | `watcher` | 15 |
-| `badge` | 15 |
-| `app` | 131 |
+| `badge` | 28 |
+| `app` | 224 |
 | `contracts` (Foundry) | 127 |
 | `e2e` | 76 |
 
@@ -805,7 +805,7 @@ exists at all — and it is also why the enforcement has to be free.
 | CLI, with self-slash refusal | Done, 38 tests |
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
-| Badge | Done, 15 tests |
+| Badge | Done, 28 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
 | GitHub Action | Done, 13 tests against a live chain. Both refusals verified. Written and green in CI; not yet listed on the Marketplace, which needs the repo public |
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
@@ -815,7 +815,10 @@ exists at all — and it is also why the enforcement has to be free.
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured.** Guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling |
-| Dashboard (Next.js static export) | Done, 131 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
+| Dashboard (Next.js static export) | Done, 224 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
+| Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
+| Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
+| Browser attack surface | Audited. Two gaps closed, CSP in headers and markup, zero production dependency vulnerabilities — see below |
 | **ERC-8004 registries on chain 10143** | **Identified on chain**, not copied from docs that render client-side. `tokenURI` returns the ERC-8004 spec URI. Both are UUPS proxies behind one EOA — a declared dependency, and enforcement never reads them. See below |
 | ERC-8004 registries on chain 143 (mainnet) | Not checked. The addresses above are testnet |
 
