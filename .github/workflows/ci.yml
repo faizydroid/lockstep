@@ -131,6 +131,17 @@ jobs:
         run: npx envio codegen
         working-directory: indexer
 
+      # `npm run typecheck`, not `npx tsc`.
+      #
+      # This package had no typescript dependency, so `npx tsc` resolved to a package
+      # literally named `tsc` on the public registry, downloaded it, and ran it. Its output
+      # is "This is not the tsc command you are looking for" and it exits 1, which read as a
+      # type error for the whole time this job had never been run. npx silently fetching an
+      # unrelated package because a local binary is missing is a supply-chain hazard, and a
+      # sharp one to have shipped in a project about supply-chain provenance.
+      #
+      # typescript is now a declared devDependency and this goes through the package script,
+      # so it can only ever run the local binary.
       - name: Typecheck handlers
-        run: npx tsc --noEmit
+        run: npm run typecheck
         working-directory: indexer

@@ -6,10 +6,11 @@
   "scripts": {
     "codegen": "envio codegen",
     "dev": "envio dev",
-    "start": "envio start"
+    "start": "envio start",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "envio": "3.9.0"
+    "envio": "3.9.0",
+    "typescript": "5.9.3"
   }
 }
-
