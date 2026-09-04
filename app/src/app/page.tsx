@@ -38,7 +38,12 @@ export default function OverviewPage() {
   const headline = drifted[0];
 
   return (
-    <div className="space-y-24">
+    /*
+     * Was `space-y-24`. Ninety-six pixels between every section is a magazine rhythm, and this page
+     * has seven of them, so it cost about 280px of scroll on top of the hero. Fourteen still reads
+     * as deliberate separation without making the reader work for it.
+     */
+    <div className="space-y-14 sm:space-y-16 2xl:space-y-20">
       <Hero />
 
       {/*
@@ -201,34 +206,69 @@ export default function OverviewPage() {
 
 /* ---------------------------------------------------------------------- hero */
 
+/**
+ * The pitch, in a band rather than a screen.
+ *
+ * This was a stacked column -- eyebrow, then a 6.5rem headline, then a four-line paragraph -- and
+ * measured against the type scale it came to roughly 610px of preamble once the source banner and
+ * `main`'s own padding were counted. On a laptop that is about seventy percent of the fold, so the
+ * scoreboard answering "is anything wrong with my account" sat below it and a first-time reader met
+ * a poster instead of a product.
+ *
+ * Two changes, both structural rather than cosmetic. The headline and the explanation now sit side
+ * by side from `lg`, which takes the paragraph out of the vertical stack entirely instead of merely
+ * shortening it. And the headline drops from 6.5rem to 4.5rem, which at this line count is worth
+ * about 70px and still reads as the largest thing on the page by a wide margin.
+ *
+ * The paragraph itself lost its third sentence. What it said -- that the call is refused on chain
+ * when the bytes change -- is demonstrated by the gate immediately below, and prose that describes
+ * a working demonstration two hundred pixels above it is asking to be read twice.
+ */
 function Hero() {
   return (
-    <header className="relative pt-6">
+    <header className="relative pt-1">
       <Reveal>
-        <div className="space-y-7">
-          <Pill tone="pinned">EIP-7702 &middot; enforced at settlement</Pill>
+        <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end lg:gap-12">
+          <div className="space-y-4">
+            <Pill tone="pinned">EIP-7702 &middot; enforced at settlement</Pill>
 
-          {/*
-            Set very large and very tight. At full width a headline at a comfortable reading size
-            looks lost, and this one is the pitch, so it gets to behave like a poster.
+            {/*
+              Still set tight and still allowed to behave like a poster, just not at the expense of
+              the rest of the page. Baloo 2 at 800 rather than Nunito: at this size Nunito's
+              roundness reads as soft, and the headline is the one place that should feel like a
+              shout.
+            */}
+            <h1 className="font-display text-[2.5rem] leading-[0.94] font-extrabold tracking-[-0.03em] text-text sm:text-6xl xl:text-[4.5rem]">
+              <WordsRise text="A lockfile for" />
+              <br />
+              <span className="text-bonded-ink">
+                <WordsRise text="agent money." delay={0.16} />
+              </span>
+            </h1>
+          </div>
 
-            Baloo 2 at 800 rather than Nunito: at this size Nunito's roundness reads as soft, and the
-            headline is the one place on the page that should feel like a shout.
-          */}
-          <h1 className="font-display text-[2.75rem] leading-[0.94] font-extrabold tracking-[-0.03em] text-text sm:text-7xl xl:text-[6.5rem]">
-            <WordsRise text="A lockfile for" />
-            <br />
-            <span className="text-bonded-ink">
-              <WordsRise text="agent money." delay={0.16} />
-            </span>
-          </h1>
+          <div className="space-y-5 lg:pb-1.5">
+            <p className="measure text-base leading-relaxed font-semibold text-muted sm:text-[1.0625rem]">
+              An agent&rsquo;s wallet can cap{" "}
+              <em className="font-extrabold text-text not-italic">how much</em> it spends. It has no
+              idea <em className="font-extrabold text-text not-italic">which code</em> asked.
+              Lockstep binds every fund-moving call to the exact skill version its owner approved.
+            </p>
 
-          <p className="measure text-base leading-relaxed font-semibold text-muted sm:text-lg">
-            An agent&rsquo;s wallet can cap <em className="font-extrabold text-text not-italic">how much</em> it
-            spends. It has no idea <em className="font-extrabold text-text not-italic">which code</em> asked.
-            Lockstep binds every fund-moving call to the exact skill version the account owner
-            approved, and refuses the call on chain when the bytes change underneath it.
-          </p>
+            {/*
+              The fold now offers something to do. It had no call to action at all, which for the
+              first screen of a demo is a strange omission -- a reader convinced by the headline had
+              nowhere to go but scroll.
+            */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button href="/drift" tone="revoked" size="sm">
+                See a refused call
+              </Button>
+              <Button href="/pins" tone="pinned" variant="quiet" size="sm">
+                Browse pins
+              </Button>
+            </div>
+          </div>
         </div>
       </Reveal>
     </header>

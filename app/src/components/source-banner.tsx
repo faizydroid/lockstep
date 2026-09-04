@@ -18,7 +18,7 @@ export function SourceBanner() {
   const { source } = snapshot;
 
   return (
-    <div className="gutter relative z-10 w-full pt-4">
+    <div className="gutter relative z-10 w-full pt-3">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={status === "loading" ? "loading" : source.kind}
@@ -40,8 +40,14 @@ export function SourceBanner() {
              * has, in attention amber, at the top of every page. The live state stays a slim pill,
              * because a confirmation nobody needs to read should not compete with the content.
              */
+            /*
+             * The live bar is deliberately the smallest thing on the page. It was `py-2 px-4` in a
+             * band with `pt-4` above it, which is around 58px spent on a confirmation nobody needs
+             * to read, on every page, above the fold. The sample bar keeps its full padding: that
+             * one does need reading.
+             */
             status !== "loading" && source.kind === "chain"
-              ? "chunk flex flex-wrap items-center gap-x-3 gap-y-2 rounded-pill bg-raise px-4 py-2 text-xs"
+              ? "chunk inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-pill bg-raise px-3 py-1 text-xs"
               : "pop flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-attention-tint px-5 py-3.5 text-xs [--line:var(--attention)] [--pop:var(--attention-shade)]"
           }
         >
@@ -66,8 +72,14 @@ export function SourceBanner() {
               <span className="font-semibold text-muted">
                 chain {source.chainId} &middot; block {source.blockNumber.toString()}
               </span>
-              <span className="text-faint">registry</span>
-              <HashChip value={source.registry} kind="address" emphasis="quiet" />
+              {/*
+                The registry address is the least urgent thing here and the widest. It is the first
+                casualty on a narrow screen, where it was pushing the bar onto a second line.
+              */}
+              <span className="hidden text-faint sm:inline">registry</span>
+              <span className="hidden sm:inline">
+                <HashChip value={source.registry} kind="address" emphasis="quiet" />
+              </span>
             </>
           ) : (
             <>

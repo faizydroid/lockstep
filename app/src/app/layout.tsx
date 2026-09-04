@@ -67,7 +67,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="lg:pl-[var(--rail)]">
                 <SourceBanner />
 
-                <main id="main" className="gutter relative z-10 w-full pb-24 pt-8">
+                {/*
+                  `pt-5`, was `pt-8`. The banner already contributes its own top padding, so the two
+                  stacked to 48px of nothing between the chrome and the first real element on every
+                  page.
+                */}
+                <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">
                   <RouteShell>{children}</RouteShell>
                 </main>
 
