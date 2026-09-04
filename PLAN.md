@@ -50,7 +50,7 @@ That is the whole product.
 | **SkillBond** | On-chain skill manifests, declared capabilities, slashable violations — explicitly *economic, not runtime* enforcement ([site](https://skillbond-protocol.vercel.app/)) | Closest positioning. **Do not build a bonded-manifest protocol.** They lack settlement-time binding. |
 | **OWASP Universal Skill Format** | Platform-agnostic skill manifest spec ([OWASP](https://owasp.org/www-project-agentic-skills-top-10/universal-skill-format)) | **Adopt it. Never invent a manifest format.** |
 | **SkillGuard** | Automated manifest generation, 91% F1 | **Cite and wrap. Don't rebuild.** |
-| **MetaMask Agent Wallet** | Spend limits, allowlists, simulation, 2FA (shipped 6 Aug 2026) | Complementary: they govern *how much*, we govern *which code*. Basis for the plugin bounty. |
+| **MetaMask Gator / Agent Wallet** | ERC-7710 delegations with caveats. The `functionCall` scope pins `--targets`, `--selectors`, `--valueLte` | Complementary, and now **measured**: 12 differential tests in `contracts/test/GatorComparison.t.sol` show a `functionCall` caveat and a Lockstep pin agree on every call the *approved* skill makes, and diverge only when the bytes behind the skill change. They govern *how much* and *which selector*; we govern *which code asked*. |
 | **Beaverknight** | Credit bureau scoring trading-agent performance | Different object entirely (performance, not provenance). |
 
 **Strategic conclusion:** the mechanism is copyable in about a week. Defensibility is **distribution** — being inside publishers' CI and read by the hubs. Prioritise accordingly.
@@ -189,7 +189,7 @@ Rug pulls blocked · blocks from unpinned execution to slash · watcher lag · a
 | Signing | Mera | passkey EOA for the dashboard ([docs](https://docs.monad.xyz/guides/mera)) |
 | Indexing | Envio HyperIndex | read path |
 | Agent runtime | OpenClaw | `skill.md`, ClawHub distribution |
-| Agent wallet | MetaMask Agent Wallet `mm` CLI | plugin bounty target |
+| Agent wallet | MetaMask Gator (`@metamask/gator-cli`) | plugin bounty target. **There is no `mm` CLI** — this plan asserted one and was wrong; see `integrations/metamask/README.md` |
 | Workflows | Chainlink CRE (cron only) | off the critical path |
 | LLM | Kimi / Qwen 3.8 Max / Hunyuan | free credits, demo agents |
 | Infra | AWS: one Fargate service, one Lambda, EventBridge, KMS | **no CDK stack** |
@@ -202,40 +202,43 @@ Rug pulls blocked · blocks from unpinned execution to slash · watcher lag · a
 
 ## 7. Six-week schedule
 
+`[x]` done and evidenced in the repo. `[~]` built but not live, with the reason stated. `[ ]` not done.
+Where reality diverged from what this plan assumed, the line says so instead of being quietly reworded.
+
 ### Week 1 · Sep 2–8 — **KILL GATE**
 
 The entire thesis rests on one unproven assumption: that you can get a trustworthy hash of the loaded skill out of the agent runtime. You do not own that runtime.
 
-- [ ] **Extract `keccak256(skill bytes)` from a running OpenClaw agent and attach it to a transaction.** If this does not work by Sep 8, the thesis is dead — stop and pick another idea. Do not build on top of an unproven integration.
-- [ ] Measure gas for the guard check on testnet. Record the number.
-- [ ] Confirm ERC-8004 addresses on 143 / 10143
-- [ ] `PinRegistry` with `lockedBond` and blast-radius pricing
+- [x] **Extract `keccak256(skill bytes)` from a running OpenClaw agent and attach it to a transaction.** `runtime/src/canonical.ts` hashes the loaded tree; `plugin/` attaches it. Settled on testnet: `0x0990fdb43e036ad9fdf2bdb8054ab836ef8a3ea391034b35880d262132762cec`.
+- [x] Measure gas for the guard check on testnet. **Settle 115,207** (verify 17,769 / transfer 39,822 / guard logic ~33.6k), **refuse 62,181** — refusing costs less than settling, so the safe path is also the cheap one.
+- [ ] Confirm ERC-8004 addresses on 143 / 10143 — **still open, and it is what blocks the `LockstepLens` deploy below.** The docs render them client-side.
+- [x] `PinRegistry` with `lockedBond` and blast-radius pricing — `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b`, verified, block 59428872.
 - [ ] **BD starts Monday.** Contact 10 publishers from Monad Agent Hub and ClawHub. Lead time is 4+ weeks; starting this in week 4 is starting it too late.
 
 ### Week 2 · Sep 9–15 — Core loop
-- [ ] `LockstepGuard` 7702 delegate, fail-closed, fuzzed hard
-- [ ] Auto-approve semantics for capability-identical updates
-- [ ] First rug pull blocked on testnet, end to end
-- [ ] Watcher indexed by delegated account; `proveViolation` + slash path
+- [x] `LockstepGuard` 7702 delegate, fail-closed, fuzzed hard — `0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510`; live delegated account `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` carries `0xef0100c41ece…`.
+- [x] Auto-approve semantics for capability-identical updates — `diffCapabilities` in `cli/src/pins.ts`; `approve` prompts only when `widened` is true. A new `(target, selector)` pair or a higher value ceiling widens; removing either narrows and passes silently.
+- [x] First rug pull blocked on testnet, end to end — refused at `0x1464e35e9231e9e021dc5be743abc456d28a7ff0b528f3ab14286c559c9ba35b`, `SkillHashMismatch`, **zero logs**. Nothing moved.
+- [x] Watcher indexed by delegated account; slash path — `watcher/src/equivocation.ts` → `slashEquivocation`. Note the offence is *equivocation* (two skill hashes claimed for one version), not the `proveViolation` shape this line originally assumed.
 
 ### Week 3 · Sep 16–22 — Adoption removal
-- [ ] Sandbox replay on forked Monad → draft capability sets
-- [ ] `lockstep-action` GitHub Action published
-- [ ] Envio indexer live
-- [ ] Invariants: guard fails closed, pin cannot be forged, slash is idempotent, bond cannot double-commit
+- [x] Sandbox replay on forked Monad → draft capability sets — `sandbox/`.
+- [x] `lockstep-action` GitHub Action written and green in CI — `action/action.yml`. **Not yet listed on the Marketplace**, which needs the repo public.
+- [~] Envio indexer — config points at the live registry from block 59428872, 13 events. Codegen cannot run on Windows, so it is verified by the Linux CI job, **not yet running as a hosted deployment**.
+- [x] Invariants — `contracts/test/Invariants.t.sol`, six of them: locked never exceeds balance, locked equals the sum of live pin bonds, the registry holds what it owes, a bond is never paid twice, live pins stay fully bonded, revoked pins are never live.
 - [ ] **Sep 18–19 NYC Metropolis Lounge — go.** Judges and mentors are physically present. SF/London Sep 25, Singapore Oct 6 as alternates.
 
 ### Week 4 · Sep 23–29 — Surfaces
-- [ ] Install-time UI: pin line, capability diff (GitHub-style), approval queue
-- [ ] `lockstep-guard` OpenClaw skill wrapping the `mm` CLI → **MetaMask bounty**. Publish to ClawHub.
-- [ ] `LockstepLens` over ERC-8004
-- [ ] Embeddable badge (free tier, so it can be near-universal)
+- [x] Install-time UI: pin line, capability diff, approval queue — seven routes: `/`, `/pins`, `/approvals`, `/drift`, `/bonds`, `/publishers`, `/badge`.
+- [x] `lockstep-provenance` skill in MetaMask's own `domains/<domain>/skills/<name>/skill.md` layout → **MetaMask bounty**. Teaches a Gator operator when a `functionCall` scope is insufficient. Named to avoid colliding with the existing `skill/SKILL.md`, which does a different job.
+- [~] `LockstepLens` over ERC-8004 — written, 14 tests pass. **Undeployed**, because it takes registry addresses this plan has not yet confirmed on 10143. Deploying it against guesses would put an unverifiable contract on chain.
+- [x] Embeddable badge — `badge/`, plus the `/badge` route.
 - [ ] **First 3 third-party skills pinned**
 
 ### Week 5 · Sep 30 – Oct 6 — The demo that wins
-- [ ] **Reproduce a real ClawHavoc-class rug pull.** Skill clean at approval, hostile after silent update, blocked at settlement. This is the centrepiece.
-- [ ] Show the same attack succeeding against an allowlist-only wallet, then blocked by Lockstep
-- [ ] Bond-velocity benchmark: 6s window vs 4min window
+- [x] **Reproduce a ClawHavoc-class rug pull.** `demo/skills/kuru-quote` clean at approval, `demo/attack/kuru-quote-hostile` after the silent update, refused at settlement on testnet.
+- [x] Show the same attack against an allowlist-only wallet, then blocked by Lockstep — `contracts/test/AllowlistComparison.t.sol`, and `contracts/test/GatorComparison.t.sol` does the same against MetaMask Gator's real `functionCall` caveat rather than a straw man.
+- [x] Bond-velocity benchmark: 6s window vs 4min window — `contracts/test/BondVelocity.t.sol`. This is the number the monetisation argument rests on.
 - [ ] `lockstep-action` merged into at least one real publisher's CI
 - [ ] **Target 5+ third-party pinned skills**
 - [ ] External review; fix everything found
@@ -266,7 +269,7 @@ Record it. Do not perform it live.
 
 | Bounty | $ | Deliverable | Path |
 |---|---|---|---|
-| MetaMask Best Agent Wallet Plugin | 2,500 | `lockstep-guard` OpenClaw skill wrapping `mm` CLI, on ClawHub | `skill/` |
+| MetaMask Best Agent Wallet Plugin | 2,500 | `lockstep-provenance` skill + a 12-test differential against Gator's `functionCall` caveat | `integrations/metamask/`, `contracts/test/GatorComparison.t.sol` |
 | Privy | 5,000 | client auth + server wallets for demo agents | `app/`, `agents/` |
 | Envio | 1,000 | HyperIndex over ERC-8004 + Lockstep events | `indexer/` |
 | Chainlink CRE | 3,000 | cron workflow for epoch rollover / pin-staleness alerts | `workflows/` |
@@ -314,7 +317,8 @@ monad_project/
 ├─ action/                        lockstep-action (GitHub Action)
 ├─ sandbox/                       Anvil fork replay → draft capabilities
 ├─ watcher/                       Fargate, indexed by delegated account
-├─ skill/                         lockstep-guard OpenClaw skill
+├─ skill/                         OpenClaw skill routing spend through lockstep_send
+├─ integrations/metamask/         lockstep-provenance skill, MetaMask's layout
 ├─ indexer/                       Envio HyperIndex
 ├─ app/                           Next.js: pins, diffs, approval queue, badge
 ├─ agents/                        demo agents incl. the rug-pull attacker
