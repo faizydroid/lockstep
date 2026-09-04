@@ -9,14 +9,20 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"],
-    // `generated` is produced by `envio codegen`, which ships native binaries for
-    // linux and darwin only. On Windows the directory will not exist, so this path
-    // mapping resolves only after codegen has run — in CI, or on a mac or Linux box.
-    "baseUrl": ".",
-    "paths": {
-      "generated": ["./generated/src/Types.gen.ts", "./generated/index.ts"]
-    }
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  // `envio-env.d.ts` is emitted by `envio codegen` and must be in the program.
+  //
+  // This previously declared a `paths` mapping for a module called `generated`, which is the Envio v2
+  // layout: codegen wrote a `generated/` package and handlers imported from it. Version 3 emits
+  // `.envio/` plus this ambient declaration file instead, and the handlers import from `"envio"` —
+  // the types for the contracts and entities arrive by augmentation rather than through a path.
+  //
+  // With `include` limited to `src/**/*.ts` the declaration file was outside the program, so even
+  // after the imports were corrected nothing would have resolved. Both entries are required.
+  //
+  // The file cannot exist on Windows, since Envio ships linux and darwin binaries only. `tsc` treats a
+  // missing include pattern as empty rather than an error, so a local run degrades to checking only
+  // `src` and the real verification happens in the indexer CI job.
+  "include": ["src/**/*.ts", "envio-env.d.ts"]
 }

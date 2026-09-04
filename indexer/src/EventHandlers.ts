@@ -13,12 +13,7 @@
  * change them, or the read model silently drifts from the chain it claims to mirror.
  */
 
-import {
-  PinRegistry,
-  LockstepGuard,
-  type Pin,
-  type Publisher,
-} from "generated";
+import { indexer, type Pin, type Publisher } from "envio";
 
 const GLOBAL_ID = "global";
 const ZERO = 0n;
@@ -54,7 +49,11 @@ async function loadGlobal(context: any) {
   };
 }
 
-PinRegistry.Published.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "Published" },
+
+  async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
   const isNew = (await context.Publisher.get(publisher.id)) === undefined;
 
@@ -89,7 +88,11 @@ PinRegistry.Published.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.CapabilityDeclared.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "CapabilityDeclared" },
+
+  async ({ event, context }) => {
   context.Capability.set({
     id: `${event.params.pinId}-${event.params.target.toLowerCase()}-${event.params.selector}`,
     pin_id: event.params.pinId,
@@ -99,7 +102,11 @@ PinRegistry.CapabilityDeclared.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.Revoked.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "Revoked" },
+
+  async ({ event, context }) => {
   const pin = await context.Pin.get(event.params.pinId);
   if (pin === undefined) return;
   // `Revoked` fires twice during a slash, once per conflicting pin. Preserve the
@@ -116,7 +123,11 @@ PinRegistry.Revoked.handler(async ({ event, context }) => {
   context.Global.set({ ...global, livePins: Math.max(0, global.livePins - 1) });
 });
 
-PinRegistry.Slashed.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "Slashed" },
+
+  async ({ event, context }) => {
   const pin = await context.Pin.get(event.params.pinId);
   const publisher = await loadPublisher(context, event.params.publisher);
 
@@ -157,7 +168,11 @@ PinRegistry.Slashed.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.BondDeposited.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "BondDeposited" },
+
+  async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
   context.Publisher.set({
     ...publisher,
@@ -167,7 +182,11 @@ PinRegistry.BondDeposited.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.BondWithdrawn.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "BondWithdrawn" },
+
+  async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
   context.Publisher.set({
     ...publisher,
@@ -176,7 +195,11 @@ PinRegistry.BondWithdrawn.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.BondLocked.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "BondLocked" },
+
+  async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
   context.Publisher.set({
     ...publisher,
@@ -190,7 +213,11 @@ PinRegistry.BondLocked.handler(async ({ event, context }) => {
   });
 });
 
-PinRegistry.BondReclaimed.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "PinRegistry", event: "BondReclaimed" },
+
+  async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
   const pin = await context.Pin.get(event.params.pinId);
   if (pin !== undefined) {
@@ -215,7 +242,11 @@ PinRegistry.BondReclaimed.handler(async ({ event, context }) => {
 
 // --- guard events, emitted at each delegated account's own address ---
 
-LockstepGuard.PinApproved.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "LockstepGuard", event: "PinApproved", wildcard: true },
+
+  async ({ event, context }) => {
   const account = event.srcAddress.toLowerCase();
   const id = `${account}-${event.params.pinId}`;
   const existing = await context.Approval.get(id);
@@ -230,7 +261,11 @@ LockstepGuard.PinApproved.handler(async ({ event, context }) => {
   });
 });
 
-LockstepGuard.PinUnapproved.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "LockstepGuard", event: "PinUnapproved", wildcard: true },
+
+  async ({ event, context }) => {
   const account = event.srcAddress.toLowerCase();
   const id = `${account}-${event.params.pinId}`;
   const existing = await context.Approval.get(id);
@@ -243,7 +278,11 @@ LockstepGuard.PinUnapproved.handler(async ({ event, context }) => {
   });
 });
 
-LockstepGuard.SkillExecuted.handler(async ({ event, context }) => {
+indexer.onEvent(
+
+  { contract: "LockstepGuard", event: "SkillExecuted", wildcard: true },
+
+  async ({ event, context }) => {
   context.Execution.set({
     id: `${event.transaction.hash}-${event.logIndex}`,
     account: event.srcAddress.toLowerCase(),
