@@ -47,6 +47,10 @@ contract RegistryHandler {
     bytes public lastPublishError;
 
     address internal constant TARGET_BASE = address(0xBEEF);
+    // Truncating keccak256 to four bytes IS the selector definition, so the narrowing is the
+    // point rather than a hazard. Disabled at this one line instead of globally, so the lint
+    // keeps working on casts in src/ where it could catch something real.
+    // forge-lint: disable-next-line(unsafe-typecast)
     bytes4 internal constant SWAP = bytes4(keccak256("swap(uint256)"));
     bytes4 internal constant APPROVE = bytes4(0x095ea7b3);
 

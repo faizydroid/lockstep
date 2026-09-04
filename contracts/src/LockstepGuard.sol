@@ -130,7 +130,13 @@ contract LockstepGuard {
     ///      this permits exactly one caller: a transaction the account holder
     ///      signed to their own address. Executors deliberately cannot change
     ///      policy - an agent must never be able to widen its own permissions.
+    // forge-lint: disable-next-line(unwrapped-modifier-logic)
     modifier onlySelf() {
+        // Deliberately not extracted into an internal function. The lint suggests that to shrink
+        // bytecode where a modifier is applied many times; this one guards four policy setters that
+        // are called rarely, and the check is a single comparison. Inlining it keeps the whole
+        // authorisation decision visible at the point of use, which matters more here than a few
+        // bytes of code size in a contract that sits in the signing path of funded accounts.
         if (msg.sender != address(this)) revert NotSelf();
         _;
     }
