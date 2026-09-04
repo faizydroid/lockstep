@@ -234,7 +234,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 - [ ] **Sep 18–19 NYC Metropolis Lounge — go.** Judges and mentors are physically present. SF/London Sep 25, Singapore Oct 6 as alternates.
 
 ### Week 4 · Sep 23–29 — Surfaces
-- [x] Install-time UI: pin line, capability diff, approval queue — seven routes: `/`, `/pins`, `/approvals`, `/drift`, `/bonds`, `/publishers`, `/badge`.
+- [x] Install-time UI: pin line, capability diff, approval queue — seven routes: `/`, `/pins`, `/approvals`, `/drift`, `/bonds`, `/publishers`, `/badge`. `/publishers` also reads the live Lens, and states in the interface that on this deployment the only publisher and the configured account are the same address, so the filter has nothing to exclude yet. That caveat is grepped for by `scripts/check-export.mjs`, because the honest panel and the overclaiming one look identical.
 - [x] `lockstep-provenance` skill in MetaMask's own `domains/<domain>/skills/<name>/skill.md` layout → **MetaMask bounty**. Teaches a Gator operator when a `functionCall` scope is insufficient. Named to avoid colliding with the existing `skill/SKILL.md`, which does a different job.
 - [x] `LockstepLens` over ERC-8004 — **live at `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664`**, block 59619349, reading the real registries. `script/DeployLens.s.sol` identifies the registries on chain before it will deploy, and refuses otherwise; `test/DeployLensChecks.t.sol` (15 tests) proves those checks fire on the live `tokenURI` payload and reject a lookalike. Immutables read back off chain, and the eligibility rule answers correctly against live state in both directions.
 - [x] Embeddable badge — `badge/`, plus the `/badge` route.
