@@ -32,6 +32,7 @@ import { Scoreboard } from "@/components/scoreboard";
 import { Button, Card, Pill, Section, StatePill, cx } from "@/components/ui";
 import { formatBond, formatCount, timeAgo } from "@/lib/format";
 import type { DataSource } from "@/lib/model";
+import { displayName } from "@/lib/untrusted";
 
 export default function OverviewPage() {
   const { snapshot } = useSnapshot();
@@ -144,11 +145,11 @@ export default function OverviewPage() {
                       </div>
 
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className="font-display text-lg leading-tight font-extrabold text-text">
-                          {pin.skillName ?? "unnamed skill"}
+                        <p className="font-display text-lg leading-tight font-extrabold break-words text-text">
+                          {displayName(pin.skillName)}
                           {pin.skillVersion === undefined ? null : (
                             <span className="ml-2 text-sm font-bold text-faint">
-                              {pin.skillVersion}
+                              {displayName(pin.skillVersion, "")}
                             </span>
                           )}
                         </p>

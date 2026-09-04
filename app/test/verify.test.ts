@@ -116,13 +116,21 @@ describe("each page verifies its own strongest claim", () => {
     // This is the one place the project's own CLI is right: the subject is bytes on the reader's disk,
     // not a chain slot, so no chain read could confirm it.
     expect(drift).toMatch(/lockstep hash/);
-    expect(drift).toMatch(/skill\.skillName/);
   });
 
-  it("drift quotes the path and admits the name may not be the directory", () => {
-    // skillName is a label. Unquoted, a name with a space produces a command that fails in a way
-    // that looks like the product's fault.
-    expect(drift).toMatch(/lockstep hash "\.\/\$\{skill\.skillName\}"/);
-    expect(drift).toMatch(/name above is a label/);
+  it("drift uses a placeholder path rather than the publisher's chosen name", () => {
+    /*
+     * This assertion was inverted. It used to require
+     * `lockstep hash "./${skill.skillName}"` -- on the reasoning that quoting the path handled a name
+     * with a space in it.
+     *
+     * Quoting is not the problem. `skillName` comes from a publisher's manifest, and this block renders a
+     * copy button, so a name containing a quote and a semicolon made the copied command arbitrary code on
+     * the reader's own machine, handed over by the security dashboard. There is no escaping that earns
+     * that back, and the name was never the directory. Full assertions live in display-name.test.ts.
+     */
+    expect(drift).toContain("SKILL_DIR_PLACEHOLDER");
+    expect(drift).not.toMatch(/lockstep hash[^`]*\$\{skill\./);
+    expect(drift).toMatch(/label chosen by the publisher/);
   });
 });

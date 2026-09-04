@@ -16,6 +16,7 @@ import type { BadgeInput, BadgeState } from "@lockstep/badge";
 import { useSnapshot } from "@/components/data";
 import { Reveal, SPRING_FIRM, motion } from "@/components/motion";
 import { Card, Pill, Section, cx } from "@/components/ui";
+import { displayName } from "@/lib/untrusted";
 
 const STATES: readonly { state: BadgeState; label: string; why: string }[] = [
   { state: "bonded", label: "bonded", why: "Live, with collateral posted against the version claim." },
@@ -50,8 +51,16 @@ export default function BadgePage() {
    */
   const livePin = snapshot.pins.find((p) => p.state === "bonded");
 
+  /*
+    The name is bounded before it reaches the snippet, not just before it reaches the screen.
+
+    This output is markdown the reader is told to paste into a README, so a publisher-chosen name
+    carrying brackets, parentheses or a bidi override could rewrite the surrounding link rather than sit
+    inside it. `displayName` strips the invisible characters and caps the length; the markdown escaping
+    itself belongs to `badgeSnippet`, which is where the syntax is known.
+  */
   const snippet = badgeSnippet({
-    skillName: livePin?.skillName ?? "kuru-quote",
+    skillName: displayName(livePin?.skillName, "kuru-quote"),
     pinId: livePin?.pinId ?? `0x${"0".repeat(64)}`,
     dashboard: "https://lockstep.dev",
   });
@@ -180,8 +189,8 @@ export default function BadgePage() {
               {livePin === undefined ? null : (
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t-2 border-line pt-4">
                   <Pill tone="bonded">from this registry</Pill>
-                  <span className="text-xs text-muted">
-                    {livePin.skillName ?? "unnamed skill"} would render{" "}
+                  <span className="text-xs break-words text-muted">
+                    {displayName(livePin.skillName)} would render{" "}
                     {livePin.capabilities.some((c) => c.highRisk) ? "amber" : "green"}
                   </span>
                 </div>

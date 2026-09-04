@@ -70,3 +70,76 @@ export function isSafeHref(href: string): boolean {
     return false;
   }
 }
+
+/**
+ * The literal stand-in for a skill directory in a copyable command.
+ *
+ * Exported as a constant so the test suite can assert that the drift page's command contains it and
+ * therefore cannot contain an interpolated name. A string literal in the page would be indistinguishable
+ * from a name that happened to look safe.
+ */
+export const SKILL_DIR_PLACEHOLDER = "your-skill";
+
+/** How much of a publisher's chosen name is shown before it is cut. */
+const NAME_LIMIT = 64;
+
+/**
+ * A publisher's skill name, made safe to render.
+ *
+ * ## Why a name needs this at all
+ *
+ * `skillName` comes out of a publisher's manifest. It is attacker-controlled in the ordinary case, not
+ * the exotic one: publishing is open, and this dashboard prints the name in its largest type, directly
+ * beside its own labels. React escapes it, so this is not about scripting. It is about a name being able
+ * to lie about its own shape:
+ *
+ *   - A right-to-left override (U+202E) reverses how the rest of the string renders, so the name on
+ *     screen can be arbitrarily different from the name in the bytes that were hashed.
+ *   - Zero-width characters let two different publishers' skills render identically, which is the whole
+ *     attack this product exists to make expensive, executed one layer up in the interface.
+ *   - Newlines and runs of whitespace break the card they sit in, and a 4,000-character name destroys
+ *     every layout on the page.
+ *
+ * ## Why this sanitises where `isSafeHref` refuses
+ *
+ * `isSafeHref` drops what it cannot vouch for, because a link that does not work is a fine outcome. A
+ * name cannot be dropped -- something has to render -- so the rule here is different: strip the
+ * characters that let a string misrepresent itself, bound the length, and never let the result stand as
+ * identity. The hash and the fingerprint beside it are the identity. That is why this is a display
+ * helper and nothing compares names.
+ *
+ * What it deliberately does NOT attempt is homoglyph or lookalike detection. Deciding that "kuru" and
+ * "kurу" are confusable is a policy call with false positives, it belongs on the publishing side rather
+ * than the viewing side, and a half-working version would imply a guarantee that is not there.
+ */
+export function displayName(raw: string | undefined, fallback = "unnamed skill"): string {
+  if (raw === undefined) return fallback;
+
+  const cleaned = raw
+    /*
+     * Whitespace controls become a space; every other control is removed.
+     *
+     * The order matters and the first version got it wrong by deleting both. A tab between two words
+     * joined them -- "price\toracle" rendered as "priceoracle" -- which changes the name and hands back a
+     * collision: two different stored names painting identical pixels is the thing this function exists to
+     * prevent. Tab, newline, carriage return, vertical tab and form feed are word separators, so they
+     * collapse rather than vanish.
+     */
+    .replace(/[\u0009-\u000d]/g, " ")
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, "")
+    // Bidi controls: LRE, RLE, PDF, LRO, RLO, LRM, RLM, ALM, and the isolates.
+    .replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, "")
+    // Zero-width space, non-joiner, joiner, word joiner, BOM, and the invisible maths operators.
+    .replace(/[\u200b-\u200d\u2060-\u2064\ufeff]/g, "")
+    // Anything the Unicode tables call a format character and everything unassigned.
+    .replace(/\p{Cf}|\p{Cn}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned === "") return fallback;
+  if (cleaned.length <= NAME_LIMIT) return cleaned;
+
+  // Cut rather than wrap. A name long enough to need this is not communicating anything past 64 chars,
+  // and the ellipsis is the honest signal that something was removed.
+  return `${cleaned.slice(0, NAME_LIMIT).trimEnd()}\u2026`;
+}

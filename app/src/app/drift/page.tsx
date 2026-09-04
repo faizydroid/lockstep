@@ -16,6 +16,7 @@ import { Pop, Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, HashDiff, Pill, Section, cx } from "@/components/ui";
 import { Verify } from "@/components/verify";
 import { Term } from "@/components/term";
+import { SKILL_DIR_PLACEHOLDER, displayName } from "@/lib/untrusted";
 import { formatNative } from "@/lib/format";
 import type { Capability, CapabilityDelta } from "@/lib/model";
 
@@ -90,7 +91,9 @@ export default function DriftPage() {
               <div className="space-y-7">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-2">
-                    <p className="font-display text-2xl leading-tight text-text">{skill.skillName}</p>
+                    <p className="font-display text-2xl leading-tight break-words text-text">
+                      {displayName(skill.skillName)}
+                    </p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-faint">
                       <span>account</span>
                       <HashChip value={skill.account} kind="address" emphasis="quiet" />
@@ -122,16 +125,23 @@ export default function DriftPage() {
 
                 {/*
                   The one place `lockstep hash` is the right command rather than a chain read.
-                  
+
                   Drift is a claim about bytes on a disk, so the check has to run against a disk. A reader
                   who has the skill checked out can produce the right-hand hash themselves; nobody has to
                   take the divergence on trust. `Verify` still refuses on a sample build, where these two
                   hashes are fixtures and the command would return something unrelated.
+
+                  The path is a PLACEHOLDER and must stay one. It previously interpolated
+                  `skill.skillName`, which is a string from a publisher's manifest, into a command this
+                  page tells the reader to paste into a shell. A name containing a quote and a semicolon
+                  would have turned a copy button into arbitrary command execution on the reader's own
+                  machine -- handed over by the security dashboard, carrying its authority. No amount of
+                  escaping earns that back, and the name was never the directory anyway.
                 */}
                 <Verify
-                  command={`npx lockstep hash "./${skill.skillName}"`}
+                  command={`npx lockstep hash ./path/to/${SKILL_DIR_PLACEHOLDER}`}
                   expect={`${skill.currentHash} \u2014 the right-hand hash above, computed from your own copy of the bytes.`}
-                  note="Point the path at wherever that skill is checked out; the name above is a label, not a guaranteed directory. This is the only check here that needs the skill locally, because drift is a statement about a disk rather than about the chain. The left-hand hash is what the registry holds; the right is what your disk says."
+                  note="Point the path at wherever that skill is checked out. The name shown above is a label chosen by the publisher, not a directory and not an identity \u2014 the hash is the identity. This is the only check here that needs the skill locally, because drift is a statement about a disk rather than about the chain."
                 />
 
                 <Delta delta={skill.diff} />

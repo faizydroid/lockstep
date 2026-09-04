@@ -19,7 +19,7 @@ import { Card, Empty, HashChip, Pill, Section, StatePill, cx } from "@/component
 import { bondBreakdown, formatBondWith } from "@/lib/bond";
 import { formatNative, timeAgo } from "@/lib/format";
 import type { Pin } from "@/lib/model";
-import { pinIdFromQuery } from "@/lib/untrusted";
+import { displayName, pinIdFromQuery } from "@/lib/untrusted";
 import { readConfig } from "@/lib/chain";
 import { useSettings } from "@/components/settings";
 import { Verify } from "@/components/verify";
@@ -129,10 +129,12 @@ export default function PinsPage() {
                       </div>
 
                       <div className="min-w-0 flex-1 space-y-1">
-                        <p className="font-display text-lg leading-tight text-text">
-                          {pin.skillName ?? "unnamed skill"}
+                        <p className="font-display text-lg leading-tight break-words text-text">
+                          {displayName(pin.skillName)}
                           {pin.skillVersion === undefined ? null : (
-                            <span className="ml-2 text-sm text-faint">{pin.skillVersion}</span>
+                            <span className="ml-2 text-sm text-faint">
+                              {displayName(pin.skillVersion, "")}
+                            </span>
                           )}
                         </p>
                         <p className="text-xs text-faint">
@@ -198,11 +200,13 @@ function PinDetail({ pin }: { pin: Pin }) {
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="font-display text-2xl leading-tight text-text">
-                {pin.skillName ?? "unnamed skill"}
+              <p className="font-display text-2xl leading-tight break-words text-text">
+                {displayName(pin.skillName)}
               </p>
               {pin.skillVersion === undefined ? null : (
-                <p className="text-sm text-faint">{pin.skillVersion}</p>
+                <p className="text-sm break-words text-faint">
+                  {displayName(pin.skillVersion, "")}
+                </p>
               )}
             </div>
 

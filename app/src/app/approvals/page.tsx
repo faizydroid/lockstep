@@ -17,6 +17,7 @@ import { Card, Empty, HashChip, Pill, Section, StatePill, Table, Td, Th } from "
 import { WriteAction } from "@/components/write-action";
 import { readConfig } from "@/lib/chain";
 import { formatNative, timeAgo } from "@/lib/format";
+import { displayName } from "@/lib/untrusted";
 
 export default function ApprovalsPage() {
   const { snapshot } = useSnapshot();
@@ -67,10 +68,12 @@ export default function ApprovalsPage() {
                     <Card className="p-5">
                       <div className="flex flex-wrap items-start justify-between gap-4">
                         <div className="space-y-2">
-                          <p className="font-display text-lg leading-tight text-text">
-                            {pin?.skillName ?? "unknown skill"}
+                          <p className="font-display text-lg leading-tight break-words text-text">
+                            {displayName(pin?.skillName, "unknown skill")}
                             {pin?.skillVersion === undefined ? null : (
-                              <span className="ml-2 text-sm text-faint">{pin.skillVersion}</span>
+                              <span className="ml-2 text-sm text-faint">
+                                {displayName(pin.skillVersion, "")}
+                              </span>
                             )}
                           </p>
 
@@ -179,7 +182,7 @@ export default function ApprovalsPage() {
                             href={{ pathname: "/pins", query: { pin: execution.pinId } }}
                             className="text-text underline decoration-line-strong underline-offset-4 hover:decoration-text"
                           >
-                            {pin.skillName ?? "unnamed"}
+                            {displayName(pin.skillName, "unnamed")}
                           </Link>
                         )}
                       </Td>

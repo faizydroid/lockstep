@@ -12,6 +12,7 @@ import { useSnapshot } from "@/components/data";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { ReviewerPanel } from "@/components/reviewers";
 import { Term } from "@/components/term";
+import { displayName } from "@/lib/untrusted";
 import { Card, Empty, HashChip, Pill, Section, Stat, Table, Td, Th, cx } from "@/components/ui";
 import { WriteAction } from "@/components/write-action";
 import { formatBondWith } from "@/lib/bond";
@@ -63,10 +64,12 @@ export default function PublishersPage() {
                   <Card tone="equivocated">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="space-y-2">
-                        <p className="font-display text-xl leading-tight font-extrabold text-text">
-                          {e.skillName ?? "unnamed skill"}
+                        <p className="font-display text-xl leading-tight font-extrabold break-words text-text">
+                          {displayName(e.skillName)}
                           {e.skillVersion === undefined ? null : (
-                            <span className="ml-2 text-sm font-bold text-faint">{e.skillVersion}</span>
+                            <span className="ml-2 text-sm font-bold text-faint">
+                              {displayName(e.skillVersion, "")}
+                            </span>
                           )}
                         </p>
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-faint">
