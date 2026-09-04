@@ -295,6 +295,7 @@ integrations/metamask/  lockstep-provenance skill in MetaMask's skill.md layout
 app/         Next.js dashboard: pins, drift, approvals, bonds, publishers
 demo/        An honest skill and its rug-pulled successor
 e2e/         Full flow against a live Anvil chain with real 7702 delegation
+scripts/     check-export.mjs (verifies the export), serve-export.mjs (serves it)
 ```
 
 ## Running it
@@ -365,6 +366,33 @@ node scripts/live-dispatch.mjs --provider anthropic --key sk-... --rug-pull # mu
 The harness stands up a chain, deploys, bonds, pins the demo skill's real on-disk hash,
 delegates via 7702, installs the plugin, and runs one agent turn. The verdict is read
 from `SkillExecuted` logs on chain, not from the model's prose.
+
+### Running the dashboard locally
+
+```bash
+npm run build --workspace @lockstep/app
+npm run serve                       # http://127.0.0.1:4173
+```
+
+`next start` will not work and the reason is in `app/next.config.ts`: `output: "export"` means
+the build emits files and there is no Node server to start. `npm run serve` is a small static host
+over `app/out`, which has the useful property that **what you look at locally is byte for byte the
+artifact CI checks** — `next dev` would build and serve a different application.
+
+It binds to `127.0.0.1` and has no authentication, which is the correct amount for what it serves:
+every byte is public, the pages are read-only views over public chain state, and the bundle
+deliberately cannot encode a transaction that asserts anything. `--host 0.0.0.0` exposes it on the
+network if you want to show someone, and is opt-in rather than the default.
+
+Live rather than fixtures, provided the config below is set. Verified by running the dashboard's own
+`loadSnapshot` outside the browser against Monad testnet: `source.kind` came back `chain` at block
+59640065 in 14s, with one bonded pin, one publisher, one approval, two executions, and the Lens
+reporting the delegated account as an eligible reviewer. Without configuration the pages still
+render, from fixtures, and the banner says so.
+
+Copy `.env.example` to `app/.env.local` and set the five `NEXT_PUBLIC_*` values recorded there;
+`NEXT_PUBLIC_DEPLOY_BLOCK` is the one people miss, and without it log queries start at genesis, the
+public RPC refuses, and the dashboard falls back to samples while looking correctly configured.
 
 ### Try the hasher
 

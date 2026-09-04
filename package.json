@@ -21,6 +21,7 @@
                     "build":  "npm run build --workspaces --if-present",
                     "test:unit":  "npm run test --workspace @lockstep/runtime --workspace @lockstep/openclaw-plugin --workspace @lockstep/cli --workspace @lockstep/watcher --workspace @lockstep/sandbox --workspace @lockstep/badge --workspace @lockstep/app",
                     "test:e2e":  "npm run test --workspace @lockstep/e2e",
+    "serve":  "node scripts/serve-export.mjs",
                     "typecheck":  "npm run typecheck --workspaces --if-present"
                 },
     "engines":  {
