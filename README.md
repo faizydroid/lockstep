@@ -437,7 +437,8 @@ exists at all — and it is also why the enforcement has to be free.
 | Badge | Done, 15 tests |
 | GitHub Action | Done, 13 tests against a live chain. Both refusals verified. Workflows written; not yet run on a real runner |
 | `ChainAdapter` | Done, 12 tests against a live chain |
-| Envio indexer | Config, schema, handlers written. **Codegen cannot run on Windows** (no native binary); verified by a dedicated CI job on Linux |
+| **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
+| **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
 | End-to-end on a live chain | Done, 28 tests |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
@@ -535,6 +536,43 @@ attempts without an event.
 **Refusing costs less than settling** (62,181 against 115,207). That validates the choice
 not to emit an event before reverting: an earlier version did, and because the log is
 rolled back with the revert, it made rejection more expensive while telling nobody.
+
+### What the first CI run found
+
+Everything above was developed on one Windows machine with no repository. The first push
+ran CI for the first time and it found four defects in about twenty minutes, none of which
+was reachable locally. Recorded because "it passes on my machine" is exactly the claim CI
+exists to disbelieve.
+
+**`forge build` failed on 112 lint findings while `forge test` passed.** Only `build` runs
+the linter, and `deny = "warnings"` escalated every finding to an error. 41 were in `src/`
+and essentially all described the design working: a batch forwarder that reverts per call,
+emits its receipt after the calls it attests to, and forwards value to an allowlisted
+target under a per-call ceiling. Compiler warnings stay fatal; the static-analysis
+categories that fire on intended design are now excluded by name with the reason, after
+reading every call site. `uint32(targets.length)` cannot truncate because `publish` rejects
+anything over `MAX_CAPABILITIES` first — an invariant the lint cannot see.
+
+**The Envio config had never been valid.** It used `networks:` where the schema requires
+`chains:`, and carried an `unordered_multichain_mode` key that does not exist under a root
+schema with `additionalProperties: false`. Codegen rejected it outright. Envio ships linux
+and darwin binaries only, so this could not be caught on the machine it was written on, and
+the CI job that exists to compensate had never run.
+
+**`npx tsc` downloaded a stranger.** The handler typecheck ran `npx tsc` in a package with
+no `typescript` dependency, so npx resolved it against the public registry, fetched a
+package literally named `tsc`, and ran that. Its output is "This is not the tsc command you
+are looking for" and it exits 1, which read as a type error. npx silently fetching an
+unrelated package because a local binary is missing is a supply-chain hazard, and a pointed
+one to have shipped in a project about supply-chain provenance.
+
+**The indexer handlers were written for an API that no longer exists.** With codegen finally
+running, it emitted no `generated/` directory at all — v2 wrote a `generated/` package and
+registered handlers as `Contract.Event.handler(fn)`, while 3.9 emits `.envio/` plus an
+ambient `envio-env.d.ts` and exposes `indexer.onEvent({ contract, event }, fn)`. Eleven
+registrations migrated. The three guard handlers gained `wildcard: true`, because under
+EIP-7702 the guard's code runs at each delegated account's own address, so those events
+arrive from many senders and there is no address to declare.
 
 ### Three Monad behaviours worth knowing
 
