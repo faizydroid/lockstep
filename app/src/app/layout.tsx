@@ -29,6 +29,36 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           using dark mode. suppressHydrationWarning above is required because this script mutates
           the class on <html> before React hydrates and would otherwise be reported as a mismatch.
         */}
+        {/*
+          A CSP in markup, because a static export has no response to put a header on.
+
+          Deliberately not claiming to be XSS-proof: `script-src` needs `'unsafe-inline'` for Next's
+          own bootstrap and for the theme script below, and a static export cannot use nonces since a
+          nonce must be minted per response. What it does buy is genuine. `object-src 'none'` kills
+          plugin embeds. `base-uri 'none'` blocks base-tag injection, which would silently repoint
+          every relative URL on the page. `form-action 'none'` is meaningful precisely because this app
+          has no forms, so any that appear are not ours.
+
+          Three protections cannot be expressed here at all -- `frame-ancestors`, `X-Frame-Options` and
+          `Referrer-Policy` are header-only -- so a real deployment has to set them at the host.
+          `scripts/serve-export.mjs` sets all of them, and is the reference for what a host should send.
+        */}
+        <meta
+          httpEquiv="Content-Security-Policy"
+          content={[
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "connect-src 'self' https:",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "form-action 'none'",
+          ].join("; ")}
+        />
+        <meta name="referrer" content="no-referrer" />
+
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="min-h-dvh antialiased">

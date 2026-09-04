@@ -29,6 +29,7 @@ import type { ReactNode } from "react";
 
 import { commonPrefixLength, shortAddress, shortHash } from "@/lib/format";
 import type { PinState } from "@/lib/model";
+import { isSafeHref } from "@/lib/untrusted";
 
 import { Pressable, SPRING_FIRM, Spotlight, motion } from "./motion";
 
@@ -216,7 +217,24 @@ export function Button({
     className,
   );
 
+  /*
+   * An `href` is checked before it becomes an anchor, and fails closed to a disabled button.
+   *
+   * React escapes text but not URLs, so `javascript:` in an anchor is a working script. Every call
+   * site in this app passes a literal today, and "every call site today" is not a security property --
+   * this component is exported, and the next person to wire a URL through it from chain data or a query
+   * string should not be the one who has to remember. `isSafeHref` allows a fragment, a root-relative
+   * path, or absolute https, and drops everything else rather than rewriting it: turning an attacker's
+   * URL into a slightly different attacker's URL is not a defence.
+   */
   if (href !== undefined) {
+    if (!isSafeHref(href)) {
+      return (
+        <button type="button" disabled className={cx(shape, "pointer-events-none opacity-45 shadow-none")} aria-label={ariaLabel}>
+          {children}
+        </button>
+      );
+    }
     return (
       <a href={href} className={shape} aria-label={ariaLabel}>
         {children}

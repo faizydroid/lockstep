@@ -19,6 +19,7 @@ import { Card, Empty, HashChip, Pill, Section, StatePill, cx } from "@/component
 import { bondBreakdown, formatBondWith } from "@/lib/bond";
 import { formatNative, timeAgo } from "@/lib/format";
 import type { Pin } from "@/lib/model";
+import { pinIdFromQuery } from "@/lib/untrusted";
 
 export default function PinsPage() {
   const { snapshot } = useSnapshot();
@@ -34,9 +35,16 @@ export default function PinsPage() {
    */
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
+  /*
+   * Validated on the way in, not trusted because it fails harmlessly.
+   *
+   * A bogus id already matched no pin and fell through to the first one, so this fixes no live bug.
+   * What it stops is holding an unbounded string from someone else's link in state that several
+   * components read, which is the shape a real bug grows from later.
+   */
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("pin");
-    if (fromUrl !== null) setSelectedId(fromUrl);
+    const fromUrl = pinIdFromQuery(window.location.search);
+    if (fromUrl !== undefined) setSelectedId(fromUrl);
   }, []);
 
   const selected = snapshot.pins.find((p) => p.pinId === selectedId) ?? snapshot.pins[0];

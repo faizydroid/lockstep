@@ -163,6 +163,58 @@ oversight: every function it has is `view`, so there is nothing to sign. viem's
 added to the Lens later could not reach the read path even by mistake — it would fail to
 compile at the call site.
 
+### The browser attack surface, and what the mitigations do not buy
+
+A dashboard for a supply-chain security product is a bad place to have a scripting bug, so the surface
+is enumerated rather than assumed. What follows is what was checked, and each item says where it stops.
+
+**Untrusted input is exactly two things: the URL and `localStorage`.** Both are fully controlled by
+whoever hands a reader a link or reaches this origin with a script, so both go through a parser.
+`lib/settings.ts` covers storage and `lib/untrusted.ts` covers the URL. Storage refuses non-object
+JSON, `javascript:`/`data:`/`file:` URLs, plain http off loopback, URLs carrying credentials, the zero
+address, negative block numbers, truthy-but-not-`true` booleans, and step ids outside
+`[a-z0-9-]{1,40}` — so nothing arbitrary out of storage can reach the DOM. The `?pin=` query param is
+validated to a 32-byte hex id. That last one fixed no live bug: a bogus id already matched no pin. It
+was changed because holding an unbounded attacker-supplied string in state that several components
+read is the shape a real bug grows from.
+
+**One HTML sink, and it takes no input.** The only `dangerouslySetInnerHTML` in the app is the
+pre-paint theme script, which is a module constant.
+
+**`href` is the vector React does not close for you.** Text is escaped; URLs are not, and
+`javascript:` in an anchor is a working script. `Button` accepts an `href` and renders an anchor, so it
+now checks `isSafeHref` and **fails closed to a disabled button**. Allowed: a fragment, a
+root-relative path, absolute https. Refused: both executing schemes, `javascript:` disguised with
+control characters (browsers strip those *before* parsing the scheme, so `java\nscript:` runs),
+scheme-relative `//host` which reads like a path and is not one, and plain http. Nothing is
+sanitised — rewriting an attacker's URL into a slightly different attacker's URL is not a defence.
+
+**Zero production dependency vulnerabilities**, `npm audit --omit=dev`. The app adds no wallet SDK:
+identity is EIP-1193 through viem, which was already a dependency.
+
+**The CSP is real, and it is not XSS-proof.** `script-src` needs `'unsafe-inline'` for Next's own
+bootstrap and the theme script, and a static export cannot use nonces because a nonce has to be minted
+per response and there are no responses to mint it in. Saying so matters more than the header does.
+What it genuinely buys: `object-src 'none'` kills plugin embeds, `base-uri 'none'` blocks base-tag
+injection which would silently repoint every relative URL on the page, `form-action 'none'` is
+meaningful precisely because this app has no forms so any that appear are not ours, and
+`frame-ancestors 'none'` stops the dashboard being framed by a page that wants a reader to believe
+they are approving something.
+
+**Three protections cannot be expressed in markup at all.** `frame-ancestors`, `X-Frame-Options` and
+`Referrer-Policy` are header-only, so the `<meta>` CSP in `layout.tsx` is *not* equivalent to a
+configured host and does not pretend to be — it omits `frame-ancestors` rather than declaring a
+directive that would be ignored. `scripts/serve-export.mjs` sends all of them and is the reference for
+what a real deploy should configure. Verified by request: six headers present, all four hard directives
+in the CSP, every route still rendering under it, and `..` traversal refused three ways.
+
+`referrer-policy: no-referrer` is not incidental. Pin ids and account addresses live in these URLs, and
+a `Referer` header would leak which skills an organisation is watching to any host it navigated to.
+
+**What is still open.** No Subresource Integrity, because everything is same-origin from the export.
+No `Clear-Site-Data` on disconnect, so `disconnect()` clears our stored intent and nothing more —
+which is already named in `identity.tsx`, since EIP-1193 has no way to make a wallet forget a site.
+
 ### Why the code hash and the capability set are separate commitments
 
 A related suggestion is to hash the code and its allowed calldata into a single
