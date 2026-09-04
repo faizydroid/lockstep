@@ -22,6 +22,7 @@ const APP = join(import.meta.dirname, "..", "src");
 
 const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
 const layout = readFileSync(join(APP, "app", "layout.tsx"), "utf8");
+const chrome = readFileSync(join(APP, "components", "chrome.tsx"), "utf8");
 const banner = readFileSync(join(APP, "components", "source-banner.tsx"), "utf8");
 
 /** Every `text-[Nrem]` and `text-Nxl` in the hero's h1, as rem. */
@@ -94,8 +95,14 @@ describe("the overview fold", () => {
   });
 
   it("does not stack the banner's padding against main's", () => {
-    expect(layout).toMatch(/id="main"[^>]*pt-5/);
-    expect(layout).not.toMatch(/id="main"[^>]*pt-8/);
+    /*
+     * Reads chrome.tsx, not layout.tsx. `<main>` moved there when the shell became a client component so
+     * the navigation rail could be hidden while a reader is still in the first-run flow. The decision being
+     * protected is unchanged: the source banner contributes its own top padding, and at `pt-8` the two
+     * stacked to about 48px of nothing above the first real element on every page.
+     */
+    expect(chrome).toMatch(/id="main"[^>]*pt-5/);
+    expect(chrome).not.toMatch(/id="main"[^>]*pt-8/);
   });
 });
 

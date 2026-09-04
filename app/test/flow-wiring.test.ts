@@ -73,6 +73,49 @@ describe("the flow gate", () => {
 });
 
 describe("nothing links a mid-flow reader somewhere they will be bounced from", () => {
+  const chrome = readFileSync(join(APP, "components", "chrome.tsx"), "utf8");
+
+  it("hides the navigation rail until the reader is out of the flow", () => {
+    /*
+     * The second time this trap appeared, and the worse of the two.
+     *
+     * The rail rendered on every route including the landing page, while the gate bounces a mid-flow
+     * reader off product routes. A first-time visitor could therefore see Pins, Drift, Bonds and Badge in
+     * the primary navigation, click one, and be silently returned to where they started. The hero's
+     * buttons had already been fixed for exactly this; the rail had not, and a rail is the one thing a
+     * reader trusts to be navigable.
+     */
+    expect(chrome).toMatch(/const inProduct = stage === "ready"/);
+    expect(chrome).toMatch(/\{inProduct \? <Nav \/> : <FlowBar \/>\}/);
+  });
+
+  it("does not apply the rail offset when there is no rail", () => {
+    // Otherwise the landing page is indented 272px against nothing.
+    expect(chrome).toMatch(/inProduct \? "lg:pl-\[var\(--rail\)\]" : undefined/);
+  });
+
+  it("keeps the only in-flow link pointed at a route allowed from every stage", () => {
+    // The mark goes to "/", which is the landing page and therefore never a bounce, whatever the stage.
+    const bar = /function FlowBar\(\)[\s\S]*?\n}/.exec(chrome)?.[0] ?? "";
+    expect(bar).toMatch(/href="\/"/);
+    for (const href of ["/dashboard", "/pins", "/drift", "/bonds", "/badge", "/account"]) {
+      expect(bar, `the in-flow bar links to ${href}`).not.toContain(href);
+    }
+  });
+
+  it("keeps the source banner and the CLI footer visible in both states", () => {
+    /*
+     * The banner is the disclosure that the figures are worked examples, and the landing page renders two
+     * fingerprints and a refusal drawn from those fixtures. Tidying the caveat off the most-read page in
+     * the app would be indefensible. The footer's note is a claim about the threat model, not navigation.
+     */
+    expect(chrome).toMatch(/<SourceBanner \/>/);
+    expect(chrome).toMatch(/happens in the CLI, never here/);
+
+    const guarded = /\{inProduct \? \([\s\S]*?<SourceBanner/.exec(chrome);
+    expect(guarded, "the source banner is behind the inProduct branch").toBeNull();
+  });
+
   it("keeps product links out of the landing page", () => {
     /*
      * The trap this replaced. The hero linked to /drift and /pins, and once a flow existed a first-time

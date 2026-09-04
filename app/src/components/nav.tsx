@@ -406,7 +406,7 @@ function IconAccount({ heavy = false }: { heavy?: boolean }) {
  * version that was approved. The bars nudge into alignment on hover, which is the joke made
  * literal.
  */
-function Mark() {
+export function Mark() {
   return (
     <motion.span
       aria-hidden

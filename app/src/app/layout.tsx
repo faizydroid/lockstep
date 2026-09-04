@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 
+import { Chrome } from "@/components/chrome";
 import { SnapshotProvider } from "@/components/data";
 import { Field } from "@/components/field";
 import { FlowGate } from "@/components/flow-gate";
 import { IdentityProvider } from "@/components/identity";
-import { Nav } from "@/components/nav";
 import { VisitTracker } from "@/components/quickstart";
-import { RouteShell } from "@/components/route-shell";
 import { SettingsProvider } from "@/components/settings";
-import { SourceBanner } from "@/components/source-banner";
 import { THEME_SCRIPT, ThemeProvider } from "@/components/theme";
 
 import "./globals.css";
@@ -106,37 +104,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 */}
                 <FlowGate />
 
-                <Nav />
-
                 {/*
-                  Offset by the rail's width, and only from `lg`.
+                  The shell: rail, source banner, main and footer.
 
-                  The rail is `fixed`, so it is out of flow and content would otherwise run underneath
-                  it. Padding on this wrapper rather than a margin on <main> keeps the banner and
-                  footer in the same column as the content, which matters because all three use the
-                  full-bleed `.gutter` and would otherwise disagree about where the page starts.
+                  Moved into a client component because the rail has to disappear while a reader is still
+                  in the first-run flow. It rendered on the landing page and the gate bounces a mid-flow
+                  reader off product routes, so together they made the rail a trap — links a first-time
+                  visitor could see, click, and be silently returned from. components/chrome.tsx carries
+                  the reasoning and what stays visible regardless.
                 */}
-                <div className="lg:pl-[var(--rail)]">
-                  <SourceBanner />
-
-                  {/*
-                    `pt-5`, was `pt-8`. The banner already contributes its own top padding, so the
-                    two stacked to 48px of nothing between the chrome and the first real element on
-                    every page.
-                  */}
-                  <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">
-                    <RouteShell>{children}</RouteShell>
-                  </main>
-
-                  <footer className="gutter relative z-10 w-full pb-12">
-                    <div className="chunk rounded-xl bg-raise px-6 py-5 text-xs leading-relaxed font-semibold text-faint">
-                      Approving a skill version happens in the CLI, never here. An approval is a claim
-                      about exact bytes, and only the machine holding those bytes can make it honestly
-                      &mdash; a web page asking you to sign a hash it fetched is the shape of the
-                      attack this project exists to stop.
-                    </div>
-                  </footer>
-                </div>
+                <Chrome>{children}</Chrome>
               </SnapshotProvider>
             </IdentityProvider>
           </SettingsProvider>

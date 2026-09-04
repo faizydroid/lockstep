@@ -35,9 +35,32 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { redirectFor, stageFor } from "@/lib/flow";
+import type { Stage } from "@/lib/flow";
 
 import { useIdentity } from "./identity";
 import { useSettings } from "./settings";
+
+/**
+ * The reader's current stage, for anything that needs to look different mid-flow.
+ *
+ * Returns `"ready"` until storage has been parsed. That default is deliberate and it is the safe one: the
+ * alternative is treating every reader as mid-flow for a frame, which would hide the navigation on every
+ * cold load and make the whole app flicker its chrome. Being briefly too permissive costs nothing here,
+ * because the gate itself waits for the same flag before it moves anyone.
+ */
+export function useFlowStage(): Stage {
+  const { settings, loaded } = useSettings();
+  const { connected } = useIdentity();
+
+  if (!loaded) return "ready";
+
+  return stageFor({
+    connected,
+    profile: settings.profile,
+    onboardingAcknowledged: settings.onboardingAcknowledged,
+    skippedSetup: settings.skippedSetup,
+  });
+}
 
 export function FlowGate() {
   const { settings, loaded } = useSettings();
