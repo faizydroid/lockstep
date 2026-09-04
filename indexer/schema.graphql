@@ -1,0 +1,98 @@
+# Read model for Lockstep.
+#
+# Shaped around the three questions a caller actually asks:
+#
+#   1. Is this skill version pinned, live, and bonded?      -> Pin
+#   2. Has this account approved it, and what does it allow? -> Approval, Capability
+#   3. Has this publisher ever been caught equivocating?     -> Publisher, Slash
+#
+# Note there is no BlockedAttempt entity. A blocked rug pull emits no log, because a
+# log written before a revert is rolled back and never reaches an indexer. Blocked
+# attempts are read from reverted-transaction traces by the watcher instead. Adding an
+# entity here would imply a feed that cannot exist.
+
+type Publisher {
+  id: ID! # address
+  bondBalance: BigInt!
+  lockedBond: BigInt!
+  totalDeposited: BigInt!
+  totalWithdrawn: BigInt!
+  totalSlashed: BigInt!
+  pinCount: Int!
+  slashCount: Int!
+  "True once this publisher has been caught making conflicting version claims."
+  hasEquivocated: Boolean!
+  pins: [Pin!]! @derivedFrom(field: "publisher")
+  slashes: [Slash!]! @derivedFrom(field: "publisher")
+}
+
+type Pin {
+  id: ID! # pinId
+  publisher: Publisher!
+  skillHash: String!
+  maxValuePerCall: BigInt!
+  requiredBond: BigInt!
+  capabilityCount: Int!
+  highRiskCount: Int!
+  publishedAt: BigInt!
+  publishedBlock: BigInt!
+  revokedAt: BigInt
+  slashed: Boolean!
+  bondReclaimed: Boolean!
+  "False once revoked or slashed. The guard treats a non-live pin as having no hash."
+  live: Boolean!
+  capabilities: [Capability!]! @derivedFrom(field: "pin")
+  approvals: [Approval!]! @derivedFrom(field: "pin")
+  executions: [Execution!]! @derivedFrom(field: "pin")
+}
+
+type Capability {
+  id: ID! # pinId-target-selector
+  pin: Pin!
+  target: String!
+  selector: String!
+  "Allowance-granting, transfer, or authority-relocating. Carries a bond premium."
+  highRisk: Boolean!
+}
+
+type Approval {
+  id: ID! # account-pinId
+  "The delegated account. Under EIP-7702 this is where the guard's code runs."
+  account: String!
+  pin: Pin!
+  approved: Boolean!
+  approvedAt: BigInt!
+  updatedAt: BigInt!
+}
+
+type Execution {
+  id: ID! # txHash-logIndex
+  account: String!
+  pin: Pin!
+  skillHash: String!
+  executor: String!
+  callCount: Int!
+  timestamp: BigInt!
+  block: BigInt!
+}
+
+type Slash {
+  id: ID! # txHash-logIndex
+  pin: Pin!
+  publisher: Publisher!
+  challenger: String!
+  amount: BigInt!
+  challengerReward: BigInt!
+  timestamp: BigInt!
+}
+
+"Rolling totals for the public dashboard and the embeddable badge."
+type Global {
+  id: ID! # "global"
+  totalPins: Int!
+  livePins: Int!
+  totalPublishers: Int!
+  totalBondLocked: BigInt!
+  totalSlashed: BigInt!
+  totalExecutions: Int!
+}

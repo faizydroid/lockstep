@@ -1,0 +1,157 @@
+No files changed, compilation skipped
+
+Ran 3 tests for test/GuardGas.t.sol:GuardGasTest
+[PASS] test_gas_batchAmortisesFixedCost() (gas: 167413)
+[PASS] test_gas_overheadPerGuardedCall() (gas: 143608)
+[PASS] test_gas_rejectionIsCheap() (gas: 180802)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 12.39ms (2.10ms CPU time)
+
+Ran 5 tests for test/AllowlistComparison.t.sol:AllowlistComparisonTest
+[PASS] test_allowlistWalletPermitsTheHostileCall() (gas: 104339)
+[PASS] test_lockstepRefusesTheSameCall() (gas: 72353)
+[PASS] test_lockstepStillEnforcesTheSpendCeiling() (gas: 62313)
+[PASS] test_sameCalldataOneLayerAllowsItTheOtherDoesNot() (gas: 159397)
+[PASS] test_theApprovedVersionStillWorks() (gas: 131867)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 9.79ms (3.63ms CPU time)
+
+Ran 6 tests for test/Slashing.t.sol:EquivocationFreezeTest
+[PASS] test_cannotReclaimWhileAContradictionStands() (gas: 489437)
+[PASS] test_freezeDoesNotAffectOtherVersions() (gas: 728767)
+[PASS] test_lockedBondStaysConsistentAcrossSlashThenReclaimAttempt() (gas: 674671)
+[PASS] test_singleClaimVersionsRemainReclaimable() (gas: 325925)
+[PASS] test_slashStillWorksAfterTheDelayHasLongPassed() (gas: 590607)
+[PASS] test_versionPinCountTracksClaimsPerVersion() (gas: 662368)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 20.95ms (13.64ms CPU time)
+
+Ran 3 tests for test/BondVelocity.t.sol:BondVelocityTest
+[PASS] test_bondVelocityAdvantage() (gas: 16359)
+[PASS] test_throughputWorkedExample() (gas: 14226)
+[PASS] test_windowDurations() (gas: 4417)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 24.95ms (417.80µs CPU time)
+
+Ran 14 tests for test/LockstepLens.t.sol:LockstepLensTest
+[PASS] test_accountApprovingALivePinIsEligible() (gas: 29755)
+[PASS] test_approvingOnlyARevokedPinIsNotEligible() (gas: 71798)
+[PASS] test_candidateListIsBounded() (gas: 52441)
+[PASS] test_deduplicatesRepeatedCandidates() (gas: 33911)
+[PASS] test_delegatedAccountNotApprovingIsNotEligible() (gas: 82127)
+[PASS] test_emptyPinSetIsRejected() (gas: 11120)
+[PASS] test_fallsBackToOwnerWhenNoWalletIsSet() (gas: 46115)
+[PASS] test_filtersSybilsOutOfTheClientSet() (gas: 70301)
+[PASS] test_moreSybilsDoNotMoveTheFilteredScore() (gas: 5474243)
+[PASS] test_resolvesTheAgentWallet() (gas: 16124)
+[PASS] test_revertsWhenNoReviewerQualifies() (gas: 151017)
+[PASS] test_skipsZeroAddress() (gas: 32747)
+[PASS] test_sybilSpamMovesTheNaiveScoreAndNotTheFilteredOne() (gas: 650971)
+[PASS] test_undelegatedAddressIsNotEligibleAndDoesNotRevert() (gas: 24458)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 34.29ms (28.56ms CPU time)
+
+Ran 28 tests for test/PinRegistryBond.t.sol:PinRegistryBondTest
+[PASS] testFuzz_lockedNeverExceedsBalance(uint8,uint96) (runs: 512, μ: 551371, ~: 411299)
+[PASS] testFuzz_quoteBondIsMonotonicInBreadth(uint8,uint8) (runs: 512, μ: 18151, ~: 18151)
+[PASS] test_allHighRiskSelectorsAreRegistered() (gas: 136617)
+[PASS] test_approveIsPricedAsHighRisk() (gas: 21499)
+[PASS] test_bondCannotBeReclaimedImmediatelyAfterRevoking() (gas: 460951)
+[PASS] test_bondCannotBeReclaimedTwice() (gas: 509780)
+[PASS] test_bondForAWideManifestStaysInSaneAusdRange() (gas: 9965)
+[PASS] test_bondIsReclaimableAfterTheDelay() (gas: 513867)
+[PASS] test_capabilityCountIsCapped() (gas: 304247)
+[PASS] test_depositIncreasesUnlockedBond() (gas: 203790)
+[PASS] test_depositRejectsSilentTransferFailure() (gas: 176942)
+[PASS] test_depositRejectsZero() (gas: 32198)
+[PASS] test_duplicateCapabilitiesAreRejected() (gas: 231429)
+[PASS] test_emptyCalldataIsPricedAsHighRisk() (gas: 10857)
+[PASS] test_highRiskCapabilityRequiresTheLargerBond() (gas: 240545)
+[PASS] test_liveBondCannotBeReclaimed() (gas: 422035)
+[PASS] test_lockedBondCannotBeWithdrawn() (gas: 452380)
+[PASS] test_nativeValueCapabilityCostsAFlatPremium() (gas: 15107)
+[PASS] test_oneDepositCannotBackUnlimitedPins() (gas: 655758)
+[PASS] test_onlyPublisherCanRevoke() (gas: 423937)
+[PASS] test_publishLocksTheQuotedBond() (gas: 446267)
+[PASS] test_publishRevertsWithoutEnoughUnlockedBond() (gas: 245048)
+[PASS] test_quoteBondPricesBaseAndBreadth() (gas: 18472)
+[PASS] test_quoteBondPricesHighRiskAtAPremium() (gas: 15803)
+[PASS] test_revokeIsOneWay() (gas: 453529)
+[PASS] test_revokeMakesPinNonLive() (gas: 432271)
+[PASS] test_wideManifestCostsFarMoreThanNarrowOne() (gas: 15031)
+[PASS] test_withdrawReturnsUnlockedBond() (gas: 253994)
+Suite result: ok. 28 passed; 0 failed; 0 skipped; finished in 870.98ms (1.22s CPU time)
+
+Ran 23 tests for test/LockstepGuard.t.sol:LockstepGuardTest
+[PASS] testFuzz_ceilingHolds(uint256) (runs: 512, μ: 59989, ~: 59993)
+[PASS] testFuzz_onlyAuthorizedCallersExecute(address) (runs: 512, μ: 47109, ~: 47109)
+[PASS] testFuzz_onlyPinnedHashExecutes(bytes32) (runs: 512, μ: 69569, ~: 69674)
+[PASS] test_accountHolderCanExecuteDirectly() (gas: 90296)
+[PASS] test_bareValueTransferRequiresSelectorZeroDeclared() (gas: 64689)
+[PASS] test_bubblesTargetRevertReason() (gas: 300966)
+[PASS] test_delegationInstallsGuardCode() (gas: 33969)
+[PASS] test_emitsSkillExecuted() (gas: 94363)
+[PASS] test_emptyBatchIsRefused() (gas: 40732)
+[PASS] test_executesApprovedSkill() (gas: 133762)
+[PASS] test_executorCannotApprovePins() (gas: 35679)
+[PASS] test_executorCannotAuthorizeItselfElsewhere() (gas: 37415)
+[PASS] test_publisherRevocationHaltsExecution() (gas: 95831)
+[PASS] test_revokedExecutorIsImmediatelyBlocked() (gas: 63599)
+[PASS] test_rugPull_blockedWhenAttestationDoesNotMatchPin() (gas: 61520)
+[PASS] test_rugPull_blockedWhenHostileVersionIsNotApproved() (gas: 270515)
+[PASS] test_rugPull_emitsNoLogs() (gas: 63206)
+[PASS] test_rugPull_revertCarriesBothHashesForTheWatcher() (gas: 80149)
+[PASS] test_storageSlotMatchesErc7201Derivation() (gas: 8874)
+[PASS] test_unauthorizedExecutorCannotExecute() (gas: 46541)
+[PASS] test_undeclaredSelectorIsRefused() (gas: 64407)
+[PASS] test_undeclaredTargetIsRefused() (gas: 275663)
+[PASS] test_valueCeilingIsEnforced() (gas: 61812)
+Suite result: ok. 23 passed; 0 failed; 0 skipped; finished in 896.60ms (2.26s CPU time)
+
+Ran 17 tests for test/Slashing.t.sol:SlashingTest
+[PASS] testFuzz_lockedNeverExceedsBalanceAcrossSlashing(uint8) (runs: 512, μ: 581461, ~: 594554)
+[PASS] test_anyoneCanChallenge() (gas: 557013)
+[PASS] test_argumentOrderDoesNotMatter() (gas: 591006)
+[PASS] test_bothPinsAreRevoked() (gas: 566519)
+[PASS] test_cannotSlashTwice() (gas: 591582)
+[PASS] test_differentPublishersAreNotEquivocation() (gas: 636006)
+[PASS] test_differentVersionsAreNotEquivocation() (gas: 478110)
+[PASS] test_emitsSlashed() (gas: 577700)
+[PASS] test_publishRejectsZeroVersionId() (gas: 39160)
+[PASS] test_revokingDoesNotPreventSlashing() (gas: 599846)
+[PASS] test_samePinIsNotAProof() (gas: 260682)
+[PASS] test_slashedBondCannotBeReclaimed() (gas: 580460)
+[PASS] test_slashesTheLaterConflictingClaim() (gas: 661699)
+[PASS] test_slashingReducesPublishingCapacity() (gas: 795488)
+[PASS] test_unknownPinCannotBeSlashed() (gas: 263918)
+[PASS] test_versionIdIsDeterministic() (gas: 16105)
+[PASS] test_versionIdResistsNameVersionBoundaryCollision() (gas: 16333)
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 886.22ms (907.87ms CPU time)
+
+Ran 1 test for test/Invariants.t.sol:InvariantsTest
+[PASS]
+InvariantsTest invariants:
+[PASS] invariant_bondIsNeverPaidTwice
+[PASS] invariant_livePinsAreFullyBonded
+[PASS] invariant_lockedEqualsSumOfLivePinBonds
+[PASS] invariant_lockedNeverExceedsBalance
+[PASS] invariant_registryHoldsWhatItOwes
+[PASS] invariant_revokedPinsAreNeverLive
+ InvariantsTest invariants (runs: 128, calls: 4096, reverts: 14)
+
+╭-----------------+----------+-------+---------+----------╮
+| Contract        | Selector | Calls | Reverts | Discards |
++=========================================================+
+| RegistryHandler | deposit  | 583   | 0       | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | publish  | 572   | 0       | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | reclaim  | 584   | 14      | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | revoke   | 591   | 0       | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | slash    | 616   | 0       | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | warp     | 588   | 0       | 0        |
+|-----------------+----------+-------+---------+----------|
+| RegistryHandler | withdraw | 562   | 0       | 0        |
+╰-----------------+----------+-------+---------+----------╯
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 3.33s (3.32s CPU time)
+
+Ran 9 test suites in 3.36s (6.08s CPU time): 100 tests passed, 0 failed, 0 skipped (100 total tests)

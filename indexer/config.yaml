@@ -1,0 +1,61 @@
+# Envio HyperIndex configuration.
+#
+# The indexer is the read path. The chain is the write path — settlement and dispute
+# only. That split is deliberate: ERC-8004's `getSummary` iterates a caller-supplied
+# client array on chain, and PinRegistry stores capabilities in a nested mapping that
+# cannot be enumerated. Both are correct choices for a single-SLOAD hot path, and both
+# mean the readable view has to be reconstructed off chain from events.
+#
+# Pointed at the live Monad testnet deployment. Addresses and the start block come from
+# contracts/broadcast/Deploy.s.sol/10143/run-latest.json, not from a guess.
+#
+# Why an indexer at all, in one number: Monad's public RPC caps `eth_getLogs` at a 100
+# BLOCK RANGE. At 400ms blocks that is a forty-second window, so reconstructing this
+# registry's history from a browser costs one request per hundred blocks and the bill grows
+# by 1.5 requests a minute forever. Measured: paging a ten-thousand-block-old deployment
+# from the dashboard took over two minutes and did not finish. HyperIndex exists precisely
+# so the read path is not that.
+name: lockstep
+description: Skill provenance, pins, bonds, and slashing on Monad.
+
+networks:
+  - id: 10143 # Monad testnet
+    # The block PinRegistry was created in. Starting at 0 would scan ~59 million empty
+    # blocks before reaching anything this indexer cares about.
+    start_block: 59428872
+    contracts:
+      - name: PinRegistry
+        address:
+          - "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b"
+        handler: src/EventHandlers.ts
+        events:
+          - event: Published(bytes32 indexed pinId, address indexed publisher, bytes32 indexed skillHash, uint256 maxValuePerCall, uint256 capabilityCount, uint256 highRiskCount, uint256 requiredBond)
+          - event: CapabilityDeclared(bytes32 indexed pinId, address indexed target, bytes4 indexed selector, bool highRisk)
+          - event: Revoked(bytes32 indexed pinId, address indexed publisher)
+          - event: Slashed(bytes32 indexed pinId, address indexed publisher, address indexed challenger, uint256 amount, uint256 challengerReward)
+          - event: BondDeposited(address indexed publisher, uint256 amount, uint256 balance)
+          - event: BondWithdrawn(address indexed publisher, uint256 amount, uint256 balance)
+          - event: BondLocked(bytes32 indexed pinId, address indexed publisher, uint256 amount)
+          - event: BondReclaimed(bytes32 indexed pinId, address indexed publisher, uint256 amount)
+
+      # Guard events are emitted by each delegated account, not by a single contract,
+      # because under EIP-7702 the guard's code runs at the account's own address.
+      # There is therefore no fixed address to index; `address` is left empty so
+      # HyperIndex matches the event signature across all senders.
+      #
+      # Confirmed on the live deployment: 0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2 carries
+      # code 0xef0100 || 0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510 and emits PinApproved,
+      # ExecutorAuthorized and SkillExecuted from its own address, not from the guard's. An
+      # indexer keyed to the guard address would therefore see nothing, which is the trap
+      # this empty `address` avoids.
+      - name: LockstepGuard
+        handler: src/EventHandlers.ts
+        events:
+          - event: PinApproved(bytes32 indexed pinId)
+          - event: PinUnapproved(bytes32 indexed pinId)
+          - event: ExecutorAuthorized(address indexed executor)
+          - event: ExecutorRevoked(address indexed executor)
+          - event: SkillExecuted(bytes32 indexed pinId, bytes32 indexed skillHash, address indexed executor, uint256 callCount)
+
+unordered_multichain_mode: false
+rollback_on_reorg: true

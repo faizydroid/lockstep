@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"],
+    // `generated` is produced by `envio codegen`, which ships native binaries for
+    // linux and darwin only. On Windows the directory will not exist, so this path
+    // mapping resolves only after codegen has run — in CI, or on a mac or Linux box.
+    "baseUrl": ".",
+    "paths": {
+      "generated": ["./generated/src/Types.gen.ts", "./generated/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
