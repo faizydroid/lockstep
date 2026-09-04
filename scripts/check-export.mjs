@@ -345,7 +345,9 @@ function checkLensWiring(problems) {
   process.stdout.write(`  lens address inlined   ${lensWired ? "ok" : "NOT CONFIGURED"}\n`);
   if (!lensWired) {
     problems.push(
-      "NEXT_PUBLIC_LOCKSTEP_LENS is not in the bundle, so the deployed dashboard will not read the Lens",
+      "NEXT_PUBLIC_LOCKSTEP_LENS is not in the bundle, so this export will never read the Lens. " +
+        "Set it in app/.env.local (the value is in .env.example) and rebuild. " +
+        "CI sets it in the `app` job's build step for the same reason.",
     );
   }
 

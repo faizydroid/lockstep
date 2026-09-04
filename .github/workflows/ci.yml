@@ -95,7 +95,27 @@ jobs:
 
       - run: npm ci
 
+      # The live deployment's public configuration, so CI builds the dashboard that actually ships
+      # rather than a differently-configured one.
+      #
+      # Added because the export check grew a section that reads the bundle for the LockstepLens
+      # address, and `NEXT_PUBLIC_*` values are inlined at build time -- an unset one leaves no trace,
+      # so a build without these produces an export that silently shows sample data and never reads
+      # the Lens. That is a different artifact from the deployed one, and checking it proves less.
+      #
+      # Every value is public by construction: `NEXT_PUBLIC_*` is compiled into the client bundle, so
+      # nothing secret can be passed this way even by mistake. All of them are also in .env.example
+      # and in the README. Repository variables were considered and rejected: a fork would build with
+      # them empty and fail the check for a reason that has nothing to do with the change.
       - name: Build the dashboard
+        env:
+          NEXT_PUBLIC_CHAIN_ID: "10143"
+          NEXT_PUBLIC_RPC_URL: https://testnet-rpc.monad.xyz
+          NEXT_PUBLIC_PIN_REGISTRY: "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b"
+          NEXT_PUBLIC_ACCOUNT_ADDRESS: "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2"
+          NEXT_PUBLIC_DEPLOY_BLOCK: "59431400"
+          NEXT_PUBLIC_PIN_IDS: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401"
+          NEXT_PUBLIC_LOCKSTEP_LENS: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664"
         run: npm run build --workspace @lockstep/app
 
       # A green build only proves it compiled. This checks the exported HTML actually contains
