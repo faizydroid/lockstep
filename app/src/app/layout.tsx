@@ -1,0 +1,89 @@
+import type { Metadata } from "next";
+
+import { SnapshotProvider } from "@/components/data";
+import { Field } from "@/components/field";
+import { IdentityProvider } from "@/components/identity";
+import { Nav } from "@/components/nav";
+import { RouteShell } from "@/components/route-shell";
+import { SourceBanner } from "@/components/source-banner";
+import { THEME_SCRIPT, ThemeProvider } from "@/components/theme";
+
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Lockstep — a lockfile for agent money",
+  description:
+    "Every fund-moving call is bound to the exact skill version the account owner approved, enforced on chain at settlement and backed by publisher bonds.",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/*
+          Sets the theme class before first paint.
+          
+          This has to be a blocking inline script in <head>. React runs after the browser has
+          already painted, so doing it in an effect means a white flash on every load for anyone
+          using dark mode. suppressHydrationWarning above is required because this script mutates
+          the class on <html> before React hydrates and would otherwise be reported as a mismatch.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-dvh antialiased">
+        {/*
+          A skip link, because the rail is a dozen tab stops and this app is meant to be read.
+
+          Offset past the rail from `lg`. Pinned to `left-6` it appeared underneath a fixed 272px
+          sidebar on exactly the screens where the rail exists, which is the one case where a skip
+          link has to work: a keyboard user on a wide screen tabbing past seven nav items.
+        */}
+        <a
+          href="#main"
+          className="sr-only rounded-md bg-text px-4 py-2 text-sm font-bold text-bg focus:not-sr-only focus:absolute focus:top-6 focus:left-6 focus:z-[60] lg:focus:left-[calc(var(--rail)+1.5rem)]"
+        >
+          Skip to content
+        </a>
+
+        <ThemeProvider>
+          <Field />
+
+          {/*
+            Identity outside the snapshot provider, because the snapshot depends on the connected
+            address and not the other way round.
+          */}
+          <IdentityProvider>
+            <SnapshotProvider>
+              <Nav />
+
+              {/*
+                Offset by the rail's width, and only from `lg`.
+
+                The rail is `fixed`, so it is out of flow and content would otherwise run underneath
+                it. Padding on this wrapper rather than a margin on <main> keeps the banner and footer
+                in the same column as the content, which matters because all three use the full-bleed
+                `.gutter` and would otherwise disagree about where the page starts.
+              */}
+              <div className="lg:pl-[var(--rail)]">
+                <SourceBanner />
+
+                <main id="main" className="gutter relative z-10 w-full pb-24 pt-8">
+                  <RouteShell>{children}</RouteShell>
+                </main>
+
+                <footer className="gutter relative z-10 w-full pb-12">
+                  <div className="chunk rounded-xl bg-raise px-6 py-5 text-xs leading-relaxed font-semibold text-faint">
+                    Approving a skill version happens in the CLI, never here. An approval is a claim
+                    about exact bytes, and only the machine holding those bytes can make it honestly
+                    &mdash; a web page asking you to sign a hash it fetched is the shape of the attack
+                    this project exists to stop.
+                  </div>
+                </footer>
+              </div>
+            </SnapshotProvider>
+          </IdentityProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}

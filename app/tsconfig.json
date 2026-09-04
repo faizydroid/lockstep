@@ -1,0 +1,71 @@
+{
+  "compilerOptions": {
+    // Deliberately not extending ../tsconfig.base.json.
+    //
+    // The base config exists for packages Node runs directly from source: it turns on
+    // allowImportingTsExtensions so imports can name the .ts file that is really on disk.
+    // Next compiles its own sources instead, expects extensionless imports, and needs jsx
+    // and lib.dom settings the base config has no reason to carry. Inheriting it here would
+    // mean fighting both configs at once, so this one stands alone and the overlap is small.
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "noEmit": true,
+
+    // Needed because typechecking follows imports into the workspace packages, whose sources
+    // name the .ts files that actually exist on disk (the repo has no build step). Turbopack
+    // resolves those specifiers without help; only tsc needs telling. Permissive, not
+    // required -- app code here still imports extensionlessly, per Next convention.
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "allowJs": true
+  },
+  // `test` is included deliberately.
+  //
+  // It was omitted, so an entire directory of code went untypechecked in a repo that is otherwise
+  // strict everywhere. That was not theoretical: a test here called sampleSnapshot() with no
+  // argument against a one-parameter signature, ran green, and silently built a snapshot whose
+  // `reason` was undefined. Vitest strips types rather than checking them, so nothing was ever
+  // going to catch it. Tests are the code that makes claims about the other code; they need the
+  // same enforcement.
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}

@@ -1,0 +1,526 @@
+@import "tailwindcss";
+
+/*
+ * Class-based dark mode rather than the prefers-color-scheme default.
+ *
+ * The default keys the `dark:` variant to the OS setting, which gives no way to override it. A
+ * three-state control -- light, dark, follow the system -- needs a class the app controls, and
+ * this one line replaces v3's darkMode: 'class'.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Fonts are self-hosted through npm rather than fetched from Google at build time.
+ *
+ * The build stays reproducible offline once dependencies are installed; no request leaves the
+ * page at runtime, which for a supply-chain security product is the difference between a
+ * defensible dashboard and one that beacons; and the exact weights are pinned in package.json
+ * rather than resolved by a CDN.
+ */
+@import "@fontsource-variable/nunito/index.css";
+@import "@fontsource-variable/baloo-2/index.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";
+
+/* ---------------------------------------------------------------- the palette */
+
+/*
+ * Duolingo's palette, mapped onto this app's semantics.
+ *
+ * Their system is built from a small set of named hues -- Feather Green, Macaw, Bee, Cardinal --
+ * each paired with a darker shade used only for the 3D underside of a control. That pairing is the
+ * whole look: the hue is the face, the shade is the edge you appear to press down onto.
+ *
+ * Every hue therefore has three slots here, and they are not interchangeable:
+ *
+ *   --x         the bright face. Fills, dots, bars, rings, borders. Large graphic areas.
+ *   --x-shade   the darker underside, used by .pop for the hard bottom shadow.
+ *   --x-ink     a contrast-safe value for small text on this theme's ground.
+ *
+ * The split exists because Duolingo's brand hues are designed as fills behind white text, not as
+ * text themselves. Bee yellow (#FFC800) is 1.5:1 on white -- unreadable as a label, perfect as a
+ * bar. Setting a status word in `--attention` would have failed WCAG; setting it in
+ * `--attention-ink` passes. Both are the same idea to a reader, and only one is legible.
+ */
+:root {
+  /* Polar / Snow. Duolingo's ground is near-white with white cards on top. */
+  --bg: #f7f7f7;
+  --panel: #ffffff;
+  --raise: #f7f7f7;
+  --raise-strong: #eeeeee;
+  --sunken: #f2f5f7;
+
+  /*
+   * Eel, Wolf, Hare. Their text ramp, and it is neutral grey rather than blue-black.
+   *
+   * Solved rather than eyeballed: three steps that are visibly distinct from each other and all
+   * clear 4.5 on the #f7f7f7 ground. Duolingo's own Hare (#AFAFAF) measures 2.0 on white and is
+   * unusable for the small labels it would carry here, so `faint` is the darkest value that still
+   * reads as a third step down: 4.56 on bg, 4.88 on panel.
+   */
+  --text: #3c3c3c;
+  --muted: #5a5a5a;
+  --faint: #717171;
+
+  /* Swan. A real visible 2px border is load-bearing in this language, not a hairline. */
+  --line: #e5e5e5;
+  --line-strong: #d8d8d8;
+  /* The underside colour for neutral surfaces. */
+  --shade: #d8d8d8;
+
+  /* Feather Green, Macaw, Bee, Cardinal, Beetle. */
+  --bonded: #58cc02;
+  --pinned: #1cb0f6;
+  --attention: #ffc800;
+  --revoked: #ff4b4b;
+  --equivocated: #ce82ff;
+
+  --bonded-shade: #46a302;
+  --pinned-shade: #1899d6;
+  --attention-shade: #e5b100;
+  --revoked-shade: #e52c2c;
+  --equivocated-shade: #a568cc;
+
+  /*
+   * Text-safe inks. Each is the lightest value that clears 4.5 on all three grounds AND on its own
+   * tint, since a pill is a tinted fill with ink text on it. Solved, not chosen by eye -- my first
+   * pass had bonded at 4.01 and pinned at 4.13, both of which look fine and both of which fail.
+   */
+  --bonded-ink: #377e01;
+  --pinned-ink: #1274a2;
+  --attention-ink: #8a6c00;
+  --revoked-ink: #bf3838;
+  --equivocated-ink: #8856a8;
+
+  /* Pill and row fills. Opaque tints rather than alpha, because Duolingo's fills are flat. */
+  --bonded-tint: #e8f9d9;
+  --pinned-tint: #ddf4fe;
+  --attention-tint: #fff4d1;
+  --revoked-tint: #ffe3e3;
+  --equivocated-tint: #f6e9ff;
+
+  /*
+   * The label colour for text sitting directly on a bright fill, and the reason this whole palette
+   * can stay bright.
+   *
+   * Duolingo puts white on Feather Green, which measures 2.09:1 -- a real and frequently cited AA
+   * failure in their product. The obvious fix is to darken the green until white passes, which
+   * lands on #3a8701 and throws away the thing that makes the palette recognisable.
+   *
+   * Near-black on the unmodified hue is the better trade, and it is what they already do on Bee
+   * yellow. Measured on every hue at full brightness: green 7.89, blue 6.74, yellow 10.61,
+   * purple 6.48, red 4.99. All pass, nothing is dulled, and it is deliberately not pure #000,
+   * which vibrates against saturated fills.
+   *
+   * Theme-independent on purpose. The bright faces do not change between themes, so their label
+   * must not either.
+   */
+  --on-face: #1f1f1f;
+
+  /* The ambient wash behind everything. Kept faint on light, where it would otherwise muddy. */
+  --wash-a: rgba(28, 176, 246, 0.1);
+  --wash-b: rgba(88, 204, 2, 0.09);
+  --wash-c: rgba(255, 200, 0, 0.08);
+
+  --scrim: rgba(255, 255, 255, 0.78);
+
+  /*
+   * Width of the left navigation rail.
+   *
+   * Lives here because two unrelated places need to agree on it: the rail sets its own width, and the
+   * content wrapper offsets itself by exactly that much. Tailwind cannot read a TypeScript constant
+   * inside an arbitrary value, so the alternative was the same magic number in a component and in a
+   * layout, which is the kind of pair that drifts the first time someone adjusts one of them.
+   */
+  --rail: 17rem;
+}
+
+.dark {
+  /*
+   * Duolingo's own dark values. Desaturated teal-slate, not neutral black.
+   *
+   * `raise` is darker than their card-hover grey looks, at #1e3138 rather than #263f47. It is the
+   * dimmest ground small text lands on, and the lighter value left `faint` at 4.25 and the red ink
+   * at 4.30. Pulling it down two steps buys both of them a pass without changing how the theme
+   * reads: faint 5.16, red ink 5.22, body text 12.53.
+   */
+  --bg: #131f24;
+  --panel: #202f36;
+  --raise: #1e3138;
+  --raise-strong: #2b4249;
+  --sunken: #17262c;
+
+  --text: #f1f7fb;
+  --muted: #a3b8c2;
+  /* Clears 4.5 against --raise, the dimmest ground it appears on. */
+  --faint: #8fa3ad;
+
+  --line: #37464f;
+  --line-strong: #46606d;
+  --shade: #16242a;
+
+  /*
+   * The bright faces carry over unchanged.
+   *
+   * This is intentional and is how Duolingo's dark mode works: the hues are already saturated
+   * enough to hold up on a dark ground, and keeping them identical means a green button is the
+   * same green in both themes. Only the ink and the undersides move.
+   */
+  --bonded: #58cc02;
+  --pinned: #1cb0f6;
+  --attention: #ffc800;
+  --revoked: #ff4b4b;
+  --equivocated: #ce82ff;
+
+  --bonded-shade: #3f8f02;
+  --pinned-shade: #147fb0;
+  --attention-shade: #b88f00;
+  --revoked-shade: #c22e2e;
+  --equivocated-shade: #8b57ad;
+
+  /* Lifted, because the light theme's inks are far too dark to read on #131F24. */
+  --bonded-ink: #79db2a;
+  --pinned-ink: #4cc2fa;
+  --attention-ink: #ffc800;
+  /* Lighter than the #ff7676 I first picked, which could not clear 4.5 on a red tint deep enough
+     to be visible as a band. Lightening the ink solved both ends at once. */
+  --revoked-ink: #ff9a9a;
+  --equivocated-ink: #d99bff;
+
+  /*
+   * Deeper than a naive darkening of each hue.
+   *
+   * A tinted pill on a dark panel has two jobs that pull against each other: be visibly a band
+   * against #202f36, and still give its own ink 4.5. Values around #4d2224 satisfied the ink but
+   * measured 1.03 against the panel, which is invisible. These are the candidates that cleared
+   * both.
+   */
+  --bonded-tint: #2f5219;
+  --pinned-tint: #164559;
+  --attention-tint: #54420a;
+  --revoked-tint: #66292c;
+  --equivocated-tint: #4e3369;
+
+  --wash-a: rgba(28, 176, 246, 0.12);
+  --wash-b: rgba(88, 204, 2, 0.1);
+  --wash-c: rgba(255, 200, 0, 0.07);
+
+  --scrim: rgba(19, 31, 36, 0.78);
+}
+
+/* ------------------------------------------------------------- theme -> tokens */
+
+/*
+ * `inline` is required here, not stylistic.
+ *
+ * Without it a utility compiles to `var(--color-panel)`, whose value is substituted once at
+ * :root and then inherited, so redefining `--panel` under `.dark` changes nothing. With it the
+ * utility compiles to `var(--panel)` directly and resolves against the nearest ancestor that
+ * defines it, which is what makes the class-based switch work at all. Verified against the
+ * compiled output rather than assumed.
+ */
+@theme inline {
+  /*
+   * Round, heavy and friendly, which is the entire typographic argument of this style.
+   *
+   * Duolingo ships a proprietary face (Feather) built on din-round. Nunito is the closest thing
+   * available under an open licence: fully rounded terminals, a tall x-height that keeps small
+   * labels legible, and a variable axis that reaches 1000 so buttons can be genuinely chunky
+   * rather than merely bold.
+   *
+   * Baloo 2 handles display sizes, where Nunito's roundness reads as slightly generic. Baloo is
+   * heavier and more mascot-adjacent, which is right for a headline sitting next to a character.
+   *
+   * JetBrains Mono stays, and deliberately breaks the round theme. Most of what this app shows is
+   * 66-character hashes a reader must compare character by character. A rounded mono would blur
+   * 0/O and 1/l exactly where a misread means approving the wrong bytes. Legibility outranks
+   * stylistic consistency here, and the contrast between playful chrome and severe hex is itself
+   * useful: it marks which parts of the screen are decoration and which are evidence.
+   */
+  --font-display: "Baloo 2 Variable", "Nunito Variable", system-ui, sans-serif;
+  --font-sans: "Nunito Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  /*
+   * Chunky-round, not blobby.
+   *
+   * Duolingo's controls sit around 16px and its progress bars are full pills. That is a narrower
+   * range than a typical scale, because the look comes from thick borders and hard shadows rather
+   * than from extreme radii. The steps still grow so nesting reads correctly, but the top end is
+   * pulled in from where a purely decorative scale would put it.
+   */
+  --radius-pill: 999px;
+  --radius-xs: 0.5rem;
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.75rem;
+  --radius-3xl: 2.25rem;
+
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raise: var(--raise);
+  --color-raise-strong: var(--raise-strong);
+  --color-sunken: var(--sunken);
+
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-on-face: var(--on-face);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-shade: var(--shade);
+
+  --color-bonded: var(--bonded);
+  --color-pinned: var(--pinned);
+  --color-attention: var(--attention);
+  --color-revoked: var(--revoked);
+  --color-equivocated: var(--equivocated);
+
+  --color-bonded-shade: var(--bonded-shade);
+  --color-pinned-shade: var(--pinned-shade);
+  --color-attention-shade: var(--attention-shade);
+  --color-revoked-shade: var(--revoked-shade);
+  --color-equivocated-shade: var(--equivocated-shade);
+
+  --color-bonded-ink: var(--bonded-ink);
+  --color-pinned-ink: var(--pinned-ink);
+  --color-attention-ink: var(--attention-ink);
+  --color-revoked-ink: var(--revoked-ink);
+  --color-equivocated-ink: var(--equivocated-ink);
+
+  --color-bonded-tint: var(--bonded-tint);
+  --color-pinned-tint: var(--pinned-tint);
+  --color-attention-tint: var(--attention-tint);
+  --color-revoked-tint: var(--revoked-tint);
+  --color-equivocated-tint: var(--equivocated-tint);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Overshoots then settles. The bounce that makes a correct answer feel correct. */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ------------------------------------------------------------------------ base */
+
+@layer base {
+  html {
+    /* Tells the UA to draw scrollbars and form controls for the active theme. */
+    color-scheme: light;
+    /* Hash columns must line up; tabular figures stop digits reflowing between rows. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    /* Duolingo sets almost everything semibold or heavier; 400 body text looks wrong beside it. */
+    font-weight: 600;
+    /*
+     * Colour transitions on the body only, and only for a theme switch.
+     *
+     * Applying a transition to every element would make the switch a slow wave across the page
+     * and would also animate unrelated hover states. Two properties here, and the tokens do the
+     * rest instantly, which reads as a clean cut rather than a smear.
+     */
+    transition: background-color 0.35s var(--ease-out-soft), color 0.35s var(--ease-out-soft);
+  }
+
+  /* Headings are the loud part of this language. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  /*
+   * The background lives in components/field.tsx now, not here.
+   *
+   * It gained a drifting lattice and the two lockstep bars, which need animation and theme-aware
+   * colour that a single ::before pseudo-element cannot carry. Left as a note rather than deleted
+   * silently, because "why is there no page background in the stylesheet" is a fair question.
+   */
+
+  ::selection {
+    background: var(--pinned-tint);
+  }
+
+  /* Visible focus on either ground, since the default ring disappears on one of them. */
+  :focus-visible {
+    outline: 3px solid var(--pinned);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Range inputs need an explicit accent or they render in the UA's own blue. */
+  input[type="range"] {
+    accent-color: var(--bonded);
+  }
+}
+
+/* ------------------------------------------------------------------- utilities */
+
+@layer utilities {
+  /*
+   * The signature surface: a 2px border and a hard, un-blurred bottom edge.
+   *
+   * This is the one thing that makes an interface read as Duolingo. Not a soft ambient shadow --
+   * a solid offset block of the shade colour, as if every panel were a physical tile with 4px of
+   * visible side. No blur, no spread, no alpha.
+   *
+   * Both parts are box-shadow rather than a real border plus margin, which keeps the whole effect
+   * layout-neutral: a control can lose its underside on press without the row height changing and
+   * without neighbours reflowing. `--pop` lets any element override the shade to its own hue, so
+   * a green button gets a green underside.
+   */
+  .chunk {
+    box-shadow: inset 0 0 0 2px var(--line);
+  }
+
+  .pop {
+    --pop: var(--shade);
+    box-shadow:
+      inset 0 0 0 2px var(--line),
+      0 4px 0 0 var(--pop);
+  }
+
+  .pop-sm {
+    --pop: var(--shade);
+    box-shadow:
+      inset 0 0 0 2px var(--line),
+      0 2px 0 0 var(--pop);
+  }
+
+  .pop-lg {
+    --pop: var(--shade);
+    box-shadow:
+      inset 0 0 0 2px var(--line),
+      0 6px 0 0 var(--pop);
+  }
+
+  /* An underside with no border, for solid-fill buttons that supply their own edge. */
+  .pop-bare {
+    --pop: var(--shade);
+    box-shadow: 0 4px 0 0 var(--pop);
+  }
+
+  /*
+   * The press. Travel down by exactly the height of the underside, and remove it.
+   *
+   * The two numbers must match or the control appears to sink through its own base. Paired with
+   * .pop / .pop-bare on the same element.
+   */
+  .press {
+    transition: transform 0.06s linear, box-shadow 0.06s linear;
+  }
+  .press:active {
+    transform: translateY(4px);
+    box-shadow: inset 0 0 0 2px var(--line);
+  }
+  .pop-bare.press:active {
+    box-shadow: none;
+  }
+  .pop-lg.press:active {
+    transform: translateY(6px);
+  }
+  .pop-sm.press:active {
+    transform: translateY(2px);
+  }
+
+  /*
+   * The previous design's `.edge` and `.edge-lift` are gone.
+   *
+   * They were a hairline inset highlight and the same plus an ambient drop shadow. During the
+   * restyle they were briefly redefined as aliases of `.chunk` and `.pop`, which let every screen
+   * pick up the 2px border and the hard underside before any component was converted by hand. Once
+   * the last call site was migrated the aliases were dead, so they were deleted rather than left as
+   * two names for one thing. Recorded here because "where did .edge go" is a fair question of the
+   * git history.
+   */
+
+  /* Uppercase, heavy, tracked out. Duolingo's button voice. */
+  .shout {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Hash strings, which must never wrap mid-value or the comparison breaks down. */
+  .hash {
+    font-family: var(--font-mono);
+    font-feature-settings: "zero" 1;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /*
+   * The full-bleed page gutter.
+   *
+   * One utility rather than a repeated max-width, because the layout is genuinely full width and
+   * only the breathing room scales. Wide screens get more gutter so a table does not run to the
+   * bezel, without ever capping the content.
+   */
+  .gutter {
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .gutter {
+      padding-inline: 2rem;
+    }
+  }
+  @media (min-width: 1280px) {
+    .gutter {
+      padding-inline: 3rem;
+    }
+  }
+  @media (min-width: 1800px) {
+    .gutter {
+      padding-inline: 4.5rem;
+    }
+  }
+
+  /* Prose that should stay readable no matter how wide the viewport gets. */
+  .measure {
+    max-width: 68ch;
+  }
+
+  .grain {
+    background-image: radial-gradient(var(--line) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+}
+
+/*
+ * Respect the OS setting.
+ *
+ * Framer Motion reads this too, but CSS transitions and the looping animations here would
+ * otherwise keep moving for someone who asked for stillness. The press transition is left alive
+ * because it is direct feedback to a click rather than ambient motion, and removing it makes
+ * buttons feel broken.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .press {
+    transition: transform 0.06s linear !important;
+  }
+}
