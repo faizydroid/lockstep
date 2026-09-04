@@ -1,0 +1,39 @@
+{
+    "name":  "@lockstep/openclaw-plugin",
+    "version":  "0.0.1",
+    "private":  true,
+    "type":  "module",
+    "main":  "./src/index.ts",
+    "openclaw":  {
+                     "extensions":  [
+                                        "./src/plugin.ts"
+                                    ]
+                 },
+    "scripts":  {
+                    "test":  "vitest run",
+                    "typecheck":  "tsc --noEmit"
+                },
+    "dependencies":  {
+                         "@lockstep/runtime":  "*",
+                         "viem":  "2.56.3"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "22.13.1",
+                            "typescript":  "5.7.3",
+                            "vitest":  "3.2.7"
+                        },
+    "peerDependencies":  {
+                             "openclaw":  "\u003e=2026.8.0"
+                         },
+    "peerDependenciesMeta":  {
+                                 "openclaw":  {
+                                                  "optional":  true
+                                              }
+                             },
+    "exports":  {
+                    ".":  "./src/index.ts",
+                    "./abi":  "./src/abi.ts",
+                    "./chain":  "./src/chain.ts",
+                    "./policy":  "./src/policy.ts"
+                }
+}

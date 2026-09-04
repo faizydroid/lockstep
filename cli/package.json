@@ -1,0 +1,29 @@
+{
+    "name":  "@lockstep/cli",
+    "version":  "0.0.1",
+    "private":  true,
+    "type":  "module",
+    "bin":  {
+                "lockstep":  "./src/index.ts"
+            },
+    "scripts":  {
+                    "test":  "vitest run",
+                    "typecheck":  "tsc --noEmit"
+                },
+    "dependencies":  {
+                         "@lockstep/runtime":  "*",
+                         "viem":  "2.56.3"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "22.13.1",
+                            "typescript":  "5.7.3",
+                            "vitest":  "3.2.7"
+                        },
+    "exports":  {
+                    ".":  "./src/index.ts",
+                    "./manifest":  "./src/manifest.ts",
+                    "./risk":  "./src/risk.ts",
+                    "./abi":  "./src/abi.ts",
+                    "./pins":  "./src/pins.ts"
+                }
+}

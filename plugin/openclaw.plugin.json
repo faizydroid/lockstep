@@ -1,0 +1,49 @@
+{
+  "id": "lockstep",
+  "name": "Lockstep",
+  "version": "0.0.1",
+  "description": "Binds every fund-moving call to the exact skill version the account owner approved.",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "trustedToolPolicies": ["lockstep-exec-gate"],
+    "tools": ["lockstep_send"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["registry", "account", "chainId"],
+    "properties": {
+      "registry": {
+        "type": "string",
+        "pattern": "^0x[0-9a-fA-F]{40}$",
+        "description": "PinRegistry address."
+      },
+      "account": {
+        "type": "string",
+        "pattern": "^0x[0-9a-fA-F]{40}$",
+        "description": "Account holding the funds, delegated to LockstepGuard via EIP-7702."
+      },
+      "chainId": {
+        "type": "integer",
+        "enum": [143, 10143],
+        "description": "143 for Monad mainnet, 10143 for testnet."
+      },
+      "rpcUrl": {
+        "type": "string",
+        "description": "Monad RPC URL. Defaults to the public endpoint for the chain."
+      },
+      "executorPrivateKeyEnv": {
+        "type": "string",
+        "default": "LOCKSTEP_EXECUTOR_KEY",
+        "description": "Name of the environment variable holding the executor key. The key itself is never stored in config. The executor pays gas and holds no funds; it must never be the account's key, and the chain adapter refuses to start if it is."
+      },
+      "skillRoots": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Skills roots a resolved skill must live under. Defaults to the workspace skills directory."
+      }
+    }
+  }
+}
