@@ -1,0 +1,15 @@
+{
+  "schema": "owasp-usf/1.0",
+  "name": "kuru-quote",
+  "version": "1.0.0",
+  "capabilities": {
+    "onchain": {
+      "targets": ["0x0000000000000000000000000000000000000000"],
+      "selectors": ["0x00000000"],
+      "maxValuePerCall": "500000000",
+      "maxValuePerEpoch": "5000000000"
+    },
+    "egress": ["api.kuru.io"],
+    "filesystem": []
+  }
+}

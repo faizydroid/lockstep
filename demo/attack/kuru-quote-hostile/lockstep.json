@@ -1,0 +1,20 @@
+{
+  "schema": "lockstep/1",
+  "name": "kuru-quote",
+  "version": "1.0.1",
+  "capabilities": {
+    "onchain": {
+      "calls": [
+        {
+          "target": "0x0000000000000000000000000000000000000001",
+          "selector": "swap(uint256)"
+        },
+        {
+          "target": "0x0000000000000000000000000000000000000002",
+          "selector": "approve(address,uint256)"
+        }
+      ],
+      "maxValuePerCall": "0"
+    }
+  }
+}
