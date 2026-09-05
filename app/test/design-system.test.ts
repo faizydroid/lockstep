@@ -21,6 +21,17 @@ import { describe, expect, it } from "vitest";
 
 const APP = join(import.meta.dirname, "..", "src");
 const css = readFileSync(join(APP, "app", "globals.css"), "utf8");
+const ui = readFileSync(join(APP, "components", "ui.tsx"), "utf8");
+
+/**
+ * The stylesheet with its comments removed.
+ *
+ * Same trap as everywhere else in this suite, and it caught two assertions here on first run. `globals.css`
+ * explains at length why `.clinical`, Baloo 2 and Nunito were removed, so any check for their *absence*
+ * matched the paragraph describing their removal. Prose that names a rejected thing in order to reject it is
+ * exactly what these comments are for, so the assertions read stripped CSS.
+ */
+const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Every .tsx under src, so a new component cannot reintroduce any of this unnoticed. */
 function sources(dir: string): string[] {
@@ -98,6 +109,145 @@ describe("nothing casts a shadow", () => {
   it("inverts the press affordance on the dark theme", () => {
     // Darkening reads as pressed on a light ground and as broken on a dark one.
     expect(css).toMatch(/\.dark \.press:active\s*\{[^}]*brightness\(1\.\d+\)/);
+  });
+});
+
+describe("there is one design language", () => {
+  it("has retired the .clinical scope", () => {
+    /*
+     * `.clinical` was the landing page's own ground and typeface, and it made the app two products. The worst
+     * of it was invisible from either side: components that render on both, like `StartHere`, set
+     * `font-display font-extrabold` on their own headings and lost a specificity fight with `.clinical h2`,
+     * so the same component drew Inter Tight 600 on `/` and Baloo 2 800 everywhere else.
+     */
+    expect(cssCode, ".clinical is back").not.toMatch(/\.clinical\b/);
+    expect(ALL, "a page is scoping itself to .clinical").not.toMatch(/"[^"]*\bclinical\b/);
+  });
+
+  it("uses one typeface for copy and one for data", () => {
+    // Baloo 2 and Nunito are gone. `--font-display` survives as an alias so ~40 call sites did not need
+    // editing, and it now means "this is a title" rather than "this is a rounder face".
+    expect(cssCode).not.toMatch(/Baloo/);
+    expect(cssCode).not.toMatch(/Nunito/);
+    expect(cssCode).toMatch(/--font-sans:\s*"Inter Tight/);
+    expect(cssCode).toMatch(/--font-display:\s*"Inter Tight/);
+    expect(cssCode).toMatch(/--font-mono:\s*"JetBrains Mono/);
+  });
+
+  it("gives labels the mono voice and buttons the sans voice", () => {
+    /*
+     * `.shout` was doing both jobs: it sat on buttons AND on every eyebrow, table head, pill and stat label,
+     * so "press this" and "this is a column of data" were set identically. It is the label voice now, and the
+     * shared Button must not carry it.
+     */
+    const shout = /\.shout\s*\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(shout).toMatch(/font-family:\s*var\(--font-mono\)/);
+    expect(shout).toMatch(/text-transform:\s*uppercase/);
+
+    const button = /const shape = cx\([\s\S]*?\);/.exec(stripComments(ui))?.[0] ?? "";
+    expect(button, "the shared Button is still shouting").not.toMatch(/\bshout\b/);
+    expect(button).toMatch(/font-medium/);
+  });
+
+  it("sizes buttons by height so two of the same size line up", () => {
+    // The audit found ~10 distinct control heights, several a couple of pixels apart, because every bespoke
+    // button picked its own `py-*`.
+    const sizes = /const BUTTON_SIZE = \{[\s\S]*?\} as const;/.exec(ui)?.[0] ?? "";
+    for (const height of ["h-9", "h-10", "h-11"]) {
+      expect(sizes, `BUTTON_SIZE is missing ${height}`).toContain(height);
+    }
+  });
+});
+
+describe("the interface does not claim more than it knows", () => {
+  const data = readFileSync(join(APP, "components", "data.tsx"), "utf8");
+
+  it("distinguishes reading from having read", () => {
+    /*
+     * The bug: every page computed `live = source.kind === "chain"`, which is false while the read is in
+     * flight because the provider seeds a fixture. So the interface asserted the negative -- the hero printed
+     * NO REGISTRY CONFIGURED and the registry block printed WORKED EXAMPLE -- and then silently flipped. For
+     * the first second of every visit the front page said our own deployment did not exist.
+     */
+    expect(data).toMatch(/export function useCertainty/);
+    expect(data).toMatch(/if \(status === "loading"\) return "reading"/);
+  });
+
+  it("uses it on the three surfaces that were asserting the negative", () => {
+    for (const file of [
+      join(APP, "app", "page.tsx"),
+      join(APP, "components", "landing", "hero.tsx"),
+      join(APP, "components", "landing", "registry.tsx"),
+      join(APP, "app", "dashboard", "page.tsx"),
+    ]) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      expect(source, `${file.slice(APP.length + 1)} does not use certainty`).toMatch(/[Cc]ertainty/);
+    }
+  });
+
+  it("never leaves the reader on figures that will not arrive", () => {
+    /*
+     * `loadSnapshot` catches its own read errors, which made this look safe. Anything unanticipated threw out
+     * of the async effect instead: the promise rejected, no state was set, and `status` stayed "loading"
+     * forever with the fixture UI on screen and the banner reading "reading chain".
+     */
+    expect(data).toMatch(/try \{[\s\S]*?loadSnapshot[\s\S]*?\} catch/);
+    expect(data).toMatch(/kind: "error"/);
+  });
+});
+
+describe("the app has the boundaries a static export needs", () => {
+  it("has a 404 page, because any path is reachable", () => {
+    // A static export serves files; anything that is not one falls through to whatever the host does.
+    const notFound = readFileSync(join(APP, "app", "not-found.tsx"), "utf8");
+    expect(notFound).toMatch(/export default function NotFound/);
+    expect(notFound).toMatch(/href="\/"/);
+  });
+
+  it("has an error boundary that says nothing on chain was touched", () => {
+    /*
+     * Without one, a throw in any client component blanks the tree — and on a chain dashboard a white page is
+     * indistinguishable from the app deciding your account is empty. The reassurance is true by construction:
+     * every write needs an explicit confirmation and a wallet signature.
+     */
+    const error = readFileSync(join(APP, "app", "error.tsx"), "utf8");
+    expect(error).toMatch(/Nothing on chain was touched/);
+    expect(error).toMatch(/reset/);
+  });
+});
+
+describe("one control per job", () => {
+  it("has a single segmented control and no bespoke copies of it", () => {
+    /*
+     * Four existed at three sizes. The badge state picker and the settings motion picker were byte-identical
+     * markup, and the account tabs were the same idea two pixels shorter — three instances of one control that
+     * a reader could not tell were the same.
+     */
+    expect(ui).toMatch(/export function Segmented/);
+    const bespoke = [...ALL.matchAll(/shout press rounded-pill px-3\.5 py-2 text-label/g)];
+    expect(bespoke, "a bespoke segmented chip is back").toHaveLength(0);
+  });
+
+  it("has a single text input", () => {
+    expect(ui).toMatch(/export function TextInput/);
+  });
+
+  it("routes landing links to product pages through ExploreLink", () => {
+    /*
+     * The flow gate bounces a reader at the landing stage off product routes, so a bare link there does
+     * nothing. The first fix was a `<button onClick>`, which broke middle-click, open-in-new-tab and the
+     * status-bar preview, and left the primary call to action with no href in the markup at all.
+     */
+    const start = readFileSync(join(APP, "components", "start.tsx"), "utf8");
+    expect(start).toMatch(/export function ExploreLink/);
+    expect(start).toMatch(/event\.metaKey \|\| event\.ctrlKey/);
+
+    for (const file of ["hero.tsx", "shell.tsx", "registry.tsx"]) {
+      const source = stripComments(readFileSync(join(APP, "components", "landing", file), "utf8"));
+      expect(source, `${file} still uses a bespoke explore button`).not.toMatch(
+        /onClick=\{\(\) => explore\(/,
+      );
+    }
   });
 });
 

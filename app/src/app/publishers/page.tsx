@@ -242,7 +242,15 @@ export default function PublishersPage() {
 
       <Reveal>
         <Card className="bg-raise">
-          <h3 className="font-display text-lg text-text">Why slashing only punishes contradiction</h3>
+          {/*
+            h2, was h3.
+
+            The route's own heading is the `Section` above at level one, and the section that would have sat
+            between them only renders when a publisher has actually equivocated. So on a healthy registry the
+            outline jumped from h1 straight to h3 — a skipped level, which is the second most common heading
+            defect after having no h1 at all. This note is one level below the page, so it is an h2.
+          */}
+          <h2 className="font-display text-lg text-text">Why slashing only punishes contradiction</h2>
           <p className="mt-3 measure text-sm leading-relaxed text-muted">
             Publishing a skill that turns out to be bad is not slashable, and deliberately so.
             Deciding whether code is malicious needs a court; deciding whether a publisher signed
