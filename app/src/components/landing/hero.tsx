@@ -27,7 +27,7 @@
  */
 
 import type { Certainty } from "../data";
-import { useExplore } from "../start";
+import { ExploreLink } from "../start";
 import { Term } from "../term";
 
 /**
@@ -45,7 +45,6 @@ export function Hero({
   certainty: Certainty;
   chainId: number | undefined;
 }) {
-  const explore = useExplore();
   const live = certainty === "chain";
 
   return (
@@ -103,20 +102,30 @@ export function Hero({
           to action doing nothing. `useExplore` records that they chose to look around, which is exactly
           what following this button means, and then navigates.
         */}
-        <button
-          type="button"
-          onClick={() => explore("/dashboard")}
-          className="press inline-flex h-11 w-full items-center justify-center rounded-md bg-bonded px-6 text-note font-semibold text-on-face transition-colors sm:w-auto"
+        <ExploreLink
+          href="/dashboard"
+          className="press inline-flex h-11 w-full items-center justify-center rounded-md bg-bonded px-6 text-sm font-medium text-on-face transition-colors sm:w-auto"
         >
           Explore registry
-        </button>
+        </ExploreLink>
         <a
           href="#install"
-          className="press inline-flex h-11 w-full items-center justify-center rounded-md border border-line-strong px-6 text-note font-medium text-text transition-colors hover:bg-raise sm:w-auto"
+          className="press inline-flex h-11 w-full items-center justify-center rounded-md border border-line-strong px-6 text-sm font-medium text-text transition-colors hover:bg-raise sm:w-auto"
         >
           Install CLI
         </a>
       </div>
+
+      {/*
+        Says what the primary button does to the reader's own state.
+
+        Following it writes `skippedSetup`, which `stageFor` treats as permanent, so one click quietly opts
+        someone out of the profile and onboarding steps for good. That is the right behaviour -- exploring the
+        registry *is* choosing to look around -- but it was happening with nothing on screen to say so.
+      */}
+      <p className="mt-5 text-label text-faint">
+        Exploring skips the setup steps. Nothing is gated, and you can build a profile later from Account.
+      </p>
 
       <p className="mt-6 text-label text-faint">
         EIP-7702 &middot; enforced at <Term name="settlement">settlement</Term> &middot; backed by

@@ -38,26 +38,9 @@ export default function DriftPage() {
 
   return (
     <div className="space-y-12">
-      {/*
-        The settlement gate, moved here from the landing page.
-
-        It is the only operable demonstration in the product: the reader flips a switch to change what the
-        publisher ships and watches the same call either settle or be turned away. That could not survive
-        the landing page's rebuild into near-black Inter Tight -- the gate is rounded, mascot-led and
-        brightly filled, and the two languages would have collided mid-page -- but dropping it would have
-        cost the app its best explanation of itself.
-
-        This route is where it belonged in the first place. Everything above is a list of skills that have
-        drifted; this is what happens to them at settlement. It also keeps the quickstart's refusal step
-        reachable, since that step is satisfied by actually driving the gate to a refusal rather than by
-        visiting a URL.
-      */}
-      <Reveal>
-        <SettlementGate />
-      </Reveal>
-
       <Reveal>
         <Section
+          level={1}
           eyebrow="Version drift"
           title="What changed since you approved it"
           description={
@@ -169,6 +152,25 @@ export default function DriftPage() {
           </RevealItem>
         ))}
       </RevealGroup>
+
+      {/*
+        The settlement gate, moved here from the landing page — and placed after the list rather than before.
+
+        It is the only operable demonstration in the product: the reader flips a switch to change what the
+        publisher ships and watches the same call either settle or be turned away. It could not survive on the
+        landing page once that page was rebuilt, but dropping it would have cost the app its best explanation
+        of itself, and this route is where it belonged anyway.
+
+        Below the list, because it was above it and that put the page's headings out of order: the gate opens
+        with an h2, so the document reached level two and three before the h1 that names the route. It also
+        reads better in this order — here is what drifted, and here is what happens to it at settlement.
+
+        This is also what keeps the quickstart's refusal step reachable, since that step is satisfied by
+        driving the gate to an actual refusal rather than by visiting a URL.
+      */}
+      <Reveal>
+        <SettlementGate />
+      </Reveal>
 
       <Reveal>
         <Card className="bg-raise">

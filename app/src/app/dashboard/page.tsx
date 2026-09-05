@@ -237,6 +237,15 @@ function Ledger({
    */
   return (
     <Section
+      /*
+       * The dashboard's h1.
+       *
+       * The route had none. Everything above this section — the quickstart panel and the scoreboard — titles
+       * itself with a styled `<p>`, so the first real heading in the document was this one at level two. The
+       * ledger is also the right thing to name the page after: it is the section that says what the registry
+       * currently is.
+       */
+      level={1}
       eyebrow={live ? "Registry" : reading ? "Registry \u00b7 reading" : "Registry \u00b7 sample"}
       title={
         live

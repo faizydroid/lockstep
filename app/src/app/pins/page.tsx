@@ -66,6 +66,7 @@ export default function PinsPage() {
     <div className="space-y-8">
       <Reveal>
         <Section
+          level={1}
           eyebrow="Registry"
           title="Published pins"
           description={

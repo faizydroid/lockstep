@@ -19,7 +19,7 @@
 import Link from "next/link";
 
 import { Mark } from "../nav";
-import { useExplore } from "../start";
+import { ExploreLink } from "../start";
 import { ThemeToggle } from "../theme-toggle";
 
 /**
@@ -41,8 +41,6 @@ const NAV: readonly { label: string; href: string; external?: boolean; product?:
 ];
 
 export function LandingHeader() {
-  const explore = useExplore();
-
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur-md">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
@@ -82,15 +80,17 @@ export function LandingHeader() {
             }
 
             if (item.product === true) {
+              /*
+                An anchor with a click handler, not a button.
+
+                All three header items look identical, and one of them being a `<button>` meant it silently
+                behaved differently: no middle-click, no open-in-new-tab, no status-bar preview, and no `href`
+                in the markup. `ExploreLink` keeps the affordance and adds the flow bookkeeping on top.
+              */
               return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => explore(item.href)}
-                  className={shape}
-                >
+                <ExploreLink key={item.label} href={item.href} className={shape}>
                   {item.label}
-                </button>
+                </ExploreLink>
               );
             }
 

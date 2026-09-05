@@ -152,9 +152,15 @@ export function SettlementGate() {
       <div className="space-y-8">
         <header className="space-y-3">
           <p className="shout text-label text-faint">The moment of enforcement</p>
-          <h3 className="font-display text-2xl leading-tight font-extrabold text-text sm:text-3xl">
+          {/*
+            h2, was h3. The gate renders first on `/drift`, so the page's outline used to open at level three,
+            descend to h4 for the step titles, and then jump back up to the h2 that `Section` emits — a
+            document whose heading levels go 3, 4, 2. Level two here and level three below makes the outline
+            read in order under the route's h1.
+          */}
+          <h2 className="font-display text-2xl leading-tight text-text sm:text-3xl">
             Watch a call reach the guard
-          </h3>
+          </h2>
           {/*
             A plain-language framing, which the previous version had nowhere.
             Someone meeting this panel cold needs to be told what they are looking at and that they
@@ -233,10 +239,10 @@ function Step({
           {n}
         </span>
         <div className="min-w-0">
-          <h4 className="font-display text-base leading-tight font-extrabold text-text">
+          <h3 className="font-display text-base leading-tight text-text">
             <span className="sr-only">Step {n}. </span>
             {title}
-          </h4>
+          </h3>
           {hint === undefined ? null : (
             <p className="measure mt-0.5 text-xs leading-relaxed font-semibold text-faint">{hint}</p>
           )}

@@ -83,6 +83,7 @@ export default function BondsPage() {
     <div className="space-y-12">
       <Reveal>
         <Section
+          level={1}
           eyebrow="Blast radius, not value"
           title="What a pin costs to publish"
           description={

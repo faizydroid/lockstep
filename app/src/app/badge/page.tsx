@@ -15,7 +15,7 @@ import type { BadgeInput, BadgeState } from "@lockstep/badge";
 
 import { useSnapshot } from "@/components/data";
 import { Reveal, SPRING_FIRM, motion } from "@/components/motion";
-import { Card, Pill, Section, cx } from "@/components/ui";
+import { Card, Pill, Section, Segmented, cx } from "@/components/ui";
 import { displayName } from "@/lib/untrusted";
 
 const STATES: readonly { state: BadgeState; label: string; why: string }[] = [
@@ -69,6 +69,7 @@ export default function BadgePage() {
     <div className="space-y-12">
       <Reveal>
         <Section
+          level={1}
           eyebrow="Distribution"
           title="The badge"
           description={
@@ -106,27 +107,25 @@ export default function BadgePage() {
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm text-text">State</p>
-                <div className="flex flex-wrap gap-2">
-                  {STATES.map((option) => (
-                    <button
-                      key={option.state}
-                      type="button"
-                      onClick={() => setState(option.state)}
-                      title={option.why}
-                      aria-pressed={state === option.state}
-                      className={cx(
-                        "shout press rounded-pill px-3.5 py-2 text-label",
-                        state === option.state
-                          ? "pop-sm bg-pinned-tint text-pinned-ink [--line:var(--pinned)] [--pop:var(--pinned-shade)]"
-                          : "chunk bg-panel text-muted hover:text-text",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs leading-relaxed text-faint">
+                {/*
+                  The shared `Segmented`, replacing a bespoke row of chips.
+
+                  This markup was byte-identical to the motion picker in `settings-panel.tsx` and two pixels
+                  taller than the tabs on `/account`, so the app had four segmented controls at three sizes
+                  with no way for a reader to tell that three of them are the same control.
+                */}
+                <p className="text-note text-text">State</p>
+                <Segmented
+                  label="Badge state"
+                  value={state}
+                  onChange={setState}
+                  options={STATES.map((option) => ({
+                    value: option.state,
+                    label: option.label,
+                    hint: option.why,
+                  }))}
+                />
+                <p className="text-label leading-relaxed text-faint">
                   {STATES.find((o) => o.state === state)?.why}
                 </p>
               </div>

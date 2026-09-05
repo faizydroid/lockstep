@@ -39,6 +39,7 @@ export default function ApprovalsPage() {
     <div className="space-y-12">
       <Reveal>
         <Section
+          level={1}
           eyebrow="Account policy"
           title="Approved versions"
           description={

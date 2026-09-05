@@ -59,6 +59,60 @@ export function useExplore(): (target: string) => void {
   };
 }
 
+/**
+ * A link into the product from the landing page. An anchor, not a button.
+ *
+ * The first version of this was a `<button onClick={explore(...)}>`, which fixed the bounce but broke three
+ * things a link gives away for free: middle-click, open-in-new-tab, and the browser's own status bar preview.
+ * It also meant the landing page's primary call to action had no `href` in the static HTML at all — so the
+ * one destination the page most wants a reader to reach was invisible to anything that reads markup, and the
+ * header ended up mixing an anchor, a Link and a button that all looked identical.
+ *
+ * So it is a real anchor with a real `href`, and the click handler is an enhancement on top: it records the
+ * choice and hands over to the client router. A middle-click or a modified click is left alone, which is the
+ * whole point — those open a new context, and writing a preference on behalf of a tab the reader is not
+ * looking at would be wrong.
+ *
+ * The reader is told what following it does. `skippedSetup` is durable, so a silent write meant one click
+ * permanently opted someone out of the profile and onboarding steps with nothing on screen saying so.
+ */
+export function ExploreLink({
+  href,
+  children,
+  className,
+  title,
+}: {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  const explore = useExplore();
+
+  return (
+    <a
+      href={href}
+      title={title}
+      {...(className === undefined ? {} : { className })}
+      onClick={(event) => {
+        /*
+         * Let the browser handle anything that is not a plain left click.
+         *
+         * Middle-click, ctrl/cmd-click and shift-click all open somewhere else, and the flow gate will not
+         * bounce a fresh document load the way it bounces a client-side navigation.
+         */
+        if (event.defaultPrevented) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+
+        event.preventDefault();
+        explore(href);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function StartHere({ compact = false }: { compact?: boolean }) {
   const { connected, available, connect, connecting } = useIdentity();
   const { settings, update } = useSettings();

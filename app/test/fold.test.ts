@@ -94,11 +94,24 @@ describe("the overview fold", () => {
      * from product routes, so `<Link href="/dashboard">` here would bounce them back to the page they are
      * standing on. `useExplore` records that following it *is* choosing to look around, then navigates.
      */
-    expect(heroCode).toMatch(/useExplore/);
     expect(heroCode).toMatch(/Explore registry/);
     expect(heroCode).toMatch(/Install CLI/);
-    expect(heroCode, "a product route is linked directly from the fold").not.toMatch(
-      /href="\/(?:dashboard|pins|drift|bonds|approvals|publishers|badge)"/,
+
+    /*
+     * `ExploreLink`, and the assertion moved with it.
+     *
+     * This used to forbid `href="/dashboard"` outright, because the fix at the time was a `<button>` with an
+     * onClick. That solved the bounce and broke three things a link gives for free -- middle-click,
+     * open-in-new-tab and the status-bar preview -- and left the page's primary call to action with no href in
+     * the markup at all.
+     *
+     * `ExploreLink` is a real anchor that records the choice on a plain left click and lets every modified
+     * click through untouched. So a product href in the fold is now correct; what must not appear is a bare
+     * `Link` or `a` to one, which is what the gate bounces.
+     */
+    expect(heroCode).toMatch(/<ExploreLink/);
+    expect(heroCode, "a product route is linked without going through ExploreLink").not.toMatch(
+      /<(?:Link|a)\s[^>]*href="\/(?:dashboard|pins|drift|bonds|approvals|publishers|badge)"/,
     );
   });
 

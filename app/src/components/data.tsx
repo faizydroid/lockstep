@@ -84,8 +84,33 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
         ...(settings.account === undefined ? {} : { account: settings.account }),
         ...(address === undefined ? {} : { account: address }),
       };
-      const snapshot = await loadSnapshot(config);
-      if (!cancelled) setState({ status: "ready", snapshot });
+      /*
+       * Wrapped, because an unhandled rejection here was the app's quietest failure mode.
+       *
+       * `loadSnapshot` catches its own read errors and returns a snapshot with `source.kind === "error"`, so
+       * this looked safe. But anything it does not anticipate -- a malformed config, a viem change, a bug in
+       * the decoding -- throws out of this async function into nothing. The promise rejects, no state is set,
+       * and `status` stays `"loading"` forever: the fixture UI sits on screen indefinitely with the banner
+       * reading "reading chain", which is indistinguishable from a slow RPC and never resolves.
+       *
+       * Failing into the error source is the honest outcome. The banner already knows how to render it and
+       * the reader is told the read did not happen, rather than being left with figures that will never be
+       * replaced.
+       */
+      try {
+        const snapshot = await loadSnapshot(config);
+        if (!cancelled) setState({ status: "ready", snapshot });
+      } catch (err) {
+        if (cancelled) return;
+        const reason = err instanceof Error ? err.message : String(err);
+        setState({
+          status: "ready",
+          snapshot: {
+            ...sampleSnapshot("The chain read failed"),
+            source: { kind: "error", reason: reason.split("\n")[0] ?? "Unknown failure" },
+          },
+        });
+      }
     })();
 
     return () => {

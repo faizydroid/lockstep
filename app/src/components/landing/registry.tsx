@@ -23,7 +23,7 @@
  */
 
 import type { Certainty } from "@/components/data";
-import { useExplore } from "@/components/start";
+import { ExploreLink } from "@/components/start";
 import { bondBreakdown } from "@/lib/bond";
 import { formatBond, formatCount } from "@/lib/format";
 import type { Pin, Snapshot } from "@/lib/model";
@@ -32,7 +32,6 @@ import { displayName } from "@/lib/untrusted";
 export function Registry({ snapshot, certainty }: { snapshot: Snapshot; certainty: Certainty }) {
   const { source, totals, pricing } = snapshot;
   const live = certainty === "chain";
-  const explore = useExplore();
 
   const metrics: readonly { label: string; value: string }[] = [
     {
@@ -89,13 +88,12 @@ export function Registry({ snapshot, certainty }: { snapshot: Snapshot; certaint
           </div>
 
           {/* Behind the first-run flow, so it records the choice rather than being bounced back. */}
-          <button
-            type="button"
-            onClick={() => explore("/pins")}
-            className="press inline-flex h-9 items-center rounded-md border border-line-strong px-4 text-label font-medium text-text transition-colors hover:bg-raise"
+          <ExploreLink
+            href="/pins"
+            className="press inline-flex h-9 items-center rounded-md border border-line-strong px-4 text-note font-medium text-text transition-colors hover:bg-raise"
           >
             All pins
-          </button>
+          </ExploreLink>
         </div>
 
         {/*

@@ -115,6 +115,7 @@ export default function PublishersPage() {
 
       <Reveal>
         <Section
+          level={1}
           eyebrow="Skin in the game"
           title="Publishers"
           description={

@@ -97,6 +97,7 @@ export function Section({
   description,
   children,
   aside,
+  level = 2,
 }: {
   eyebrow?: string;
   title: string;
@@ -104,7 +105,21 @@ export function Section({
   /** Optional: a section that is only a heading and a description is a legitimate shape. */
   children?: ReactNode;
   aside?: ReactNode;
+  /**
+   * Heading level. `1` for the section that names the route.
+   *
+   * Seven of the ten product routes had no `h1` at all, because every `Section` hardcoded an `h2` and every
+   * page is built from `Section`s. A document whose outline starts at level two is a document a screen
+   * reader user cannot get their bearings in, and it is the single most common heading defect there is.
+   *
+   * The size does not change with the level. On these pages the section that names the route is not visually
+   * larger than the others, and it should not be — the level is a statement about structure, not about type
+   * size, and conflating the two is why so many pages end up with three h1s or none.
+   */
+  level?: 1 | 2;
 }) {
+  const Heading = level === 1 ? "h1" : "h2";
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -112,11 +127,11 @@ export function Section({
           {eyebrow === undefined ? null : (
             <p className="shout text-label text-faint">{eyebrow}</p>
           )}
-          <h2 className="font-display text-2xl leading-tight font-extrabold text-text sm:text-3xl">
+          <Heading className="font-display text-2xl leading-tight text-text sm:text-3xl">
             {title}
-          </h2>
+          </Heading>
           {description === undefined ? null : (
-            <p className="measure text-sm leading-relaxed font-semibold text-muted">{description}</p>
+            <p className="measure text-sm leading-relaxed text-muted">{description}</p>
           )}
         </div>
         {aside}
@@ -815,6 +830,123 @@ export function Empty({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- inputs */
+
+/**
+ * The one text input.
+ *
+ * There were three, and the differences were not decisions. The profile fields were
+ * `rounded-lg bg-sunken px-3 py-2.5 text-sm font-semibold`; the settings field was
+ * `hash rounded-xl ... px-3 py-2 text-sm` with a placeholder colour; the quickstart field was the same in
+ * `text-xs`; and the write-action confirmation field had no placeholder colour and no `min-w-0`. Four
+ * variants of one control, differing on radius, font, size and padding, each looking reasonable beside the
+ * last.
+ *
+ * `mono` is the only real axis, because it is the only one carrying meaning: an address or a hash must be
+ * monospace so a reader can compare it character by character, and prose must not be.
+ */
+export function TextInput({
+  value,
+  onChange,
+  onEnter,
+  mono = false,
+  invalid = false,
+  describedBy,
+  className,
+  ...rest
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  /** Submit on Enter. None of these live in a `<form>`, so it has to be wired by hand. */
+  onEnter?: () => void;
+  mono?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  className?: string;
+  id?: string;
+  placeholder?: string;
+  maxLength?: number;
+  "aria-label"?: string;
+}) {
+  return (
+    <input
+      {...rest}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={
+        onEnter === undefined
+          ? undefined
+          : (event) => {
+              if (event.key === "Enter") onEnter();
+            }
+      }
+      autoComplete="off"
+      spellCheck={false}
+      aria-invalid={invalid ? true : undefined}
+      aria-describedby={describedBy}
+      className={cx(
+        "chunk h-10 w-full min-w-0 rounded-md bg-sunken px-3 text-sm text-text placeholder:text-faint",
+        mono && "hash",
+        invalid && "[--line:var(--revoked)]",
+        className,
+      )}
+    />
+  );
+}
+
+/**
+ * The one segmented control.
+ *
+ * Four of these existed at three different sizes: the badge state picker and the settings motion picker were
+ * byte-identical, the account profile/settings tabs were the same idea two pixels shorter, and the theme
+ * toggle was smaller again with a sliding thumb. A reader cannot tell that three of those are the same
+ * control, which is the whole argument for a primitive.
+ *
+ * Uses `aria-pressed` on plain buttons rather than `role="tablist"`. Two of the four switch a visible panel
+ * and two only change a value, and a tablist that does not own a tabpanel is worse than no tablist —
+ * a screen reader announces "tab 1 of 3" and then nothing changes region. The account page's panel keeps its
+ * own semantics.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  readonly options: readonly { readonly value: T; readonly label: string; readonly hint?: string }[];
+  value: T;
+  onChange: (next: T) => void;
+  /** Names the group, since the buttons alone do not say what is being chosen. */
+  label: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="chunk inline-flex flex-wrap items-center gap-0.5 rounded-pill bg-raise p-1"
+    >
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={active}
+            title={option.hint}
+            className={cx(
+              "shout press rounded-pill px-3 py-1.5 text-label transition-colors",
+              active ? "bg-panel text-text chunk" : "text-muted hover:text-text",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

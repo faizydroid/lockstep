@@ -17,7 +17,7 @@ import type { Address } from "viem";
 
 import { Reveal } from "@/components/motion";
 import { useSettings } from "@/components/settings";
-import { Button, Card, Pill, cx } from "@/components/ui";
+import { Button, Card, Pill, Segmented, cx } from "@/components/ui";
 import { readConfig } from "@/lib/chain";
 import { isAllowedAddress, isAllowedRpcUrl } from "@/lib/settings";
 import type { MotionPreference } from "@/lib/settings";
@@ -84,30 +84,30 @@ export function SettingsPanel() {
       <Reveal delay={0.12}>
         <Card>
           <p className="shout text-label text-faint">Motion</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(
-              [
-                ["system", "Follow the system", "Respects prefers-reduced-motion, which is the right default."],
-                ["full", "Always animate", "Ignores the system setting in the other direction."],
-                ["reduced", "Reduce motion", "Cuts transitions and the sliding nav indicator."],
-              ] as const
-            ).map(([value, label, why]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => update({ motion: value as MotionPreference })}
-                title={why}
-                aria-pressed={settings.motion === value}
-                className={cx(
-                  "shout press rounded-pill px-3.5 py-2 text-label",
-                  settings.motion === value
-                    ? "pop-sm bg-pinned-tint text-pinned-ink [--line:var(--pinned)] [--pop:var(--pinned-shade)]"
-                    : "chunk bg-panel text-muted hover:text-text",
-                )}
-              >
-                {label}
-              </button>
-            ))}
+          {/* The shared `Segmented`. This markup was byte-identical to the badge state picker. */}
+          <div className="mt-4">
+            <Segmented<MotionPreference>
+              label="Motion preference"
+              value={settings.motion}
+              onChange={(motion) => update({ motion })}
+              options={[
+                {
+                  value: "system",
+                  label: "Follow the system",
+                  hint: "Respects prefers-reduced-motion, which is the right default.",
+                },
+                {
+                  value: "full",
+                  label: "Always animate",
+                  hint: "Ignores the system setting in the other direction.",
+                },
+                {
+                  value: "reduced",
+                  label: "Reduce motion",
+                  hint: "Cuts transitions and the sliding nav indicator.",
+                },
+              ]}
+            />
           </div>
           <p className="mt-3 text-xs leading-relaxed text-faint">
             {settings.motion === "system"

@@ -28,7 +28,7 @@ import Link from "next/link";
  * answer is no.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Address } from "viem";
 
 import { useSnapshot } from "@/components/data";
@@ -39,7 +39,7 @@ import { useSettings } from "@/components/settings";
 import { Term } from "@/components/term";
 import { Verify } from "@/components/verify";
 import { readConfig } from "@/lib/chain";
-import { Button, Card, Empty, HashChip, Pill, Section, Stat, cx } from "@/components/ui";
+import { Button, Card, Empty, HashChip, Pill, Section, Segmented, Stat, cx } from "@/components/ui";
 import { formatBondWith } from "@/lib/bond";
 import { delegationCopy } from "@/lib/profile";
 
@@ -48,10 +48,25 @@ type Tab = "profile" | "settings";
 export default function AccountPage() {
   const [tab, setTab] = useState<Tab>("profile");
 
+  /*
+   * `/account#settings` now actually selects the settings tab.
+   *
+   * The route's own doc comment advertises that deep link, and the nav's outcome copy relies on profile and
+   * settings being two halves of one destination — but nothing read the fragment, so the link scrolled to a
+   * `div` inside a panel that was not rendered. It was a documented URL that did nothing.
+   *
+   * Read once on mount rather than subscribed to `hashchange`: the fragment is an entry point, and a reader
+   * who is already on the page uses the control rather than editing the URL.
+   */
+  useEffect(() => {
+    if (window.location.hash === "#settings") setTab("settings");
+  }, []);
+
   return (
     <div className="space-y-8">
       <Reveal>
         <Section
+          level={1}
           eyebrow="You"
           title="Account"
           description={
@@ -62,29 +77,27 @@ export default function AccountPage() {
             </>
           }
           aside={
-            <div className="chunk inline-flex rounded-pill bg-raise p-1">
-              {(["profile", "settings"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTab(option)}
-                  aria-pressed={tab === option}
-                  className={cx(
-                    "shout press rounded-pill px-4 py-1.5 text-label",
-                    tab === option
-                      ? "pop-sm bg-panel text-text [--line:var(--line)]"
-                      : "text-muted hover:text-text",
-                  )}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            /* The shared `Segmented`, which was this control two pixels shorter. */
+            <Segmented<Tab>
+              label="Account view"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: "profile", label: "Profile" },
+                { value: "settings", label: "Settings" },
+              ]}
+            />
           }
         />
       </Reveal>
 
-      {tab === "profile" ? <Profile /> : <div id="settings"><SettingsPanel /></div>}
+      {tab === "profile" ? (
+        <Profile />
+      ) : (
+        <div id="settings">
+          <SettingsPanel />
+        </div>
+      )}
     </div>
   );
 }
