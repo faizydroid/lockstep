@@ -30,16 +30,28 @@
  * screen means anything until it is fixed — not a quiet note behind a chevron.
  */
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { explorerTxUrl, readConfig } from "@/lib/chain";
 import { shortAddress } from "@/lib/format";
+import type { ProfileRole } from "@/lib/settings";
+import { displayName } from "@/lib/untrusted";
 
 import { fingerprintSeed } from "./account-control";
 import { HashFingerprint } from "./fingerprint";
 import { CHAIN_ID, useIdentity } from "./identity";
+import { useSettings } from "./settings";
 import { useSnapshot } from "./data";
 import { Button, cx } from "./ui";
+
+/** The role, in the third person, since this reads as a description rather than a choice. */
+const ROLE_LABEL: Record<ProfileRole, string> = {
+  owner: "Account owner",
+  publisher: "Publisher",
+  reviewer: "Reviewer",
+  looking: "Reading only",
+};
 
 export function WalletMenu() {
   const {
@@ -171,7 +183,10 @@ function Menu({
   error: string | undefined;
 }) {
   const { snapshot } = useSnapshot();
+  const { settings } = useSettings();
   const [copied, setCopied] = useState(false);
+
+  const profile = settings.profile;
 
   /*
    * The enforcement verdict, which is why this menu is not a generic one.
@@ -207,7 +222,28 @@ function Menu({
       className="chunk absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-md bg-panel"
     >
       <div className="border-b border-line p-3">
-        <p className="shout text-label text-faint">Connected account</p>
+        {/*
+          The profile, which is what "top right" means in this category.
+
+          It lived on `/account` behind a Profile | Settings segmented control, which is a reasonable place
+          for a form and the wrong place for a name: the whole point of a display name is to appear where the
+          reader already looks for themselves. It is still edited on that page — this is the read view.
+
+          Rendered only when set. A reader who skipped the profile step gets the address alone rather than a
+          placeholder, because inventing "Anonymous" would be filling a field nobody agreed to.
+        */}
+        {profile === undefined ? (
+          <p className="shout text-label text-faint">Connected account</p>
+        ) : (
+          <div className="mb-2">
+            <p className="text-note text-text">{displayName(profile.displayName)}</p>
+            <p className="shout text-label text-faint">
+              {ROLE_LABEL[profile.role]}
+              {profile.org === undefined ? null : ` \u00b7 ${displayName(profile.org, "")}`}
+            </p>
+          </div>
+        )}
+
         <p className="hash mt-1.5 break-all text-note text-text">{address}</p>
 
         <div className="mt-2.5 flex flex-wrap gap-2">
@@ -261,6 +297,21 @@ function Menu({
       )}
 
       <div className="border-t border-line p-2">
+        {/*
+          The way through to everything that needs room.
+
+          The menu carries the facts a reader wants at a glance — who, which network, whether anything is
+          enforcing. The delegation checks, the copyable verify commands and the settings are pages, not menu
+          items, and a menu that tried to hold them would be a page in a dropdown.
+        */}
+        <Link
+          href="/account"
+          role="menuitem"
+          className="press block rounded px-2 py-1.5 text-note text-muted hover:bg-raise hover:text-text"
+        >
+          Account &amp; settings
+        </Link>
+
         <button
           type="button"
           role="menuitem"

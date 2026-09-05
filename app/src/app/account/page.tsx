@@ -78,12 +78,21 @@ export default function AccountPage() {
           }
           aside={
             /* The shared `Segmented`, which was this control two pixels shorter. */
+            /*
+              Labelled "Enforcement", not "Profile".
+              
+              The tab value stays `profile` because `/account#settings` and the stored state depend on it, but
+              the word was wrong twice over. It never showed a profile -- it shows the delegation indicator,
+              the two guard checks that can disagree, and what this account has approved and executed. And
+              since the wallet menu now carries the reader's actual profile, keeping the label here would have
+              pointed two different things at one name.
+            */
             <Segmented<Tab>
               label="Account view"
               value={tab}
               onChange={setTab}
               options={[
-                { value: "profile", label: "Profile" },
+                { value: "profile", label: "Enforcement" },
                 { value: "settings", label: "Settings" },
               ]}
             />
