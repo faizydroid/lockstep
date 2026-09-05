@@ -36,14 +36,27 @@ export function Field() {
       /*
        * `fixed` and behind everything, so it never scrolls and never takes a pointer event.
        *
-       * The dots are drawn with a background-image rather than an inline SVG because a 3px repeating
-       * gradient is one paint with no element tree, and the `.grain` utility already existed for exactly
-       * this.
+       * Drawn with a background-image rather than an inline SVG: a repeating radial gradient is one paint
+       * with no element tree.
+       *
+       * ## Why it is fainter and sparser than it was
+       *
+       * The first flat version used `--line-strong` at 0.35 on a 22px pitch, which was still legible as a
+       * pattern rather than as texture -- a visible speckle behind pages full of hashes a reader is meant
+       * to compare character by character. Reported as noise, and correctly.
+       *
+       * Three changes. `--line` rather than `--line-strong`, so the dot is the same value as a hairline
+       * border rather than the emphasis value. Opacity down to 0.5 of that. And a 28px pitch, which is
+       * about a third fewer dots per unit area. The intent was only ever to stop large flat fills banding
+       * on cheap panels, and that does not need to be seen to work.
+       *
+       * It renders inside the theme scope via `components/chrome.tsx`, which is what keeps the dot the
+       * right value for the active ground instead of the root theme's.
        */
-      className="pointer-events-none fixed inset-0 z-0 opacity-[0.35]"
+      className="pointer-events-none fixed inset-0 z-0 opacity-50"
       style={{
-        backgroundImage: "radial-gradient(var(--line-strong) 1px, transparent 1px)",
-        backgroundSize: "22px 22px",
+        backgroundImage: "radial-gradient(var(--line) 1px, transparent 1px)",
+        backgroundSize: "28px 28px",
       }}
     />
   );

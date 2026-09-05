@@ -176,6 +176,44 @@ describe("the background does not compete with the content", () => {
     expect(field).not.toMatch(/motion\.|animate=/);
   });
 
+  it("renders inside the theme scope rather than at the root", () => {
+    /*
+     * The bug this prevents was visible rather than theoretical. `Field` is a `fixed inset-0 z-0` layer, so
+     * mounting it at the root put it above the background of any non-positioned page wrapper AND left it
+     * reading the root theme's tokens. The landing page paints its own near-black ground inside a
+     * `.clinical` scope, so the grid drew the light theme's `--line-strong` -- #d8d8d8 -- as light dots
+     * over #08090a: a loud speckle across the darkest surface in the product.
+     */
+    const chrome = readFileSync(join(APP, "components", "chrome.tsx"), "utf8");
+    const layout = readFileSync(join(APP, "app", "layout.tsx"), "utf8");
+
+    expect(chrome).toMatch(/<Field \/>/);
+    // Stripped: layout.tsx documents why it no longer renders it.
+    expect(stripComments(layout), "Field is back at the root").not.toMatch(/<Field \/>/);
+  });
+
+  it("draws the texture at hairline weight, not emphasis weight", () => {
+    /*
+     * Reported as noise on the landing page and it was too strong everywhere else too. The dot is now the
+     * same value as a hairline border rather than the emphasis value, at half opacity and a wider pitch.
+     * The job was only ever to stop large flat fills banding on cheap panels, which does not require the
+     * pattern to be visible as a pattern.
+     */
+    expect(field).toMatch(/radial-gradient\(var\(--line\) 1px/);
+    expect(field, "the dot uses the emphasis line value").not.toMatch(/var\(--line-strong\)/);
+  });
+
+  it("keeps the landing page's ground clear", () => {
+    // The landing page brings its own background and wants nothing painted over it.
+    const chrome = readFileSync(join(APP, "components", "chrome.tsx"), "utf8");
+    const early = chrome.indexOf('pathname === "/"');
+    const fieldAt = chrome.indexOf("<Field />");
+    expect(early, "the landing-page bail-out is gone").toBeGreaterThan(-1);
+    expect(fieldAt, "Field is not in the chrome").toBeGreaterThan(-1);
+    // Field must sit after the early return, or it renders on the landing page too.
+    expect(fieldAt).toBeGreaterThan(early);
+  });
+
   it("no longer tracks the pointer across large cards", () => {
     // Was applied to the two cards holding the most important readings in the app: the fingerprint
     // comparison on the landing page and the enforcement verdict on /account.

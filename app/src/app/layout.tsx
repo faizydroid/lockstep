@@ -1,5 +1,16 @@
 import type { Metadata } from "next";
 
+/*
+ * `Field` used to be rendered here, directly under ThemeProvider.
+ *
+ * It is a `fixed inset-0 z-0` dot grid, which meant two things at once: it painted above the background of
+ * any non-positioned page wrapper, and it read the root theme's tokens. The landing page paints its own
+ * near-black ground inside a `.clinical` scope, so the grid drew the light theme's `--line-strong`
+ * (#d8d8d8) as light dots on top of #08090a -- a loud speckle over the darkest surface in the product.
+ *
+ * It now lives inside `components/chrome.tsx`, which already knows the route and already steps aside on the
+ * landing page. See the note there.
+ */
 import { Chrome } from "@/components/chrome";
 import { SnapshotProvider } from "@/components/data";
 import { Field } from "@/components/field";
@@ -77,7 +88,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
 
         <ThemeProvider>
-          <Field />
 
           {/*
             The provider order is the dependency order, outermost first.

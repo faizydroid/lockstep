@@ -35,6 +35,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { Field } from "./field";
 import { useFlowStage } from "./flow-gate";
 import { Mark, Nav } from "./nav";
 import { RouteShell } from "./route-shell";
@@ -60,6 +61,21 @@ export function Chrome({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/*
+        The background texture, moved here from the root layout.
+
+        It was rendered above every page as a `fixed inset-0 z-0` layer, which put it above the background
+        of any non-positioned wrapper and left it reading the root theme's tokens. The landing page paints
+        its own near-black ground in a `.clinical` scope, so the grid drew the light theme's
+        `--line-strong` -- #d8d8d8 -- as light dots over #08090a, which is a loud speckle across the
+        darkest surface in the product.
+
+        Rendering it inside this branch fixes both halves. The landing page never gets it, because it
+        brings its own ground and wants nothing on top of it. Every other route gets it inside whichever
+        theme is active, which is where a token-driven texture has to live to be correct.
+      */}
+      <Field />
+
       {inProduct ? <Nav /> : <FlowBar />}
 
       {/*
