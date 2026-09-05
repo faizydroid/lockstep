@@ -91,7 +91,7 @@ function PointAtYourAccount() {
   }
 
   return (
-    <div className="space-y-3 border-t-2 border-line pt-4">
+    <div className="space-y-3 border-t border-line pt-4">
       <p className="measure text-xs leading-relaxed font-semibold text-muted">
         Already run them? This dashboard is reading a demo account, so your pin will not appear. Point it
         at yours and the three steps above resolve from chain state.
@@ -169,7 +169,7 @@ export function Quickstart({ embedded = false }: { embedded?: boolean } = {}) {
   return (
     <Reveal>
       <Card className="overflow-hidden p-0">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-line px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-4">
           <div className="flex flex-wrap items-center gap-3">
             <Pill tone={state.complete ? "bonded" : "pinned"}>
               {state.complete ? "all done" : "start here"}
@@ -217,7 +217,7 @@ export function Quickstart({ embedded = false }: { embedded?: boolean } = {}) {
           </div>
         ) : null}
 
-        <ol className="divide-y-2 divide-line">
+        <ol className="divide-y divide-line">
           {state.steps.map((step, index) => (
             <li key={step.id}>
               <div
@@ -233,7 +233,7 @@ export function Quickstart({ embedded = false }: { embedded?: boolean } = {}) {
                 <span
                   aria-hidden
                   className={cx(
-                    "shout mt-0.5 grid size-6 shrink-0 place-items-center rounded-pill text-[0.6rem]",
+                    "shout mt-0.5 grid size-6 shrink-0 place-items-center rounded-pill text-label",
                     step.done
                       ? "bg-bonded text-on-face"
                       : "chunk bg-panel text-faint",
@@ -283,7 +283,7 @@ export function Quickstart({ embedded = false }: { embedded?: boolean } = {}) {
           so is better than linking somewhere that cannot help.
         */}
         {next === undefined && !state.complete ? (
-          <div className="space-y-4 border-t-2 border-line bg-raise px-6 py-4">
+          <div className="space-y-4 border-t border-line bg-raise px-6 py-4">
             <p className="measure text-xs leading-relaxed font-semibold text-muted">
               Everything left happens in a terminal, and that is the design rather than a gap. Approving
               and publishing both commit a claim about exact bytes, and only the machine holding those

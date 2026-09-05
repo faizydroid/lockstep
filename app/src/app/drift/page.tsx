@@ -88,7 +88,7 @@ export default function DriftPage() {
         {drifted.map((skill) => (
           <RevealItem key={`${skill.account}-${skill.approvedPinId}`}>
             <Card>
-              <div className="space-y-7">
+              <div className="space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-2">
                     <p className="font-display text-2xl leading-tight break-words text-text">
@@ -172,7 +172,7 @@ function Delta({ delta }: { delta: CapabilityDelta }) {
   const ceilingChanged = delta.ceilingBefore !== delta.ceilingAfter;
 
   return (
-    <div className="space-y-5 border-t-2 border-line pt-6">
+    <div className="space-y-4 border-t border-line pt-6">
       <div className="grid gap-4 md:grid-cols-3 2xl:gap-6">
         <Column
           title="Gained"
@@ -203,7 +203,7 @@ function Delta({ delta }: { delta: CapabilityDelta }) {
           ceilingChanged ? "bg-attention-tint" : "bg-raise",
         )}
       >
-        <span className="shout text-[0.65rem] text-faint">Native value ceiling</span>
+        <span className="shout text-label text-faint">Native value ceiling</span>
         <span className="text-muted">{formatNative(delta.ceilingBefore)}</span>
         <span aria-hidden className="text-faint">&rarr;</span>
         <span className={ceilingChanged ? "font-semibold text-attention-ink" : "text-muted"}>
@@ -249,7 +249,7 @@ function Column({
   return (
     <div className="rounded-xl bg-raise p-4 chunk">
       <div className="flex items-center justify-between gap-2">
-        <p className={cx("shout text-[0.65rem]", accent)}>{title}</p>
+        <p className={cx("shout text-label", accent)}>{title}</p>
         <span className="rounded-pill bg-raise px-2 py-0.5 text-xs text-muted">{caps.length}</span>
       </div>
 
@@ -270,7 +270,7 @@ function Column({
                   </Pill>
                 ) : null}
               </div>
-              <div className="flex items-center gap-1.5 text-[0.7rem] text-faint">
+              <div className="flex items-center gap-1.5 text-label text-faint">
                 <span>on</span>
                 <HashChip value={capability.target} kind="address" emphasis="quiet" />
               </div>
@@ -279,7 +279,7 @@ function Column({
         </ul>
       )}
 
-      <p className="mt-3 border-t-2 border-line pt-3 text-[0.7rem] leading-relaxed text-faint">{note}</p>
+      <p className="mt-3 border-t border-line pt-3 text-label leading-relaxed text-faint">{note}</p>
     </div>
   );
 }

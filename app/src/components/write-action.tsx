@@ -250,7 +250,7 @@ function Confirm({
 
                 {settled ? null : (
                   <div className="pop rounded-xl bg-raise p-3 [--pop:var(--shade)]">
-                    <p className="shout text-[0.6rem] text-faint">What happens</p>
+                    <p className="shout text-label text-faint">What happens</p>
                     <p className="mt-1 text-sm leading-relaxed font-semibold text-text">
                       {request.effect}
                     </p>
@@ -261,7 +261,7 @@ function Confirm({
 
                 {phase.kind === "failed" ? (
                   <div className="pop rounded-xl bg-revoked-tint p-3 [--line:var(--revoked-ink)] [--pop:var(--revoked-shade)]">
-                    <p className="shout text-[0.6rem] text-revoked-ink">Why</p>
+                    <p className="shout text-label text-revoked-ink">Why</p>
                     <p className="mt-1 text-sm leading-relaxed font-semibold text-revoked-ink">
                       Nothing reached the chain, so nothing changed. Your approvals are exactly as they
                       were.
@@ -273,7 +273,7 @@ function Confirm({
                       would lose the one detail that makes it searchable. Presenting it as a quotation
                       rather than as our own sentence is the honest framing.
                     */}
-                    <pre className="mt-2 overflow-x-auto text-[0.65rem] leading-relaxed">
+                    <pre className="mt-2 overflow-x-auto text-label leading-relaxed">
                       <code className="hash select-all text-revoked-ink">{phase.reason}</code>
                     </pre>
                   </div>
@@ -286,7 +286,7 @@ function Confirm({
                   rather than tucked under the effect where it reads as small print.
                 */}
                 <div className="pop rounded-xl bg-attention-tint p-3 [--line:var(--attention)] [--pop:var(--attention-shade)]">
-                  <p className="shout text-[0.6rem] text-attention-ink">What it does not do</p>
+                  <p className="shout text-label text-attention-ink">What it does not do</p>
                   <p className="mt-1 text-sm leading-relaxed font-semibold text-attention-ink">
                     {request.limit}
                   </p>
@@ -294,7 +294,7 @@ function Confirm({
 
                 {hard && !settled ? (
                   <label className="block space-y-1.5">
-                    <span className="shout text-[0.6rem] text-faint">
+                    <span className="shout text-label text-faint">
                       This grants power. Type {PHRASE} to continue.
                     </span>
                     <input
@@ -337,10 +337,10 @@ function Confirm({
                 </div>
 
                 {settled ? null : (
-                  <p className="text-[0.7rem] leading-snug font-semibold text-faint">
+                  <p className="text-label leading-snug font-semibold text-faint">
                     Sent from{" "}
-                    <code className="hash text-[0.65rem]">{request.functionName}</code> to{" "}
-                    <code className="hash text-[0.65rem]">
+                    <code className="hash text-label">{request.functionName}</code> to{" "}
+                    <code className="hash text-label">
                       {request.to.slice(0, 10)}&hellip;{request.to.slice(-6)}
                     </code>
                     . Your wallet will show the same call before you sign.
@@ -379,7 +379,7 @@ function Receipt({ hash, request }: { hash: Hash; request: ReturnType<typeof bui
   return (
     <div className="space-y-3">
       <div className="pop rounded-xl bg-raise p-3 [--pop:var(--shade)]">
-        <p className="shout text-[0.6rem] text-faint">Transaction</p>
+        <p className="shout text-label text-faint">Transaction</p>
 
         {/*
           A full HashChip, not a title attribute. This is the only artefact of an irreversible action and
@@ -389,15 +389,15 @@ function Receipt({ hash, request }: { hash: Hash; request: ReturnType<typeof bui
           <HashChip value={hash} />
         </div>
 
-        <p className="mt-2 text-[0.7rem] leading-relaxed font-semibold text-muted">
-          Your wallet accepted <code className="hash text-[0.65rem]">{request.functionName}</code> and
+        <p className="mt-2 text-label leading-relaxed font-semibold text-muted">
+          Your wallet accepted <code className="hash text-label">{request.functionName}</code> and
           returned this hash. That means it was submitted, not that it succeeded &mdash; a transaction can
           still revert.
         </p>
       </div>
 
       <div className="pop rounded-xl bg-attention-tint p-3 [--line:var(--attention)] [--pop:var(--attention-shade)]">
-        <p className="shout text-[0.6rem] text-attention-ink">Before you rely on it</p>
+        <p className="shout text-label text-attention-ink">Before you rely on it</p>
         <p className="mt-1 text-sm leading-relaxed font-semibold text-attention-ink">
           This dashboard will show the new state after its next read of the chain, which is not instant.
           Until then the figures behind this dialog are the old ones.
@@ -415,7 +415,7 @@ function Receipt({ hash, request }: { hash: Hash; request: ReturnType<typeof bui
           href={url}
           target="_blank"
           rel="noreferrer noopener"
-          className="shout press pop-sm inline-flex items-center gap-1.5 rounded-lg bg-panel px-3 py-1.5 text-[0.6rem] text-muted [--pop:var(--shade)] hover:text-text"
+          className="shout press pop-sm inline-flex items-center gap-1.5 rounded-lg bg-panel px-3 py-1.5 text-label text-muted [--pop:var(--shade)] hover:text-text"
         >
           Watch it settle on the explorer
           <span aria-hidden="true">&rarr;</span>

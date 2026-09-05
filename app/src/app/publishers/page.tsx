@@ -39,7 +39,7 @@ export default function PublishersPage() {
     readConfig().registry ?? ("0x0000000000000000000000000000000000000000" as const);
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-12">
       {open.length === 0 ? null : (
         <Reveal>
           <Section
@@ -87,14 +87,14 @@ export default function PublishersPage() {
                       </div>
 
                       <div className="space-y-2 text-right">
-                        <p className="shout text-[0.6rem] text-faint">You would earn</p>
+                        <p className="shout text-label text-faint">You would earn</p>
                         <p className="font-display text-2xl leading-none font-extrabold text-bonded-ink">
                           {formatBondWith(
                             pricing,
                             challengerReward(e.bondAtStake, pricing.challengerRewardBps),
                           )}
                         </p>
-                        <p className="text-[0.7rem] font-semibold text-muted">
+                        <p className="text-label font-semibold text-muted">
                           of {formatBondWith(pricing, e.bondAtStake)} at stake
                         </p>
                         <WriteAction

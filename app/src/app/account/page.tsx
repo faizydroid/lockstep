@@ -47,7 +47,7 @@ export default function AccountPage() {
   const [tab, setTab] = useState<Tab>("profile");
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Reveal>
         <Section
           eyebrow="You"
@@ -68,7 +68,7 @@ export default function AccountPage() {
                   onClick={() => setTab(option)}
                   aria-pressed={tab === option}
                   className={cx(
-                    "shout press rounded-pill px-4 py-1.5 text-[0.65rem]",
+                    "shout press rounded-pill px-4 py-1.5 text-label",
                     tab === option
                       ? "pop-sm bg-panel text-text [--line:var(--line)]"
                       : "text-muted hover:text-text",
@@ -125,8 +125,8 @@ function Profile() {
     <div className="space-y-8">
       {/* The one fact that is not available anywhere else, at the size it deserves. */}
       <Reveal>
-        <Card tone={enforced ? "bonded" : "revoked"} spotlight className="p-8 sm:p-10">
-          <div className="space-y-5">
+        <Card tone={enforced ? "bonded" : "revoked"} className="p-8 sm:p-10">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <Pill tone={enforced ? "bonded" : "revoked"}>
                 {enforced ? "enforcement live" : "not enforced"}
@@ -149,7 +149,7 @@ function Profile() {
               {delegationCopy(account.delegation, account.guard)}
             </p>
 
-            <dl className="grid gap-3 border-t-2 border-line pt-5 text-xs font-semibold sm:grid-cols-2">
+            <dl className="grid gap-3 border-t border-line pt-5 text-xs font-semibold sm:grid-cols-2">
               <Fact label="Account code">
                 {account.delegation.kind === "delegated" ? (
                   <span className="hash text-text">0xef0100 &middot; delegated</span>

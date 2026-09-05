@@ -128,7 +128,7 @@ export default function OnboardingPage() {
         <Card tone="pinned">
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <p className="shout text-[0.6rem] text-faint">
+              <p className="shout text-label text-faint">
                 Because you said {role === "looking" ? "you are just looking" : "that is you"}
               </p>
               <h2 className="font-display text-xl leading-tight font-extrabold text-text">

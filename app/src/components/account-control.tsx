@@ -48,8 +48,8 @@ export function AccountControl() {
   if (!available) {
     return (
       <div className="chunk rounded-xl bg-raise px-3 py-2.5">
-        <p className="shout text-[0.6rem] text-faint">No wallet detected</p>
-        <p className="mt-1 text-[0.7rem] leading-snug font-semibold text-muted">
+        <p className="shout text-label text-faint">No wallet detected</p>
+        <p className="mt-1 text-label leading-snug font-semibold text-muted">
           Install a browser wallet to scope this dashboard to your own account. Everything on it is
           readable without one.
         </p>
@@ -75,17 +75,17 @@ export function AccountControl() {
           are the ones lib/chain.ts makes, and there is no server to send an address to because this is a
           static export.
         */}
-        <p className="text-[0.65rem] leading-snug font-semibold text-faint">
+        <p className="text-label leading-snug font-semibold text-faint">
           Read-only. <strong className="font-extrabold text-muted">No signature is requested</strong> and
           no transaction is sent &mdash; connecting only tells this page which account&rsquo;s approvals,
           executions and delegation to read.
         </p>
-        <p className="text-[0.6rem] leading-snug font-semibold text-faint">
+        <p className="text-label leading-snug font-semibold text-faint">
           The address stays in this browser; there is no server to send it to. Approving a version stays
           in the CLI, always.
         </p>
         {error === undefined ? null : (
-          <p className="text-[0.65rem] leading-snug font-bold text-revoked-ink">{error}</p>
+          <p className="text-label leading-snug font-bold text-revoked-ink">{error}</p>
         )}
       </div>
     );
@@ -94,8 +94,8 @@ export function AccountControl() {
   if (!onCorrectChain) {
     return (
       <div className="pop space-y-2 rounded-xl bg-attention-tint p-2.5 [--line:var(--attention)] [--pop:var(--attention-shade)]">
-        <p className="shout text-[0.6rem] text-attention-ink">Wrong network</p>
-        <p className="text-[0.68rem] leading-snug font-bold text-attention-ink">
+        <p className="shout text-label text-attention-ink">Wrong network</p>
+        <p className="text-label leading-snug font-bold text-attention-ink">
           Your wallet is on chain {chainId ?? "unknown"}. The registry is on {CHAIN_ID}, so nothing
           here would match.
         </p>
@@ -103,7 +103,7 @@ export function AccountControl() {
           Switch to Monad testnet
         </Button>
         {error === undefined ? null : (
-          <p className="text-[0.65rem] leading-snug font-bold text-revoked-ink">{error}</p>
+          <p className="text-label leading-snug font-bold text-revoked-ink">{error}</p>
         )}
       </div>
     );
@@ -111,14 +111,14 @@ export function AccountControl() {
 
   return (
     <div className="chunk space-y-2 rounded-xl bg-raise p-2.5">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {/* The account's own fingerprint, from its address. Recognisable at a glance across sessions. */}
         <div className="chunk shrink-0 rounded-lg bg-panel p-1">
           <HashFingerprint hash={fingerprintSeed(address)} tone="bonded" px={28} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="hash truncate text-[0.7rem] font-bold text-text">{shortAddress(address)}</p>
-          <p className="truncate text-[0.6rem] font-semibold text-bonded-ink">Monad testnet</p>
+          <p className="hash truncate text-label font-bold text-text">{shortAddress(address)}</p>
+          <p className="truncate text-label font-semibold text-bonded-ink">Monad testnet</p>
         </div>
       </div>
 
@@ -127,7 +127,7 @@ export function AccountControl() {
         onClick={disconnect}
         title="Forgets this address locally. Your wallet keeps its own permission until you remove it there."
         className={cx(
-          "shout press pop-sm w-full rounded-lg bg-panel px-3 py-1.5 text-[0.6rem] text-muted",
+          "shout press pop-sm w-full rounded-lg bg-panel px-3 py-1.5 text-label text-muted",
           "[--pop:var(--shade)] hover:text-text",
         )}
       >

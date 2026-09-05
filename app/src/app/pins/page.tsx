@@ -63,7 +63,7 @@ export default function PinsPage() {
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Reveal>
         <Section
           eyebrow="Registry"
@@ -192,7 +192,7 @@ function PinDetail({ pin }: { pin: Pin }) {
 
   return (
     <Card>
-      <div className="space-y-7">
+      <div className="space-y-6">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-4">
             <div className="rounded-xl bg-sunken p-2.5 chunk">
@@ -247,8 +247,8 @@ function PinDetail({ pin }: { pin: Pin }) {
           />
         </div>
 
-        <div className="space-y-3 border-t-2 border-line pt-5">
-          <p className="shout text-[0.65rem] text-faint">
+        <div className="space-y-3 border-t border-line pt-5">
+          <p className="shout text-label text-faint">
             What it may do on chain
           </p>
 
@@ -268,7 +268,7 @@ function PinDetail({ pin }: { pin: Pin }) {
             list even when one only reads a price and the other can grant an allowance over a whole
             balance; the constellation shows that difference as reach and weight.
           */}
-          <div className="grid gap-5 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)] sm:items-center">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)] sm:items-center">
             <CapabilityConstellation
               capabilities={pin.capabilities}
               movesNativeValue={pin.maxValuePerCall > 0n}
@@ -281,7 +281,7 @@ function PinDetail({ pin }: { pin: Pin }) {
                 className="flex flex-wrap items-center gap-2 rounded-lg bg-raise px-3 py-2"
               >
                 <code className="hash text-xs text-text">{capability.label}</code>
-                <span className="text-[0.7rem] text-faint">on</span>
+                <span className="text-label text-faint">on</span>
                 <HashChip value={capability.target} kind="address" emphasis="quiet" />
                 {capability.highRisk ? (
                   <Pill tone="revoked" className="ml-auto">
@@ -301,9 +301,9 @@ function PinDetail({ pin }: { pin: Pin }) {
           </p>
         </div>
 
-        <div className="space-y-3 border-t-2 border-line pt-5">
+        <div className="space-y-3 border-t border-line pt-5">
           <div className="flex items-center justify-between gap-3">
-            <p className="shout text-[0.65rem] text-faint">
+            <p className="shout text-label text-faint">
               Bond, priced by blast radius
             </p>
             <span className="font-display text-lg text-pinned-ink">
@@ -348,7 +348,7 @@ function PinDetail({ pin }: { pin: Pin }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <>
-      <dt className="self-center shout text-[0.65rem] text-faint">{label}</dt>
+      <dt className="self-center shout text-label text-faint">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </>
   );

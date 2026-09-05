@@ -1,77 +1,50 @@
-"use client";
-
 /**
- * The background field: a lattice that drifts, with the two lockstep bars running through it.
+ * The background: a single static dot grid, and nothing else.
  *
- * The flat radial wash it replaces was inoffensive and forgettable, which is the problem the whole
- * interface had. This gives the page a floor with some depth to it, and reuses the product's one
- * motif -- two bars that hold position relative to each other -- at a scale where it reads as
- * structure rather than as a logo.
+ * ## What this used to be
  *
- * Deliberately cheap. Two SVG patterns and three transforms, no per-frame JavaScript and no canvas,
- * so it costs nothing on a laptop driving a projector. Fixed and behind everything, so it never
- * moves with scroll and never intercepts a pointer.
+ * A drifting diagonal lattice, three coloured radial pools carrying the theme's "temperature", two
+ * animated gradient bars at wall scale reprising the product's logo motif, and a grain overlay. All of it
+ * fixed behind every page, including the data tables.
+ *
+ * ## Why almost all of it is gone
+ *
+ * The colour pools are the part with a principled argument against them rather than a matter of taste.
+ * This interface spends its whole length making colour mean something specific -- green is bonded, blue is
+ * pinned, amber wants attention, red was refused -- and every status pill, ring and badge depends on that
+ * being reliable. Washing all three of those hues across the full height of every page directly
+ * undermines it: when the page is already green and blue, a green pill is no longer information. The
+ * background was competing with the one signalling system the product cannot afford to weaken.
+ *
+ * The motion went for a simpler reason. A lattice drifting under a table of hashes a reader is comparing
+ * character by character is movement with no message, and this file's own comment used to argue it was
+ * "slow enough that it never competes with content" -- which is an argument for it being invisible, not
+ * for it being there.
+ *
+ * What survives is a static, hueless dot grid at low opacity. It gives large flat areas some texture so
+ * they do not band on cheap panels, which was the grain pass's actual job, and it does that without
+ * moving, without colour, and without a second element.
+ *
+ * No longer a client component: there is nothing to animate, so there is nothing to opt out of under
+ * reduced motion either.
  */
 
-import { motion, useReducedMotion } from "./motion";
-
 export function Field() {
-  const still = useReducedMotion();
-
   return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/*
-        The lattice. Drifting diagonally at a pace that is almost subliminal -- fast enough to feel
-        alive if you look for it, slow enough that it never competes with content.
-      */}
-      <motion.svg
-        className="absolute inset-0 h-full w-full opacity-[0.55]"
-        animate={still ? {} : { x: [0, 48], y: [0, 48] }}
-        transition={{ duration: 26, repeat: Infinity, ease: "linear" }}
-        style={{ width: "calc(100% + 48px)", height: "calc(100% + 48px)" }}
-      >
-        <defs>
-          <pattern id="field-grid" width="48" height="48" patternUnits="userSpaceOnUse">
-            {/* Dots rather than lines: a grid of rules reads as a spreadsheet, dots read as paper. */}
-            <circle cx="0.75" cy="0.75" r="0.75" fill="var(--line-strong)" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#field-grid)" />
-      </motion.svg>
-
-      {/* Colour pools, which carry the theme's temperature. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(70rem 45rem at 6% -14%, var(--wash-a), transparent 62%),
-            radial-gradient(58rem 38rem at 104% 2%, var(--wash-b), transparent 58%),
-            radial-gradient(48rem 34rem at 52% 116%, var(--wash-c), transparent 62%)
-          `,
-        }}
-      />
-
-      {/*
-        The motif at wall scale: two long bars holding a constant offset as they breathe. They never
-        converge, because that is the point -- the approved version and the running version stay
-        locked apart by exactly the distance the owner agreed to.
-      */}
-      <motion.div
-        className="absolute -right-24 top-[18%] hidden h-[3px] w-[42rem] rounded-pill lg:block"
-        style={{ background: "linear-gradient(90deg, transparent, var(--bonded), transparent)" }}
-        animate={still ? { opacity: 0.16 } : { opacity: [0.1, 0.22, 0.1], x: [0, -26, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute -right-24 top-[calc(18%+22px)] hidden h-[3px] w-[42rem] rounded-pill lg:block"
-        style={{ background: "linear-gradient(90deg, transparent, var(--pinned), transparent)" }}
-        animate={still ? { opacity: 0.16 } : { opacity: [0.1, 0.22, 0.1], x: [0, -26, 0] }}
-        // Same duration and easing, offset only in start time, so the pair keeps its spacing.
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 0.9 }}
-      />
-
-      {/* A grain pass, which stops the large flat areas from banding on cheap panels. */}
-      <div className="grain absolute inset-0 opacity-60" />
-    </div>
+    <div
+      aria-hidden
+      /*
+       * `fixed` and behind everything, so it never scrolls and never takes a pointer event.
+       *
+       * The dots are drawn with a background-image rather than an inline SVG because a 3px repeating
+       * gradient is one paint with no element tree, and the `.grain` utility already existed for exactly
+       * this.
+       */
+      className="pointer-events-none fixed inset-0 z-0 opacity-[0.35]"
+      style={{
+        backgroundImage: "radial-gradient(var(--line-strong) 1px, transparent 1px)",
+        backgroundSize: "22px 22px",
+      }}
+    />
   );
 }

@@ -66,7 +66,7 @@ export default function BadgePage() {
   });
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-12">
       <Reveal>
         <Section
           eyebrow="Distribution"
@@ -84,8 +84,8 @@ export default function BadgePage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-8">
         <Reveal>
           <Card>
-            <div className="space-y-7">
-              <p className="shout text-[0.65rem] text-faint">Preview</p>
+            <div className="space-y-6">
+              <p className="shout text-label text-faint">Preview</p>
 
               {/*
                 Rendered as an image from a data URL rather than injected as markup. The generator
@@ -116,7 +116,7 @@ export default function BadgePage() {
                       title={option.why}
                       aria-pressed={state === option.state}
                       className={cx(
-                        "shout press rounded-pill px-3.5 py-2 text-[0.65rem]",
+                        "shout press rounded-pill px-3.5 py-2 text-label",
                         state === option.state
                           ? "pop-sm bg-pinned-tint text-pinned-ink [--line:var(--pinned)] [--pop:var(--pinned-shade)]"
                           : "chunk bg-panel text-muted hover:text-text",
@@ -157,7 +157,7 @@ export default function BadgePage() {
         <Reveal delay={0.06}>
           <div className="space-y-6">
             <Card>
-              <p className="shout text-[0.65rem] text-faint">
+              <p className="shout text-label text-faint">
                 Paste into a README
               </p>
               <pre className="mt-4 overflow-x-auto rounded-xl bg-sunken p-4 text-xs leading-relaxed text-muted">
@@ -175,7 +175,7 @@ export default function BadgePage() {
             </Card>
 
             <Card>
-              <p className="shout text-[0.65rem] text-faint">
+              <p className="shout text-label text-faint">
                 Why amber exists
               </p>
               <p className="mt-3 text-sm leading-relaxed text-muted">
@@ -187,7 +187,7 @@ export default function BadgePage() {
               </p>
 
               {livePin === undefined ? null : (
-                <div className="mt-4 flex flex-wrap items-center gap-2 border-t-2 border-line pt-4">
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
                   <Pill tone="bonded">from this registry</Pill>
                   <span className="text-xs break-words text-muted">
                     {displayName(livePin.skillName)} would render{" "}

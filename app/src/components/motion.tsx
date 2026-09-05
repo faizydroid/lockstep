@@ -291,23 +291,29 @@ export function Burst({
 /* ------------------------------------------------------------------- gestures */
 
 /**
- * Lifts on hover and yields on press.
+ * Yields slightly on press.
  *
- * The press state matters more than the hover: a 1px settle on click is what makes a surface feel
- * like it responded, and it is the cheapest possible affordance on a touch device where hover
- * never fires.
+ * The hover lift is gone. Raising a surface on hover is a shadow affordance with the shadow taken away --
+ * the card appeared to float, and nothing underneath it explained why, so on a flat page it read as the
+ * layout twitching rather than as a response. `lift` now defaults to 0 and is kept only so existing call
+ * sites still compile; passing a value re-enables the old behaviour and nothing in the app does.
+ *
+ * The press is what actually mattered anyway: a fractional settle on click is what makes a surface feel
+ * like it responded, and it is the only affordance available on a touch device, where hover never fires.
  */
 export function Pressable({
   children,
   className,
-  lift = 3,
+  lift = 0,
   ...rest
 }: HTMLMotionProps<"div"> & { children: ReactNode; className?: string; lift?: number }) {
   const still = useReducedMotion();
 
   // Spread conditionally rather than passing undefined. Under exactOptionalPropertyTypes an
   // optional prop and a prop explicitly set to undefined are different things.
-  const gestures = still ? {} : { whileHover: { y: -lift }, whileTap: { y: -1, scale: 0.995 } };
+  const gestures = still
+    ? {}
+    : { whileHover: lift === 0 ? {} : { y: -lift }, whileTap: { scale: 0.995 } };
 
   return (
     <motion.div className={className} transition={SPRING_FIRM} {...gestures} {...rest}>
@@ -316,64 +322,17 @@ export function Pressable({
   );
 }
 
-/**
- * A highlight that tracks the pointer across a surface.
+/*
+ * `Spotlight` was here: a radial highlight that followed the pointer across a large card.
  *
- * Two motion values written directly rather than React state, so the pointer move never triggers a
- * render -- at this size a state update per mousemove is visibly janky. The highlight is a
- * radial gradient positioned from those values and revealed only on hover, which gives a large
- * card a sense of material without adding a border or a shadow that would compete with the
- * content.
+ * Deleted with the shadow system rather than left unused. Its whole justification was that a flat fill
+ * reads as dead space, which was true when it sat among surfaces carrying a 2px border and a hard 4px
+ * underside. On a hairline, shadowless page a gradient sliding around inside a card is the loudest
+ * element on screen, and it was applied to the two cards holding the most important readings in the app.
  *
- * Skipped entirely under reduced motion and on touch, where there is no pointer to track.
+ * Recorded rather than removed silently, because "the big cards used to react to the mouse" is a fair
+ * question to have about the git history.
  */
-export function Spotlight({
-  children,
-  className,
-  strength = 0.09,
-}: {
-  children: ReactNode;
-  className?: string;
-  strength?: number;
-}) {
-  const still = useReducedMotion();
-  const x = useMotionValue(-9999);
-  const y = useMotionValue(-9999);
-  const opacity = useMotionValue(0);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const background = useTransform(
-    [x, y],
-    ([latestX, latestY]: number[]) =>
-      `radial-gradient(22rem circle at ${latestX}px ${latestY}px, color-mix(in oklab, var(--pinned) ${strength * 100}%, transparent), transparent 65%)`,
-  );
-
-  if (still) return <div className={className}>{children}</div>;
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      onPointerMove={(event) => {
-        if (event.pointerType === "touch") return;
-        const box = ref.current?.getBoundingClientRect();
-        if (box === undefined) return;
-        x.set(event.clientX - box.left);
-        y.set(event.clientY - box.top);
-        opacity.set(1);
-      }}
-      onPointerLeave={() => opacity.set(0)}
-    >
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background, opacity }}
-        transition={{ opacity: { duration: 0.25 } }}
-      />
-      {children}
-    </div>
-  );
-}
 
 /* -------------------------------------------------------------------- numbers */
 

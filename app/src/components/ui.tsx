@@ -34,50 +34,43 @@ import { isSafeHref } from "@/lib/untrusted";
 import { cx } from "@/lib/cx";
 
 import { Guard } from "./guard";
-import { Pressable, SPRING_FIRM, Spotlight, motion } from "./motion";
+import { Pressable, SPRING_FIRM, motion } from "./motion";
 
 /* ------------------------------------------------------------------ surfaces */
 
+/**
+ * @remarks
+ * The `spotlight` prop is gone. It was a highlight that tracked the pointer across large cards, on the
+ * reasoning that a flat fill reads as dead space -- which was true when every other surface had a 4px
+ * underside and a 2px border to compete with. With a hairline border and no shadows anywhere, a moving
+ * gradient inside a card is the loudest thing on the page, and it was on the two cards carrying the most
+ * important readings in the app: the fingerprint comparison and the enforcement verdict.
+ *
+ * A flat fill is not dead space if the thing inside it is worth reading.
+ */
 export function Card({
   children,
   className,
   interactive = false,
-  spotlight = false,
   tone = "neutral",
 }: {
   children: ReactNode;
   className?: string;
   interactive?: boolean;
-  /** Pointer-tracking highlight. For large cards where a flat fill reads as dead space. */
-  spotlight?: boolean;
-  /** Tints the underside and border, for a card that is itself a status. */
+  /** Tints the border, for a card that is itself a status. */
   tone?: Tone;
 }) {
   const base = cx(
     "relative overflow-hidden rounded-2xl bg-panel p-6",
-    tone === "neutral" ? "pop" : cx("pop", CARD_TONE[tone]),
+    tone === "neutral" ? "chunk" : cx("chunk", CARD_TONE[tone]),
     className,
   );
 
-  const inner = spotlight ? (
-    <Spotlight className="absolute inset-0">
-      <div />
-    </Spotlight>
-  ) : null;
-
-  if (!interactive) {
-    return (
-      <div className={base}>
-        {inner}
-        <div className="relative">{children}</div>
-      </div>
-    );
-  }
+  if (!interactive) return <div className={base}>{children}</div>;
 
   return (
-    <Pressable className={cx(base, "cursor-pointer")} lift={2}>
-      {inner}
-      <div className="relative">{children}</div>
+    <Pressable className={cx(base, "cursor-pointer")} lift={0}>
+      {children}
     </Pressable>
   );
 }
@@ -113,13 +106,13 @@ export function Section({
   aside?: ReactNode;
 }) {
   return (
-    <section className="space-y-5">
+    <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           {eyebrow === undefined ? null : (
-            <p className="shout text-[0.7rem] text-faint">{eyebrow}</p>
+            <p className="shout text-label text-faint">{eyebrow}</p>
           )}
-          <h2 className="font-display text-[1.7rem] leading-tight font-extrabold text-text sm:text-[2rem]">
+          <h2 className="font-display text-2xl leading-tight font-extrabold text-text sm:text-3xl">
             {title}
           </h2>
           {description === undefined ? null : (
@@ -164,7 +157,7 @@ const BUTTON_QUIET: Record<Tone, string> = {
 };
 
 const BUTTON_SIZE = {
-  sm: "px-4 py-2 text-[0.7rem]",
+  sm: "px-4 py-2 text-label",
   md: "px-6 py-3 text-sm",
   lg: "px-8 py-4 text-base",
 } as const;
@@ -212,7 +205,7 @@ export function Button({
     BUTTON_SIZE[size],
     full && "w-full",
     // Loses the underside as well as the colour: a disabled control should not look pressable.
-    disabled && "pointer-events-none opacity-45 shadow-none",
+    disabled && "pointer-events-none opacity-45",
     className,
   );
 
@@ -229,7 +222,7 @@ export function Button({
   if (href !== undefined) {
     if (!isSafeHref(href)) {
       return (
-        <button type="button" disabled className={cx(shape, "pointer-events-none opacity-45 shadow-none")} aria-label={ariaLabel}>
+        <button type="button" disabled className={cx(shape, "pointer-events-none opacity-45")} aria-label={ariaLabel}>
           {children}
         </button>
       );
@@ -297,7 +290,7 @@ export function Pill({
     <span
       title={title}
       className={cx(
-        "chunk shout inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-[0.65rem] whitespace-nowrap",
+        "chunk shout inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-label whitespace-nowrap",
         TONE_CLASS[tone],
         className,
       )}
@@ -387,7 +380,7 @@ export function Bubble({
         aria-hidden
         className={cx(
           "absolute size-3 rotate-45",
-          "border-b-2 border-l-2 border-[var(--line)]",
+          "border-b border-l border-[var(--line)]",
           tone === "neutral" ? "bg-panel" : TONE_BG[tone],
           side === "left"
             ? "top-6 -left-[7px] rounded-bl-[3px]"
@@ -438,7 +431,7 @@ export function Meter({
     <div className={className}>
       {label === undefined ? null : (
         <div className="mb-1.5 flex items-baseline justify-between">
-          <span className="shout text-[0.65rem] text-faint">{label}</span>
+          <span className="shout text-label text-faint">{label}</span>
           <span className={cx("text-xs font-extrabold", INK_CLASS[tone])}>{Math.round(pct)}%</span>
         </div>
       )}
@@ -592,7 +585,7 @@ export function HashChip({
         aria-hidden
         animate={{ opacity: copied ? 1 : 0.4, scale: copied ? 1.2 : 1 }}
         transition={SPRING_FIRM}
-        className={cx("text-[0.65rem]", copied ? "text-bonded-ink" : "")}
+        className={cx("text-label", copied ? "text-bonded-ink" : "")}
       >
         {copied ? "\u2713" : "\u29c9"}
       </motion.span>
@@ -623,7 +616,7 @@ export function HashDiff({
   const shared = commonPrefixLength(approved, current);
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       <HashDiffRow label={labels.approved} value={approved} shared={shared} tone="bonded" delay={0} />
       <HashDiffRow label={labels.current} value={current} shared={shared} tone="revoked" delay={0.12} />
     </div>
@@ -648,7 +641,7 @@ function HashDiffRow({
 
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-      <span className="shout w-20 shrink-0 text-[0.65rem] text-faint">{label}</span>
+      <span className="shout w-20 shrink-0 text-label text-faint">{label}</span>
       <code
         className={cx(
           "hash chunk overflow-x-auto rounded-md bg-sunken px-3 py-2 text-xs",
@@ -699,7 +692,7 @@ export function Stat({
         tone === "neutral" ? "" : CARD_TONE[tone],
       )}
     >
-      <p className="shout text-[0.65rem] text-faint">{label}</p>
+      <p className="shout text-label text-faint">{label}</p>
       <p
         className={cx(
           "font-display mt-2 text-4xl leading-none font-extrabold",
@@ -731,7 +724,7 @@ export function Th({ children, className }: { children: ReactNode; className?: s
   return (
     <th
       scope="col"
-      className={cx("shout bg-raise px-4 py-3 text-left text-[0.65rem] text-faint", className)}
+      className={cx("shout bg-raise px-4 py-3 text-left text-label text-faint", className)}
     >
       {children}
     </th>
@@ -740,7 +733,7 @@ export function Th({ children, className }: { children: ReactNode; className?: s
 
 export function Td({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <td className={cx("border-t-2 border-line px-4 py-3 align-middle font-semibold", className)}>
+    <td className={cx("border-t border-line px-4 py-3 align-middle font-semibold", className)}>
       {children}
     </td>
   );
@@ -781,7 +774,7 @@ export function Empty({
 }) {
   return (
     <div className="pop rounded-xl bg-panel px-6 py-10">
-      <div className="mx-auto flex max-w-lg flex-col items-center gap-5 text-center sm:flex-row sm:items-start sm:text-left">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
         {/*
           `aria-hidden` on the wrapper, so the mascot is decorative here.
 

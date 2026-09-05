@@ -113,9 +113,9 @@ export function Nav() {
   return (
     <>
       {/* ------------------------------------------------- compact top bar, below lg */}
-      <header className="gutter sticky top-0 z-40 border-b-2 border-line bg-bg/85 py-3 backdrop-blur-xl backdrop-saturate-150 lg:hidden">
+      <header className="gutter sticky top-0 z-40 border-b border-line bg-bg py-3 lg:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5 rounded-lg py-1">
+          <Link href="/" className="flex shrink-0 items-center gap-2 rounded-lg py-1">
             <Mark />
             <span className="font-display text-xl font-extrabold tracking-tight text-text">
               Lockstep
@@ -144,7 +144,7 @@ export function Nav() {
 
       {/* ------------------------------------------------------ the rail, lg and up */}
       <div
-        className="fixed inset-y-0 left-0 z-40 hidden border-r-2 border-line bg-panel lg:block"
+        className="fixed inset-y-0 left-0 z-40 hidden border-r border-line bg-panel lg:block"
         style={{ width: "var(--rail)" }}
       >
         <RailBody isActive={isActive} onNavigate={() => undefined} />
@@ -169,7 +169,7 @@ export function Nav() {
               role="dialog"
               aria-modal="true"
               aria-label="Navigation"
-              className="fixed inset-y-0 left-0 z-50 border-r-2 border-line bg-panel lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 border-r border-line bg-panel lg:hidden"
               style={{ width: "var(--rail)", maxWidth: "85vw" }}
               initial={still ? { x: 0 } : { x: "-100%" }}
               animate={{ x: 0 }}
@@ -204,7 +204,7 @@ function RailBody({
       <Link
         href="/"
         onClick={onNavigate}
-        className="flex shrink-0 items-center gap-2.5 rounded-lg px-1 py-2"
+        className="flex shrink-0 items-center gap-2 rounded-lg px-1 py-2"
       >
         <Mark />
         <span className="font-display text-xl font-extrabold tracking-tight text-text">
@@ -224,7 +224,7 @@ function RailBody({
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
                   className={cx(
-                    "group/nav shout relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.7rem] transition-colors",
+                    "group/nav shout relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-label transition-colors",
                     active ? "text-pinned-ink" : "text-muted hover:bg-raise hover:text-text",
                   )}
                 >
@@ -246,7 +246,7 @@ function RailBody({
                     */}
                     <span
                       title={link.outcome}
-                      className="mt-0.5 block truncate text-[0.6rem] leading-tight font-semibold tracking-normal normal-case opacity-0 transition-opacity duration-200 group-hover/nav:opacity-70 group-focus-visible/nav:opacity-70 lg:opacity-0"
+                      className="mt-0.5 block truncate text-label leading-tight font-semibold tracking-normal normal-case opacity-0 transition-opacity duration-200 group-hover/nav:opacity-70 group-focus-visible/nav:opacity-70 lg:opacity-0"
                     >
                       {link.outcome}
                     </span>
@@ -265,7 +265,7 @@ function RailBody({
         and forgotten. Putting the toggle last keeps the thing that changes above the thing that does
         not.
       */}
-      <div className="shrink-0 space-y-3 border-t-2 border-line pt-3">
+      <div className="shrink-0 space-y-3 border-t border-line pt-3">
         <AccountControl />
         <ThemeToggle />
       </div>

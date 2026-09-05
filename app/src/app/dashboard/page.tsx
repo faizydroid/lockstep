@@ -36,7 +36,7 @@ export default function DashboardPage() {
   const { totals, pricing, pins, blocked } = snapshot;
 
   return (
-    <div className="space-y-14 sm:space-y-16 2xl:space-y-20">
+    <div className="space-y-12">
       {/*
         First, and only while it has something to say. It removes itself once dismissed or finished, so
         the steady state of this page has no onboarding on it at all.
@@ -58,7 +58,7 @@ export default function DashboardPage() {
       <Ledger totals={totals} pricing={pricing} source={snapshot.source} />
 
       {/* Two unequal columns: the pin list carries more weight than the refusal note beside it. */}
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] 2xl:gap-14">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] 2xl:gap-8">
         <Section
           eyebrow="Most recent"
           title="Pins"
@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
                     {attempt.attestedSkillHash === undefined ||
                     attempt.pinnedSkillHash === undefined ? null : (
-                      <div className="mt-5 border-t-2 border-line pt-5">
+                      <div className="mt-5 border-t border-line pt-5">
                         <FingerprintDiff
                           approved={attempt.pinnedSkillHash}
                           current={attempt.attestedSkillHash}
@@ -228,14 +228,14 @@ function Ledger({
         )
       }
     >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center 2xl:gap-16">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center 2xl:gap-8">
         <Reveal>
           <div>
-            <p className="shout text-[0.65rem] text-faint">
+            <p className="shout text-label text-faint">
               Live pins {live ? null : <span className="text-attention-ink">&middot; sample</span>}
             </p>
             {/* Deliberately oversized. One number should dominate, or none of them register. */}
-            <p className="font-display text-[5.5rem] leading-[0.85] font-extrabold tracking-[-0.04em] text-bonded-ink sm:text-[8rem] xl:text-[10rem]">
+            <p className="font-display text-5xl leading-[0.85] font-extrabold tracking-[-0.04em] text-bonded-ink sm:text-6xl xl:text-6xl">
               <CountUp value={totals.livePins} format={(n) => formatCount(Math.round(n))} />
             </p>
             <p className="measure mt-3 text-sm leading-relaxed font-semibold text-muted">
@@ -246,12 +246,12 @@ function Ledger({
           </div>
         </Reveal>
 
-        <RevealGroup className="divide-y-2 divide-line">
+        <RevealGroup className="divide-y divide-line">
           {rows.map((row) => (
             <RevealItem key={row.label}>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-5">
                 <div className="space-y-1">
-                  <p className="shout text-[0.65rem] text-faint">{row.label}</p>
+                  <p className="shout text-label text-faint">{row.label}</p>
                   <p className="measure text-xs leading-relaxed font-semibold text-muted">
                     {row.hint}
                   </p>

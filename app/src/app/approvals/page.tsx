@@ -36,7 +36,7 @@ export default function ApprovalsPage() {
   const pinFor = (pinId: string) => pins.find((p) => p.pinId === pinId);
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-12">
       <Reveal>
         <Section
           eyebrow="Account policy"

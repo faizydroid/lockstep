@@ -148,7 +148,7 @@ export function Limits() {
 export function NotFor() {
   return (
     <Card className="bg-raise">
-      <p className="shout text-[0.65rem] text-faint">Probably not for you if</p>
+      <p className="shout text-label text-faint">Probably not for you if</p>
       <ul className="mt-3 grid gap-2 text-sm leading-relaxed font-semibold text-muted">
         <li>
           &mdash; Your agent does not move funds. The enforcement point is a transaction, so there is

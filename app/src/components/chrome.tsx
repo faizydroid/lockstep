@@ -80,9 +80,9 @@ export function Chrome({ children }: { children: React.ReactNode }) {
  */
 function FlowBar() {
   return (
-    <header className="gutter sticky top-0 z-40 border-b-2 border-line bg-bg/85 py-3 backdrop-blur-xl backdrop-saturate-150">
+    <header className="gutter sticky top-0 z-40 border-b border-line bg-bg py-3">
       <div className="flex items-center gap-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5 rounded-lg py-1">
+        <Link href="/" className="flex shrink-0 items-center gap-2 rounded-lg py-1">
           <Mark />
           <span className="font-display text-xl font-extrabold tracking-tight text-text">Lockstep</span>
         </Link>

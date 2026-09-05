@@ -83,7 +83,7 @@ export function SettingsPanel() {
 
       <Reveal delay={0.12}>
         <Card>
-          <p className="shout text-[0.65rem] text-faint">Motion</p>
+          <p className="shout text-label text-faint">Motion</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {(
               [
@@ -99,7 +99,7 @@ export function SettingsPanel() {
                 title={why}
                 aria-pressed={settings.motion === value}
                 className={cx(
-                  "shout press rounded-pill px-3.5 py-2 text-[0.65rem]",
+                  "shout press rounded-pill px-3.5 py-2 text-label",
                   settings.motion === value
                     ? "pop-sm bg-pinned-tint text-pinned-ink [--line:var(--pinned)] [--pop:var(--pinned-shade)]"
                     : "chunk bg-panel text-muted hover:text-text",
@@ -128,7 +128,7 @@ export function SettingsPanel() {
         <Card tone="attention">
           <div className="flex flex-wrap items-center gap-3">
             <Pill tone="attention">not settable</Pill>
-            <p className="shout text-[0.65rem] text-faint">The registry address</p>
+            <p className="shout text-label text-faint">The registry address</p>
           </div>
           <p className="mt-3 measure text-sm leading-relaxed text-muted">
             Everything above is transport or presentation. The registry is the one value that decides
@@ -218,7 +218,7 @@ function TextSetting({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="shout text-[0.65rem] text-faint" htmlFor={id}>
+        <label className="shout text-label text-faint" htmlFor={id}>
           {label}
         </label>
         {value === undefined ? (

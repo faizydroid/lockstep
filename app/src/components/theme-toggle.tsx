@@ -53,7 +53,7 @@ export function ThemeToggle() {
               htmlFor={id}
               title={option.hint}
               className={cx(
-                "shout relative block cursor-pointer rounded-pill px-3 py-1 text-[0.65rem] transition-colors select-none",
+                "shout relative block cursor-pointer rounded-pill px-3 py-1 text-label transition-colors select-none",
                 active ? "text-pinned-ink" : "text-faint hover:text-muted",
                 // The ring lands on the label, since the input itself is visually hidden.
                 "peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-pinned",

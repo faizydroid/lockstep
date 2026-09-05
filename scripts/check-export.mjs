@@ -266,15 +266,58 @@ function checkTheming(index, problems) {
   }
 
   /*
-   * The signature surface, checked because it is the whole visual identity.
+   * No shadows anywhere, which is now the visual identity.
    *
-   * `.pop` compiles to an inset 2px border plus a hard, un-blurred `0 4px 0` underside. If a refactor
-   * turned it into an ordinary blurred shadow the app would still build and would stop looking like
-   * itself, so the emitted rule is matched rather than trusted.
+   * This check used to assert the opposite. `.pop` compiled to a 2px border plus a hard, un-blurred
+   * `0 4px 0` underside -- Duolingo's tile -- and this test existed so a refactor could not quietly turn
+   * it into an ordinary blurred shadow. The design has since gone flat by request, so the assertion is
+   * inverted rather than deleted: the risk is no longer losing the shadow, it is one creeping back.
+   *
+   * The pattern matches any offset or blurred box-shadow while allowing `inset`, because the hairline
+   * borders this design runs on are themselves inset shadows. A rule like `0 4px 0 0 x` or
+   * `0 1px 3px rgba(...)` fails; `inset 0 0 0 1px var(--line)` passes.
    */
-  const hasPop = /inset 0 0 0 2px var\(--line\)/.test(css) && /0 4px 0 0 var\(--pop\)/.test(css);
-  process.stdout.write(`  hard 4px underside      ${hasPop ? "ok" : "MISSING"}\n`);
-  if (!hasPop) problems.push("the .pop utility did not emit its 2px border and hard 4px underside");
+  /*
+   * Checked on the markup rather than on the stylesheet, after two attempts at the latter.
+   *
+   * The first version rejected Tailwind's composition rule, which lists `var(--tw-shadow)` and friends as
+   * empty slots resolving to nothing unless a shadow utility is used -- so it could never have passed on
+   * any Tailwind build. The second matched real offsets and found `.shadow{--tw-shadow:0 1px 3px ...}`
+   * sitting in the output, which turned out to be nothing at all: Tailwind v4 scans raw source text for
+   * class candidates, the prose in this repo discusses shadows at length, and the bare word `shadow` in a
+   * comment is enough to generate the utility. Dead CSS for a class no element carries.
+   *
+   * The property actually worth protecting is not "the stylesheet defines no shadows", it is "nothing on
+   * a page has one". So this reads the exported HTML and looks for a shadow utility in a class attribute,
+   * which is both the real requirement and immune to what the comments happen to say.
+   */
+  const shadowUsers = [];
+  for (const page of Object.keys(PAGES)) {
+    const file = join(OUT, `${page}.html`);
+    if (!existsSync(file)) continue;
+    const html = readFileSync(file, "utf8");
+
+    for (const [, attr] of html.matchAll(/class="([^"]*)"/g)) {
+      const hit = attr
+        .split(/\s+/)
+        .find((cls) => /^(?:\w+:)*(?:drop-)?shadow(?:-|$)/.test(cls) && cls !== "shadow-none");
+      if (hit !== undefined) shadowUsers.push(`${page}: ${hit}`);
+    }
+  }
+
+  process.stdout.write(
+    `  no shadows in markup    ${shadowUsers.length === 0 ? "ok" : `${shadowUsers.length} OFFENDING`}\n`,
+  );
+  if (shadowUsers.length > 0) {
+    problems.push(
+      `a shadow came back: ${[...new Set(shadowUsers)].slice(0, 4).join(", ")}. Every surface in this design is flat, and box-shadow is used only for inset hairline borders`,
+    );
+  }
+
+  // The hairline itself, which is the one thing carrying surface separation now that nothing casts.
+  const hasHairline = /inset 0 0 0 1px var\(--line\)/.test(css);
+  process.stdout.write(`  hairline border         ${hasHairline ? "ok" : "MISSING"}\n`);
+  if (!hasHairline) problems.push("the .chunk utility no longer emits its 1px inset border");
 
   // Utilities must compile to the raw variable, not to an indirection resolved once at :root.
   // Without `@theme inline` they read var(--color-panel), whose value is substituted at :root and

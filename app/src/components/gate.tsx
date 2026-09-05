@@ -151,7 +151,7 @@ export function SettlementGate() {
     <div className="pop relative rounded-3xl bg-panel p-6 sm:p-8">
       <div className="space-y-8">
         <header className="space-y-3">
-          <p className="shout text-[0.65rem] text-faint">The moment of enforcement</p>
+          <p className="shout text-label text-faint">The moment of enforcement</p>
           <h3 className="font-display text-2xl leading-tight font-extrabold text-text sm:text-3xl">
             Watch a call reach the guard
           </h3>
@@ -228,7 +228,7 @@ function Step({
       <div className="flex items-start gap-3">
         <span
           aria-hidden
-          className="pop-sm grid size-7 shrink-0 place-items-center rounded-pill bg-pinned text-[0.8rem] font-extrabold text-on-face [--pop:var(--pinned-shade)]"
+          className="pop-sm grid size-7 shrink-0 place-items-center rounded-pill bg-pinned text-note font-extrabold text-on-face [--pop:var(--pinned-shade)]"
         >
           {n}
         </span>
@@ -276,7 +276,7 @@ function Switch({
 
   return (
     <fieldset className="space-y-2">
-      <legend className="shout mb-2 text-[0.65rem] text-faint">The publisher ships&hellip;</legend>
+      <legend className="shout mb-2 text-label text-faint">The publisher ships&hellip;</legend>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         {options.map((option) => {
@@ -301,12 +301,12 @@ function Switch({
                 onChange={() => onChange(option.value)}
                 className="peer sr-only"
               />
-              <span className="flex items-center gap-2.5">
+              <span className="flex items-center gap-2">
                 {/* A real radio dot, because two unlabelled tinted boxes do not read as a choice. */}
                 <span
                   aria-hidden
                   className={cx(
-                    "grid size-5 shrink-0 place-items-center rounded-pill border-2",
+                    "grid size-5 shrink-0 place-items-center rounded-pill border",
                     active
                       ? option.value === "approved"
                         ? "border-bonded-ink"
@@ -406,7 +406,7 @@ function Journey({
           tone="neutral"
           active={phase === "idle" || phase === "travelling"}
         >
-          <span className="hash text-[0.7rem] text-muted">swap-router@2.1.0</span>
+          <span className="hash text-label text-muted">swap-router@2.1.0</span>
         </Station>
 
         <Connector
@@ -456,7 +456,7 @@ function Journey({
         >
           <span
             className={cx(
-              "hash text-[0.7rem]",
+              "hash text-label",
               phase === "settled" ? "text-bonded-ink" : "text-faint",
             )}
           >
@@ -504,7 +504,7 @@ function Station({
           : "chunk bg-raise",
       )}
     >
-      <p className={cx("shout text-[0.6rem]", tone === "bonded" ? "text-bonded-ink" : "text-faint")}>
+      <p className={cx("shout text-label", tone === "bonded" ? "text-bonded-ink" : "text-faint")}>
         {label}
       </p>
       <p className="text-xs leading-snug font-bold text-text">{caption}</p>
@@ -570,7 +570,7 @@ function Connector({
             >
               <span
                 className={cx(
-                  "shout grid -rotate-90 rounded-lg border-2 border-[var(--on-face)] px-2 py-1 text-[0.5rem] text-on-face lg:rotate-0",
+                  "shout grid -rotate-90 rounded-lg border border-[var(--on-face)] px-2 py-1 text-label text-on-face lg:rotate-0",
                   tone === "pinned" ? "bg-pinned" : "bg-bonded",
                 )}
               >
@@ -623,7 +623,7 @@ function GuardStation({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="shout text-[0.6rem] text-faint">The guard</p>
+        <p className="shout text-label text-faint">The guard</p>
         {/* The gate itself, as two leaves that meet. Small but unmistakably a barrier. */}
         <GateLeaves closed={closed} settled={phase === "settled"} />
       </div>
@@ -656,7 +656,7 @@ function GuardStation({
             transition={{ duration: 0.24 }}
           >
             {!resolved ? (
-              <span className="shout text-[0.6rem] text-faint">
+              <span className="shout text-label text-faint">
                 {phase === "checking" ? "comparing\u2026" : "waiting for a call"}
               </span>
             ) : matches ? (
@@ -686,7 +686,7 @@ function GateLeaves({ closed, settled }: { closed: boolean; settled: boolean }) 
       className="chunk relative grid h-7 w-12 place-items-center overflow-hidden rounded-md bg-panel"
     >
       <motion.span
-        className="absolute top-0 left-0 h-full w-1/2 border-r-2 border-[var(--on-face)]"
+        className="absolute top-0 left-0 h-full w-1/2 border-r border-[var(--on-face)]"
         animate={{
           x: closed ? "0%" : "-88%",
           backgroundColor: closed ? "var(--revoked)" : "var(--bonded)",
@@ -694,7 +694,7 @@ function GateLeaves({ closed, settled }: { closed: boolean; settled: boolean }) 
         transition={SPRING_FIRM}
       />
       <motion.span
-        className="absolute top-0 right-0 h-full w-1/2 border-l-2 border-[var(--on-face)]"
+        className="absolute top-0 right-0 h-full w-1/2 border-l border-[var(--on-face)]"
         animate={{
           x: closed ? "0%" : "88%",
           backgroundColor: closed ? "var(--revoked)" : "var(--bonded)",
@@ -706,7 +706,7 @@ function GateLeaves({ closed, settled }: { closed: boolean; settled: boolean }) 
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={SPRING_FIRM}
-          className="relative text-[0.7rem] font-extrabold text-bonded-ink"
+          className="relative text-label font-extrabold text-bonded-ink"
         >
           &rarr;
         </motion.span>
@@ -744,10 +744,10 @@ function Row({
         <HashFingerprint hash={hash} tone={tone} px={44} changed={changed} />
       </div>
       <div className="min-w-0">
-        <p className="text-[0.7rem] leading-snug font-bold text-text">{caption}</p>
+        <p className="text-label leading-snug font-bold text-text">{caption}</p>
         <p
           className={cx(
-            "hash text-[0.7rem]",
+            "hash text-label",
             tone === "bonded" ? "text-bonded-ink" : "text-revoked-ink",
           )}
         >

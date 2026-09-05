@@ -40,7 +40,7 @@ export default function LandingPage() {
   const headline = snapshot.drifted[0];
 
   return (
-    <div className="space-y-14 sm:space-y-16 2xl:space-y-20">
+    <div className="space-y-12">
       <Hero />
 
       {/* The mechanism, before any statistic about it and before anything is asked for. */}
@@ -61,11 +61,11 @@ export default function LandingPage() {
             </>
           }
         >
-          <Card spotlight className="p-8 sm:p-10">
+          <Card className="p-8 sm:p-10">
             <div className="space-y-8">
               <FingerprintDiff approved={headline.approvedHash} current={headline.currentHash} />
 
-              <div className="flex flex-wrap items-center gap-3 border-t-2 border-line pt-6">
+              <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
                 <Pill tone="revoked">refused &middot; NOT_PINNED</Pill>
                 {headline.diff.widened ? (
                   <Pill tone="attention">capability widened</Pill>
@@ -128,7 +128,7 @@ function Hero() {
   return (
     <header className="relative pt-1">
       <Reveal>
-        <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end lg:gap-12">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-end lg:gap-8">
           <div className="space-y-4">
             <Pill tone="pinned">EIP-7702 &middot; enforced at settlement</Pill>
 
@@ -138,7 +138,7 @@ function Hero() {
               roundness reads as soft, and the headline is the one place that should feel like a
               shout.
             */}
-            <h1 className="font-display text-[2.5rem] leading-[0.94] font-extrabold tracking-[-0.03em] text-text sm:text-6xl xl:text-[4.5rem]">
+            <h1 className="font-display text-4xl leading-[0.94] font-extrabold tracking-[-0.03em] text-text sm:text-6xl xl:text-5xl">
               <WordsRise text="A lockfile for" />
               <br />
               <span className="text-bonded-ink">
@@ -147,8 +147,8 @@ function Hero() {
             </h1>
           </div>
 
-          <div className="space-y-5 lg:pb-1.5">
-            <p className="measure text-base leading-relaxed font-semibold text-muted sm:text-[1.0625rem]">
+          <div className="space-y-4 lg:pb-1.5">
+            <p className="measure text-base leading-relaxed font-semibold text-muted sm:text-base">
               An agent&rsquo;s wallet can cap{" "}
               <em className="font-extrabold text-text not-italic">how much</em> it spends. It has no
               idea <em className="font-extrabold text-text not-italic">which code</em> asked.

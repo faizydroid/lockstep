@@ -241,21 +241,29 @@
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
 
   /*
-   * Chunky-round, not blobby.
+   * Four radii wearing eight names.
    *
-   * Duolingo's controls sit around 16px and its progress bars are full pills. That is a narrower
-   * range than a typical scale, because the look comes from thick borders and hard shadows rather
-   * than from extreme radii. The steps still grow so nesting reads correctly, but the top end is
-   * pulled in from where a purely decorative scale would put it.
+   * The scale had eight distinct steps between 0.5rem and 2.25rem, and an audit found seven of them in
+   * live use. At that density the steps stop being a system: two panels 0.25rem apart in radius do not
+   * read as a deliberate hierarchy, they read as a mistake, and that was a real part of what made the
+   * app look scattered.
+   *
+   * So there are four values now, and the eight names are kept as aliases onto them. Same reason as the
+   * `.pop` aliases above: the whole app tightens in one edit rather than in a hundred, and nothing has to
+   * be renamed to get the benefit. The pairs that collapsed -- xs/sm, md/lg, xl/2xl -- were the ones a
+   * reader could not have told apart anyway.
+   *
+   * Everything also got smaller. The old radii were tuned to sit against a 2px border and a 4px
+   * underside; with a hairline border and no shadow, the same curves read as soft rather than friendly.
    */
   --radius-pill: 999px;
   --radius-xs: 0.5rem;
-  --radius-sm: 0.75rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.5rem;
-  --radius-2xl: 1.75rem;
-  --radius-3xl: 2.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
 
   --color-bg: var(--bg);
   --color-panel: var(--panel);
@@ -295,6 +303,20 @@
   --color-attention-tint: var(--attention-tint);
   --color-revoked-tint: var(--revoked-tint);
   --color-equivocated-tint: var(--equivocated-tint);
+
+  /*
+   * Two steps that did not exist, and the reason the scale was a mess without them.
+   *
+   * An audit found fifteen distinct `text-[Nrem]` values across 105 uses, on top of nine named Tailwind
+   * sizes -- roughly two dozen type sizes in one app. Six of them (0.5, 0.55, 0.6, 0.65, 0.68 and
+   * 0.7rem) fell inside three pixels of each other, which no reader can distinguish and no designer
+   * chose: they accumulated one component at a time, each looking reasonable next to the last.
+   *
+   * `label` is the single size all six became. `note` absorbs 0.8rem and the odd 1.0625rem. Everything
+   * else now uses a named step, so there are no arbitrary font sizes left in the components at all.
+   */
+  --text-label: 0.6875rem;
+  --text-note: 0.8125rem;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   /* Overshoots then settles. The bounce that makes a correct answer feel correct. */
@@ -370,81 +392,62 @@
 
 @layer utilities {
   /*
-   * The signature surface: a 2px border and a hard, un-blurred bottom edge.
+   * The surface: a hairline border and nothing else.
    *
-   * This is the one thing that makes an interface read as Duolingo. Not a soft ambient shadow --
-   * a solid offset block of the shade colour, as if every panel were a physical tile with 4px of
-   * visible side. No blur, no spread, no alpha.
+   * ## What changed and why
    *
-   * Both parts are box-shadow rather than a real border plus margin, which keeps the whole effect
-   * layout-neutral: a control can lose its underside on press without the row height changing and
-   * without neighbours reflowing. `--pop` lets any element override the shade to its own hue, so
-   * a green button gets a green underside.
+   * These four utilities used to draw Duolingo's signature tile -- a 2px border plus a hard,
+   * un-blurred `0 4px 0` block of the shade colour, so every panel read as a physical object with a
+   * visible side, and pressing one travelled it down onto its own base.
+   *
+   * It is gone by request: no surface, button or banner casts a shadow now. That removes the entire
+   * foundation of the old look, so the replacement has to carry the work some other way, and it does it
+   * with the three things a flat interface has left -- a border you can just see, real spacing, and
+   * type weight. Borders drop from 2px to 1px in the same pass, because a 2px rule with no shadow
+   * behind it reads as heavier than the shadow ever did.
+   *
+   * ## Why the names survive
+   *
+   * `.pop`, `.pop-sm` and `.pop-lg` differed only in how tall their underside was. With no underside
+   * they collapse to one thing, and they are kept as aliases rather than deleted so that flattening the
+   * whole app is this one edit instead of 146 component edits. New code should use `.chunk`.
+   *
+   * `--pop` and the `--*-shade` tokens are no longer read here. Call sites that still set
+   * `[--pop:var(--bonded-shade)]` are harmless no-ops; they are being removed as each file is touched
+   * rather than in one sweep that would bury this change in noise.
    */
-  .chunk {
-    box-shadow: inset 0 0 0 2px var(--line);
-  }
-
-  .pop {
-    --pop: var(--shade);
-    box-shadow:
-      inset 0 0 0 2px var(--line),
-      0 4px 0 0 var(--pop);
-  }
-
-  .pop-sm {
-    --pop: var(--shade);
-    box-shadow:
-      inset 0 0 0 2px var(--line),
-      0 2px 0 0 var(--pop);
-  }
-
+  .chunk,
+  .pop,
+  .pop-sm,
   .pop-lg {
-    --pop: var(--shade);
-    box-shadow:
-      inset 0 0 0 2px var(--line),
-      0 6px 0 0 var(--pop);
+    box-shadow: inset 0 0 0 1px var(--line);
   }
 
-  /* An underside with no border, for solid-fill buttons that supply their own edge. */
+  /* Was an underside with no border. Now genuinely nothing: solid fills supply their own edge. */
   .pop-bare {
-    --pop: var(--shade);
-    box-shadow: 0 4px 0 0 var(--pop);
-  }
-
-  /*
-   * The press. Travel down by exactly the height of the underside, and remove it.
-   *
-   * The two numbers must match or the control appears to sink through its own base. Paired with
-   * .pop / .pop-bare on the same element.
-   */
-  .press {
-    transition: transform 0.06s linear, box-shadow 0.06s linear;
-  }
-  .press:active {
-    transform: translateY(4px);
-    box-shadow: inset 0 0 0 2px var(--line);
-  }
-  .pop-bare.press:active {
     box-shadow: none;
   }
-  .pop-lg.press:active {
-    transform: translateY(6px);
-  }
-  .pop-sm.press:active {
-    transform: translateY(2px);
-  }
 
   /*
-   * The previous design's `.edge` and `.edge-lift` are gone.
+   * The press, without anything to press into.
    *
-   * They were a hairline inset highlight and the same plus an ambient drop shadow. During the
-   * restyle they were briefly redefined as aliases of `.chunk` and `.pop`, which let every screen
-   * pick up the 2px border and the hard underside before any component was converted by hand. Once
-   * the last call site was migrated the aliases were dead, so they were deleted rather than left as
-   * two names for one thing. Recorded here because "where did .edge go" is a fair question of the
-   * git history.
+   * The old version translated a control down by exactly the height of its underside. Keeping that
+   * travel after removing the underside would read as a glitch -- a button sliding down the page for no
+   * visible reason -- so the affordance moves to brightness, which is the one feedback that works on
+   * any ground without touching layout, blurring text, or reintroducing a shadow.
+   *
+   * It inverts by theme. Darkening reads as pressed on a light ground and as broken on a dark one,
+   * where the expectation is that a surface lights up under a finger.
    */
+  .press {
+    transition: filter 0.12s var(--ease-out-soft), background-color 0.12s var(--ease-out-soft);
+  }
+  .press:active {
+    filter: brightness(0.95);
+  }
+  .dark .press:active {
+    filter: brightness(1.14);
+  }
 
   /* Uppercase, heavy, tracked out. Duolingo's button voice. */
   .shout {

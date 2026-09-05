@@ -84,11 +84,11 @@ export function Verify({
   return (
     <div className="chunk rounded-xl bg-raise px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="shout text-[0.6rem] text-faint">Check this yourself</p>
+        <p className="shout text-label text-faint">Check this yourself</p>
         <button
           type="button"
           onClick={() => void copy()}
-          className="shout press pop-sm rounded-lg bg-panel px-2.5 py-1 text-[0.55rem] text-muted [--pop:var(--shade)] hover:text-text"
+          className="shout press pop-sm rounded-lg bg-panel px-2.5 py-1 text-label text-muted [--pop:var(--shade)] hover:text-text"
         >
           {copied ? "copied" : "copy"}
         </button>
@@ -98,22 +98,22 @@ export function Verify({
         `select-all` so a click selects the whole command. A half-copied RPC URL is the most likely way
         this goes wrong, and it fails in a way that looks like the product's fault.
       */}
-      <pre className="mt-2 overflow-x-auto text-[0.7rem] leading-relaxed">
+      <pre className="mt-2 overflow-x-auto text-label leading-relaxed">
         <code className="hash select-all text-text">{command}</code>
       </pre>
 
-      <p className="mt-2 text-[0.7rem] leading-relaxed font-semibold text-muted">
+      <p className="mt-2 text-label leading-relaxed font-semibold text-muted">
         <span className="text-faint">expect</span> {expected}
       </p>
       {note === undefined ? null : (
-        <p className="mt-1 text-[0.65rem] leading-relaxed text-faint">{note}</p>
+        <p className="mt-1 text-label leading-relaxed text-faint">{note}</p>
       )}
 
       {/*
         Said once, here, rather than in every caller. Foundry is the only prerequisite and a reader who
         does not have it should know that before copying.
       */}
-      <p className="mt-2 text-[0.6rem] leading-relaxed text-faint">
+      <p className="mt-2 text-label leading-relaxed text-faint">
         Needs Foundry&rsquo;s <code className="hash">cast</code>. No key, no wallet, no account &mdash; it
         is a public read of the same slot this page read.
       </p>

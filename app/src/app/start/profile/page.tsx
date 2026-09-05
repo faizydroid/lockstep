@@ -115,9 +115,9 @@ export default function ProfilePage() {
 
       <Reveal delay={0.06}>
         <Card>
-          <div className="space-y-7">
+          <div className="space-y-6">
             {address === undefined ? null : (
-              <div className="flex flex-wrap items-center gap-3 border-b-2 border-line pb-5">
+              <div className="flex flex-wrap items-center gap-3 border-b border-line pb-5">
                 <Pill tone="bonded">connected</Pill>
                 <HashChip value={address} kind="address" emphasis="quiet" />
                 <span className="text-xs font-semibold text-faint">
@@ -127,7 +127,7 @@ export default function ProfilePage() {
             )}
 
             <label className="block space-y-2">
-              <span className="shout text-[0.6rem] text-faint">What should we call you</span>
+              <span className="shout text-label text-faint">What should we call you</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -141,13 +141,13 @@ export default function ProfilePage() {
                 placeholder="Ada"
                 className="chunk w-full rounded-lg bg-sunken px-3 py-2.5 text-sm font-semibold text-text"
               />
-              <span className="block text-[0.65rem] font-semibold text-faint">
+              <span className="block text-label font-semibold text-faint">
                 Used to greet you and nothing else. {name.trim().length}/{DISPLAY_NAME_MAX}
               </span>
             </label>
 
             <fieldset className="space-y-2">
-              <legend className="shout text-[0.6rem] text-faint">
+              <legend className="shout text-label text-faint">
                 Which of these is closest
               </legend>
 
@@ -180,7 +180,7 @@ export default function ProfilePage() {
                       <span
                         aria-hidden
                         className={cx(
-                          "mt-0.5 block size-4 shrink-0 rounded-pill border-2",
+                          "mt-0.5 block size-4 shrink-0 rounded-pill border",
                           active ? "border-pinned-ink bg-pinned" : "border-line-strong",
                         )}
                       />
@@ -204,7 +204,7 @@ export default function ProfilePage() {
             </fieldset>
 
             <label className="block space-y-2">
-              <span className="shout text-[0.6rem] text-faint">
+              <span className="shout text-label text-faint">
                 Team or project <span className="text-faint">&mdash; optional</span>
               </span>
               <input
@@ -221,7 +221,7 @@ export default function ProfilePage() {
               />
             </label>
 
-            <div className="flex flex-wrap items-center gap-3 border-t-2 border-line pt-5">
+            <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
               <Button tone="bonded" onClick={save} disabled={!valid}>
                 Continue
               </Button>
@@ -241,7 +241,7 @@ export default function ProfilePage() {
       */}
       <Reveal delay={0.1}>
         <Card tone="attention">
-          <p className="shout text-[0.6rem] text-attention-ink">Where this goes</p>
+          <p className="shout text-label text-attention-ink">Where this goes</p>
           <p className="mt-2 measure text-sm leading-relaxed font-semibold text-attention-ink">
             Nowhere. This dashboard is a static export with no server behind it, so there is nothing to
             send to and no account being created. Both answers are written to this browser&rsquo;s local
@@ -250,7 +250,7 @@ export default function ProfilePage() {
           </p>
 
           {settings.profile === undefined ? null : (
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t-2 border-attention pt-4">
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-attention pt-4">
               <span className="text-xs font-semibold text-attention-ink">
                 Stored now: {displayName(settings.profile.displayName, "unnamed")}
               </span>

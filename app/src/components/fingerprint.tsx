@@ -206,7 +206,7 @@ export function FingerprintDiff({
   }, [approved, current]);
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+    <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8">
       <Panel
         label={labels.approved}
         hash={approved}
@@ -227,7 +227,7 @@ export function FingerprintDiff({
         </motion.div>
         <div className="text-center">
           <p className="font-display text-2xl leading-none text-revoked-ink">{diff.changed.length}</p>
-          <p className="mt-1 shout text-[0.6rem] text-faint">
+          <p className="mt-1 shout text-label text-faint">
             of 64 differ
           </p>
         </div>
@@ -266,9 +266,9 @@ function Panel({
         <HashFingerprint hash={hash} tone={tone} px={px} changed={changed} animate />
       </div>
       <figcaption className="text-center">
-        <p className="shout text-[0.6rem] text-faint">{label}</p>
+        <p className="shout text-label text-faint">{label}</p>
         {/* First and last four nibbles, so the caption ties the image back to the hex. */}
-        <p className="hash mt-1 text-[0.7rem] text-muted">
+        <p className="hash mt-1 text-label text-muted">
           {print.valid ? `${print.normalised.slice(0, 4)}\u2026${print.normalised.slice(-4)}` : "unreadable"}
         </p>
       </figcaption>

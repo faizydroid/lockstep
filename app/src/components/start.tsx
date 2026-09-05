@@ -92,7 +92,7 @@ export function StartHere({ compact = false }: { compact?: boolean }) {
     <Card tone="pinned">
       <div className="space-y-4">
         <div className="space-y-2">
-          <p className="shout text-[0.6rem] text-faint">Where to next</p>
+          <p className="shout text-label text-faint">Where to next</p>
           <h2 className="font-display text-2xl leading-tight font-extrabold text-text">
             {settings.skippedSetup
               ? "You already have the run of the place"
@@ -115,7 +115,7 @@ export function StartHere({ compact = false }: { compact?: boolean }) {
           on `available` also kept it out of the static HTML, where a reader with scripts blocked would
           never have seen it at all.
         */}
-        <p className="text-[0.7rem] leading-relaxed font-semibold text-faint">
+        <p className="text-label leading-relaxed font-semibold text-faint">
           No signature is requested and nothing is sent anywhere. The address stays in this browser,
           because this is a static site with no server behind it.
           {available ? null : " No wallet is detected here, so nothing will prompt you."}

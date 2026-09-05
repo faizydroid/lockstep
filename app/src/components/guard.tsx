@@ -391,7 +391,7 @@ function SpeechFromGuard({
       <span
         aria-hidden
         className={cx(
-          "absolute size-3 border-b-2 border-l-2 border-[var(--line)]",
+          "absolute size-3 border-b border-l border-[var(--line)]",
           fill[tone],
           "-top-[7px] left-1/2 -translate-x-1/2 rotate-[135deg]",
           "sm:top-7 sm:-left-[7px] sm:translate-x-0 sm:rotate-45",

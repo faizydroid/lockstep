@@ -150,7 +150,7 @@ function Gauge({
         TILE_TONE[tone],
       )}
     >
-      <p className="shout text-[0.65rem] text-faint">{label}</p>
+      <p className="shout text-label text-faint">{label}</p>
       {children}
       <p className="text-xs leading-snug font-semibold text-muted">{hint}</p>
     </div>
@@ -187,7 +187,7 @@ function Counter({
       )}
     >
       <div>
-        <p className="shout text-[0.65rem] text-faint">{label}</p>
+        <p className="shout text-label text-faint">{label}</p>
         <p className="mt-2 flex items-baseline gap-1.5">
           <span
             className={cx(

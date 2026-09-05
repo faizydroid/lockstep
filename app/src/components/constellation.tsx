@@ -189,7 +189,7 @@ export function CapabilityConstellation({
         ))}
       </div>
 
-      <p className="mt-1 text-center shout text-[0.6rem] text-faint">
+      <p className="mt-1 text-center shout text-label text-faint">
         {capabilities.length} {capabilities.length === 1 ? "power" : "powers"}
         {riskyCount > 0 ? ` \u00b7 ${riskyCount} high risk` : ""}
         {movesNativeValue ? " \u00b7 native value" : ""}

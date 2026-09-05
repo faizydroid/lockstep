@@ -80,7 +80,7 @@ export default function BondsPage() {
   const total = parts.reduce((sum, p) => sum + p.amount, 0n);
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-12">
       <Reveal>
         <Section
           eyebrow="Blast radius, not value"
@@ -99,8 +99,8 @@ export default function BondsPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-8">
         <Reveal>
           <Card>
-            <div className="space-y-7">
-              <p className="shout text-[0.65rem] text-faint">
+            <div className="space-y-6">
+              <p className="shout text-label text-faint">
                 Price a manifest
               </p>
 
@@ -160,7 +160,7 @@ export default function BondsPage() {
           <Card>
             <div className="space-y-6">
               <div className="flex items-end justify-between gap-4">
-                <p className="shout text-[0.65rem] text-faint">
+                <p className="shout text-label text-faint">
                   Bond required
                 </p>
                 <motion.p
@@ -200,7 +200,7 @@ export default function BondsPage() {
                         />
                       </div>
 
-                      <p className="text-[0.7rem] leading-relaxed text-faint">{part.detail}</p>
+                      <p className="text-label leading-relaxed text-faint">{part.detail}</p>
                     </li>
                   );
                 })}
@@ -209,7 +209,7 @@ export default function BondsPage() {
               <button
                 type="button"
                 onClick={() => setShowWhy((v) => !v)}
-                className="pop press shout w-full rounded-pill bg-panel px-4 py-2.5 text-[0.65rem] text-muted"
+                className="pop press shout w-full rounded-pill bg-panel px-4 py-2.5 text-label text-muted"
                 aria-expanded={showWhy}
               >
                 {showWhy ? "Hide" : "Why these numbers"}

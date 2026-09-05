@@ -177,12 +177,12 @@ export function Term({ name, children }: { name: keyof typeof TERMS | string; ch
            */
           className="chunk absolute top-full left-0 z-50 mt-2 block w-[max(16rem,100%)] max-w-[min(20rem,calc(100vw-2rem))] rounded-xl bg-panel px-3 py-2.5 text-left normal-case"
         >
-          <span className="shout block text-[0.55rem] text-faint">{name}</span>
-          <span className="mt-1 block text-[0.7rem] leading-relaxed font-semibold text-text">
+          <span className="shout block text-label text-faint">{name}</span>
+          <span className="mt-1 block text-label leading-relaxed font-semibold text-text">
             {entry.gloss}
           </span>
           {entry.sting === undefined ? null : (
-            <span className="mt-1.5 block text-[0.65rem] leading-relaxed text-muted">{entry.sting}</span>
+            <span className="mt-1.5 block text-label leading-relaxed text-muted">{entry.sting}</span>
           )}
         </span>
       ) : null}
