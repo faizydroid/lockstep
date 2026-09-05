@@ -1,141 +1,20 @@
-"use client";
-
 /**
- * The connect / account control at the foot of the rail.
+ * What is left of the rail's account panel.
  *
- * Five states, and the two most connect buttons skip are the ones that cause support tickets:
+ * `AccountControl` lived here: a stacked five-state panel at the foot of a 272px left rail, carrying an
+ * address, a fingerprint, four paragraphs on what connecting does and does not do, and a "Forget address"
+ * button. It was replaced by `wallet-menu.tsx`, which is the same information in the shape every
+ * wallet-connected dashboard uses — collapsed to an identicon and a truncated address, with the detail behind
+ * a chevron.
  *
- *   No wallet in the browser. Says so, instead of rendering a button that cannot work. A dead
- *   "Connect" makes a reader think the product is broken rather than their browser incomplete.
+ * The component is deleted rather than left unused, because a dead 130-line component that still typechecks
+ * is the kind of thing that gets rediscovered and reinstated. Its five states are documented in the new file,
+ * including the two that most connect buttons skip: no wallet in the browser, and connected on the wrong
+ * chain.
  *
- *   Restoring. A skeleton, so nobody clicks into a race with the silent `eth_accounts` check.
- *
- *   Disconnected. One heavy button, plus what connecting will and will not buy.
- *
- *   Connected on the wrong chain. The state everyone forgets. The wallet is attached, the address is
- *   real, and every read and write will be against a chain with no registry on it. Prompting to switch
- *   is the only useful thing to render here, and doing it well is the difference between "the dashboard
- *   is empty" and "you are on the wrong network".
- *
- *   Connected and correct. Address, its fingerprint, and a way to forget it.
+ * Only `fingerprintSeed` survived, because it is used by the menu and by anything else that wants an
+ * account's own image.
  */
-
-import { shortAddress } from "@/lib/format";
-
-import { HashFingerprint } from "./fingerprint";
-import { CHAIN_ID, useIdentity } from "./identity";
-import { Button, cx } from "./ui";
-
-export function AccountControl() {
-  const {
-    available,
-    ready,
-    connected,
-    address,
-    chainId,
-    onCorrectChain,
-    connect,
-    disconnect,
-    switchChain,
-    connecting,
-    error,
-  } = useIdentity();
-
-  if (!ready) {
-    return <div aria-hidden className="chunk h-[3.25rem] animate-pulse rounded-xl bg-raise" />;
-  }
-
-  if (!available) {
-    return (
-      <div className="chunk rounded-xl bg-raise px-3 py-2.5">
-        <p className="shout text-label text-faint">No wallet detected</p>
-        <p className="mt-1 text-label leading-snug font-semibold text-muted">
-          Install a browser wallet to scope this dashboard to your own account. Everything on it is
-          readable without one.
-        </p>
-      </div>
-    );
-  }
-
-  if (!connected || address === undefined) {
-    return (
-      <div className="space-y-2">
-        <Button tone="pinned" size="sm" full onClick={() => void connect()} disabled={connecting}>
-          {connecting ? "Waiting for wallet\u2026" : "Connect wallet"}
-        </Button>
-        {/*
-          Said before the wallet popup, not after.
-
-          The pattern this borrows is a custom screen ahead of an OS permission prompt, which the
-          onboarding material reports meaningfully improves accept rates. It matters more here than in a
-          consumer app: a crypto developer's default assumption about a connect button is that something
-          will ask them to sign, and that assumption is wrong in a way only stating it can fix.
-
-          Every clause is true of the build. Reads only, no signature is ever requested, the three calls
-          are the ones lib/chain.ts makes, and there is no server to send an address to because this is a
-          static export.
-        */}
-        <p className="text-label leading-snug font-semibold text-faint">
-          Read-only. <strong className="font-extrabold text-muted">No signature is requested</strong> and
-          no transaction is sent &mdash; connecting only tells this page which account&rsquo;s approvals,
-          executions and delegation to read.
-        </p>
-        <p className="text-label leading-snug font-semibold text-faint">
-          The address stays in this browser; there is no server to send it to. Approving a version stays
-          in the CLI, always.
-        </p>
-        {error === undefined ? null : (
-          <p className="text-label leading-snug font-bold text-revoked-ink">{error}</p>
-        )}
-      </div>
-    );
-  }
-
-  if (!onCorrectChain) {
-    return (
-      <div className="pop space-y-2 rounded-xl bg-attention-tint p-2.5 [--line:var(--attention)] [--pop:var(--attention-shade)]">
-        <p className="shout text-label text-attention-ink">Wrong network</p>
-        <p className="text-label leading-snug font-bold text-attention-ink">
-          Your wallet is on chain {chainId ?? "unknown"}. The registry is on {CHAIN_ID}, so nothing
-          here would match.
-        </p>
-        <Button tone="attention" size="sm" full onClick={() => void switchChain()}>
-          Switch to Monad testnet
-        </Button>
-        {error === undefined ? null : (
-          <p className="text-label leading-snug font-bold text-revoked-ink">{error}</p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="chunk space-y-2 rounded-xl bg-raise p-2.5">
-      <div className="flex items-center gap-2">
-        {/* The account's own fingerprint, from its address. Recognisable at a glance across sessions. */}
-        <div className="chunk shrink-0 rounded-lg bg-panel p-1">
-          <HashFingerprint hash={fingerprintSeed(address)} tone="bonded" px={28} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="hash truncate text-label font-bold text-text">{shortAddress(address)}</p>
-          <p className="truncate text-label font-semibold text-bonded-ink">Monad testnet</p>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={disconnect}
-        title="Forgets this address locally. Your wallet keeps its own permission until you remove it there."
-        className={cx(
-          "shout press pop-sm w-full rounded-lg bg-panel px-3 py-1.5 text-label text-muted",
-          "[--pop:var(--shade)] hover:text-text",
-        )}
-      >
-        Forget address
-      </button>
-    </div>
-  );
-}
 
 /**
  * Pads a 20-byte address to the 32 bytes the fingerprint expects.

@@ -215,7 +215,14 @@ describe("design decisions worth pinning", () => {
 describe("copy that is load-bearing", () => {
   const limits = readFileSync(join(APP, "components", "limits.tsx"), "utf8");
   const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
-  const account = readFileSync(join(APP, "components", "account-control.tsx"), "utf8");
+  /*
+   * `start.tsx`, not `account-control.tsx`.
+   *
+   * The priming copy used to live in the rail's account panel, which meant a returning reader paid for it on
+   * every page of every visit. It belongs before a *first* connection, which is the landing page, and
+   * `StartHere` is where it now sits — beside the button that triggers the popup.
+   */
+  const priming = readFileSync(join(APP, "components", "start.tsx"), "utf8");
   const navSrc = readFileSync(join(APP, "components", "nav.tsx"), "utf8");
 
   it("names the four limits rather than one soft disclaimer", () => {
@@ -286,13 +293,21 @@ describe("copy that is load-bearing", () => {
   it("states that connecting requests no signature, before the wallet popup", () => {
     // A crypto developer's default assumption about a connect button is that something will ask them to
     // sign. Only saying so fixes that, and it has to be said before the prompt, not after.
-    expect(account).toMatch(/No signature is requested/);
-    expect(account).toMatch(/no server to send it to/);
+    expect(priming).toMatch(/No signature is requested/);
+    expect(priming).toMatch(/no server/);
   });
 
-  it("gives every nav item an outcome line", () => {
-    // Seven of eight labels are coinages of this project and mean nothing on a first read.
+  it("keeps an outcome line for every nav item", () => {
+    /*
+     * Still eight, still in `nav.tsx`, but they are `title` now rather than a visible second line.
+     *
+     * In the rail each item had a label and a revealed sub-line explaining what the destination answers,
+     * which worked because a vertical menu has the room. A horizontal bar has nowhere to put a second line
+     * that does not either double the bar's height or cover the page. The words are worth keeping regardless:
+     * seven of the eight labels are coinages of this project and mean nothing on a first read.
+     */
     const items = navSrc.match(/outcome: "/g) ?? [];
     expect(items).toHaveLength(8);
+    expect(navSrc, "the outcome text is no longer reachable").toMatch(/title=\{link\.outcome\}/);
   });
 });

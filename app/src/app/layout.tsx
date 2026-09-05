@@ -80,9 +80,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           sidebar on exactly the screens where the rail exists, which is the one case where a skip
           link has to work: a keyboard user on a wide screen tabbing past seven nav items.
         */}
+        {/*
+          The rail-width offset is gone with the rail. It existed because a `fixed` 272px sidebar covered a
+          skip link pinned to `left-6` on exactly the screens where the rail existed.
+        */}
         <a
           href="#main"
-          className="sr-only rounded-md bg-text px-4 py-2 text-sm font-bold text-bg focus:not-sr-only focus:absolute focus:top-6 focus:left-6 focus:z-[60] lg:focus:left-[calc(var(--rail)+1.5rem)]"
+          className="sr-only rounded-md bg-text px-4 py-2 text-sm font-bold text-bg focus:not-sr-only focus:absolute focus:top-6 focus:left-6 focus:z-[60]"
         >
           Skip to content
         </a>

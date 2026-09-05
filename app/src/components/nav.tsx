@@ -25,7 +25,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-import { AccountControl } from "./account-control";
+import { WalletMenu } from "./wallet-menu";
 import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion";
 import { ThemeToggle } from "./theme-toggle";
 import { cx } from "./ui";
@@ -69,29 +69,42 @@ const LINKS = [
   { href: "/account", label: "Account", icon: IconAccount, outcome: "Whether anything is enforcing it" },
 ] as const;
 
-/*
- * The rail's width is `--rail`, defined in globals.css.
- *
- * Both the rail and the content wrapper that offsets itself by the same amount read it from there, so
- * there is one number rather than two that have to be kept in step.
- */
 
+/**
+ * The primary navigation, as a compact top bar.
+ *
+ * ## Why this replaced a 272px left rail
+ *
+ * The rail was chosen when the product was styled after Duolingo, whose own navigation is a left rail with
+ * an icon and a heavy uppercase label per item. That reasoning was sound for that design and does not
+ * survive it: the app is now a clinical, dense, data-first dashboard, and every convention in that category
+ * puts navigation in a single thin bar across the top.
+ *
+ * It also cost more than it looked like it did. 272px is 17rem taken off every page at every width above
+ * `lg`, on a product whose main content is wide tables of addresses and hashes -- the exact axis that was
+ * already scarce. The rail's own justification claimed the opposite, that vertical space was the cheap one,
+ * which was true of a page of stat cards and false of `/pins` and `/publishers`.
+ *
+ * ## What the bar carries, in the order a reader expects it
+ *
+ * Mark left, links beside it, account right. That is the layout of every wallet-connected dashboard a
+ * reader has already used, and matching it means they do not have to learn where anything is. The account
+ * control is a dropdown rather than a permanently expanded panel -- see `wallet-menu.tsx`.
+ *
+ * The outcome lines are gone from the links. They were a second line under each label, revealed on hover,
+ * explaining what the destination answers; they earned their place in a rail where there was vertical room
+ * and a reader was reading a menu. In a horizontal bar there is nowhere to put them that does not either
+ * double the bar's height or cover the content below it. The words survive where they are still useful: as
+ * `title`, so a hover or the accessibility tree still reaches them.
+ *
+ * Below `lg` the links collapse behind a menu button, and the account control stays visible. That split is
+ * deliberate: on a phone the thing a reader most often wants from the chrome is their address and the
+ * network, and burying it one tap deeper to keep the bar tidy would be tidiness winning over use.
+ */
 export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const still = useReducedMotion();
 
-  // Navigating should dismiss the drawer; leaving it open over the new page looks broken.
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  /*
-   * Escape closes the drawer, and the body cannot scroll behind it.
-   *
-   * Both are expected of anything modal. Without the scroll lock a touch drag over the scrim moves
-   * the page underneath, which makes the drawer feel like a decal rather than a layer.
-   */
   useEffect(() => {
     if (!open) return;
 
@@ -112,45 +125,76 @@ export function Nav() {
 
   return (
     <>
-      {/* ------------------------------------------------- compact top bar, below lg */}
-      <header className="gutter sticky top-0 z-40 border-b border-line bg-bg py-3 lg:hidden">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex shrink-0 items-center gap-2 rounded-lg py-1">
+      <header className="sticky top-0 z-40 border-b border-line bg-bg">
+        <div className="gutter flex h-14 items-center gap-2">
+          <Link href="/" className="flex shrink-0 items-center gap-2 rounded-md py-1">
             <Mark />
-            <span className="font-display text-xl font-extrabold tracking-tight text-text">
-              Lockstep
-            </span>
+            <span className="font-display text-base tracking-tight text-text">Lockstep</span>
           </Link>
 
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
+          {/*
+            The links, from `md` up.
+
+            Text only, no icons. The icon set was drawn for a rail where each item had a 20px glyph and a
+            label on its own line; at 13px inline the glyphs stop being legible and start being noise beside
+            the word they duplicate. They are still used for the mobile sheet, where the vertical layout is
+            the one they were designed for.
+          */}
+          <nav aria-label="Primary" className="ml-2 hidden min-w-0 md:block">
+            <ul className="flex items-center gap-0.5">
+              {LINKS.map((link) => {
+                const active = isActive(link.href);
+                return (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      title={link.outcome}
+                      aria-current={active ? "page" : undefined}
+                      className={cx(
+                        "relative block rounded-md px-2.5 py-1.5 text-note whitespace-nowrap transition-colors",
+                        active ? "text-text" : "text-muted hover:bg-raise hover:text-text",
+                      )}
+                    >
+                      {active ? (
+                        <motion.span
+                          layoutId="nav-active"
+                          transition={SPRING_SOFT}
+                          className="absolute inset-0 rounded-md bg-raise"
+                        />
+                      ) : null}
+                      <span className="relative">{link.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <WalletMenu />
+            <span className="hidden sm:block">
+              <ThemeToggle />
+            </span>
+
+            {/* The menu button, below `md`, where the links do not fit. */}
             <button
               type="button"
               onClick={() => setOpen(true)}
               aria-expanded={open}
-              aria-controls="nav-drawer"
+              aria-controls="nav-sheet"
               aria-label="Open menu"
-              className="pop press grid size-10 place-items-center rounded-pill bg-panel text-muted"
+              className="press chunk grid size-9 place-items-center rounded-md bg-panel text-muted md:hidden"
             >
               <span aria-hidden className="grid gap-[3px]">
-                <span className="block h-[3px] w-4 rounded-pill bg-current" />
-                <span className="block h-[3px] w-4 rounded-pill bg-current" />
-                <span className="block h-[3px] w-4 rounded-pill bg-current" />
+                <span className="block h-[2px] w-4 rounded-pill bg-current" />
+                <span className="block h-[2px] w-4 rounded-pill bg-current" />
+                <span className="block h-[2px] w-4 rounded-pill bg-current" />
               </span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* ------------------------------------------------------ the rail, lg and up */}
-      <div
-        className="fixed inset-y-0 left-0 z-40 hidden border-r border-line bg-panel lg:block"
-        style={{ width: "var(--rail)" }}
-      >
-        <RailBody isActive={isActive} onNavigate={() => undefined} />
-      </div>
-
-      {/* ------------------------------------------------------- drawer, below lg */}
       <AnimatePresence>
         {open ? (
           <>
@@ -158,25 +202,66 @@ export function Nav() {
               type="button"
               aria-label="Close menu"
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-[var(--scrim)] backdrop-blur-sm lg:hidden"
-              initial={still ? { opacity: 1 } : { opacity: 0 }}
+              className="fixed inset-0 z-40 bg-[var(--scrim)] md:hidden"
+              initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={still ? { opacity: 1 } : { opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
             />
+
             <motion.div
-              id="nav-drawer"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Navigation"
-              className="fixed inset-y-0 left-0 z-50 border-r border-line bg-panel lg:hidden"
-              style={{ width: "var(--rail)", maxWidth: "85vw" }}
-              initial={still ? { x: 0 } : { x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={still ? { x: 0 } : { x: "-100%" }}
-              transition={still ? { duration: 0 } : SPRING_SOFT}
+              id="nav-sheet"
+              className="fixed inset-x-0 top-0 z-50 border-b border-line bg-bg md:hidden"
+              initial={{ y: "-100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "-100%" }}
+              transition={SPRING_SOFT}
             >
-              <RailBody isActive={isActive} onNavigate={() => setOpen(false)} />
+              <div className="gutter py-3">
+                <div className="flex h-8 items-center justify-between">
+                  <span className="shout text-label text-faint">Menu</span>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="press rounded-md px-2 py-1 text-note text-muted hover:text-text"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <ul className="mt-2 grid gap-0.5">
+                  {LINKS.map((link) => {
+                    const active = isActive(link.href);
+                    const Icon = link.icon;
+                    return (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          onClick={() => setOpen(false)}
+                          aria-current={active ? "page" : undefined}
+                          className={cx(
+                            "flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors",
+                            active ? "bg-raise text-text" : "text-muted hover:text-text",
+                          )}
+                        >
+                          <span className="grid place-items-center">
+                            <Icon heavy={active} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-note">{link.label}</span>
+                            {/* Room for the outcome line here, which is where it always read best. */}
+                            <span className="block truncate text-label text-faint">{link.outcome}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <div className="mt-3 border-t border-line pt-3 sm:hidden">
+                  <ThemeToggle />
+                </div>
+              </div>
             </motion.div>
           </>
         ) : null}
@@ -185,95 +270,6 @@ export function Nav() {
   );
 }
 
-/**
- * The rail's contents, shared by the fixed rail and the drawer.
- *
- * One component rather than two so they can never drift apart -- a link added to a duplicated mobile
- * menu is the classic way a nav ends up inconsistent. The theme toggle appears twice on small screens
- * as a result, once in the top bar and once in the drawer, which is the cheaper of the two problems.
- */
-function RailBody({
-  isActive,
-  onNavigate,
-}: {
-  isActive: (href: string) => boolean;
-  onNavigate: () => void;
-}) {
-  return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <Link
-        href="/"
-        onClick={onNavigate}
-        className="flex shrink-0 items-center gap-2 rounded-lg px-1 py-2"
-      >
-        <Mark />
-        <span className="font-display text-xl font-extrabold tracking-tight text-text">
-          Lockstep
-        </span>
-      </Link>
-
-      <nav aria-label="Primary" className="min-h-0 flex-1 overflow-y-auto">
-        <ul className="grid gap-1.5">
-          {LINKS.map((link) => {
-            const active = isActive(link.href);
-            const Icon = link.icon;
-            return (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  onClick={onNavigate}
-                  aria-current={active ? "page" : undefined}
-                  className={cx(
-                    "group/nav shout relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-label transition-colors",
-                    active ? "text-pinned-ink" : "text-muted hover:bg-raise hover:text-text",
-                  )}
-                >
-                  {active ? (
-                    <motion.span
-                      layoutId="nav-active"
-                      transition={SPRING_SOFT}
-                      className="chunk absolute inset-0 rounded-xl bg-pinned-tint [--line:var(--pinned)]"
-                    />
-                  ) : null}
-                  <span className="relative grid place-items-center">
-                    <Icon heavy={active} />
-                  </span>
-                  <span className="relative min-w-0">
-                    <span className="block">{link.label}</span>
-                    {/*
-                      The outcome line. `title` as well, so it is reachable by hover on a device with no
-                      pointer-fine hover and by anything reading the accessibility tree.
-                    */}
-                    <span
-                      title={link.outcome}
-                      className="mt-0.5 block truncate text-label leading-tight font-semibold tracking-normal normal-case opacity-0 transition-opacity duration-200 group-hover/nav:opacity-70 group-focus-visible/nav:opacity-70 lg:opacity-0"
-                    >
-                      {link.outcome}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {/*
-        Identity at the bottom, theme below it.
-        
-        This order is deliberate: the account is what a returning user checks, the theme is set once
-        and forgotten. Putting the toggle last keeps the thing that changes above the thing that does
-        not.
-      */}
-      <div className="shrink-0 space-y-3 border-t border-line pt-3">
-        <AccountControl />
-        <ThemeToggle />
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------------------------------------------------- icons */
 
 /*
  * Thick strokes, round joins, no fills.

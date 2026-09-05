@@ -36,6 +36,8 @@ import type { ReactNode } from "react";
 import { createWalletClient, custom } from "viem";
 import type { Address, WalletClient } from "viem";
 
+import { useSettings } from "./settings";
+
 /** The chain this dashboard is about. Anything else is a support question waiting to happen. */
 export const CHAIN_ID = 10143;
 
@@ -109,6 +111,15 @@ const MONAD_TESTNET_PARAMS = {
 };
 
 export function IdentityProvider({ children }: { children: ReactNode }) {
+  /*
+   * Settings are read here so `disconnect` can clear the account override it did not set.
+   *
+   * The dependency direction is safe: `SettingsProvider` sits above this one in the layout, and settings
+   * never read chain state or identity. See the note in `disconnect` for why the coupling is necessary
+   * rather than convenient.
+   */
+  const { clear: clearSetting } = useSettings();
+
   const [ready, setReady] = useState(false);
   const [address, setAddress] = useState<Address | undefined>(undefined);
   const [chainId, setChainId] = useState<number | undefined>(undefined);
@@ -240,7 +251,27 @@ export function IdentityProvider({ children }: { children: ReactNode }) {
     setAddress(undefined);
     setError(undefined);
     window.localStorage.removeItem(STORAGE_KEY);
-  }, []);
+
+    /*
+     * Also drops the settings override, and without this the whole action was a lie.
+     *
+     * `data.tsx` resolves whose account to read in order of how specific the source is: the build's
+     * configured address, then a `settings.account` override, then the connected wallet. Disconnecting only
+     * removed the third — but the quickstart's "point this at your account" step *writes* the second, with
+     * the connected address, precisely so the checklist can be satisfied.
+     *
+     * So a reader who had been through the quickstart and then disconnected saw every figure stay exactly
+     * where it was. The button reported success, the address disappeared from the chrome, and the dashboard
+     * carried on reading the same account. For a security tool that is the worst possible class of bug: the
+     * interface said the link was cut and it was not.
+     *
+     * Cleared unconditionally rather than only when it matches the connected address. The override exists to
+     * scope the dashboard to "me", and disconnecting is the statement that there is no "me" here any more —
+     * a reader who wants to keep reading some other address can set it again in Account, where the field
+     * says what it does.
+     */
+    clearSetting("account");
+  }, [clearSetting]);
 
   const switchChain = useCallback(async () => {
     const p = provider();

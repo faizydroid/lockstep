@@ -89,9 +89,17 @@ describe("nothing links a mid-flow reader somewhere they will be bounced from", 
     expect(chrome).toMatch(/\{inProduct \? <Nav \/> : <FlowBar \/>\}/);
   });
 
-  it("does not apply the rail offset when there is no rail", () => {
-    // Otherwise the landing page is indented 272px against nothing.
-    expect(chrome).toMatch(/inProduct \? "lg:pl-\[var\(--rail\)\]" : undefined/);
+  it("applies no rail offset at all, because there is no rail", () => {
+    /*
+     * This used to assert the offset was conditional, so the landing page was not indented 272px against a
+     * sidebar it did not render. The sidebar is gone entirely -- navigation is a top bar now -- so the
+     * correct assertion is that nothing offsets anything.
+     *
+     * A stale `lg:pl-[var(--rail)]` would be invisible in a screenshot of the dashboard and would push every
+     * page 272px right for no reason, which is exactly the kind of leftover this catches.
+     */
+    // Stripped: chrome.tsx's own comment records that `--rail` has no consumer left.
+    expect(stripComments(chrome), "the rail offset is back").not.toMatch(/--rail/);
   });
 
   it("keeps the only in-flow link pointed at a route allowed from every stage", () => {

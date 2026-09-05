@@ -79,10 +79,10 @@ export function Chrome({ children }: { children: React.ReactNode }) {
       {inProduct ? <Nav /> : <FlowBar />}
 
       {/*
-        The rail is `fixed`, so the offset only applies when the rail is there. Applying it
-        unconditionally would indent the landing page by 272px against nothing.
+        No offset any more. The 272px left rail became a top bar, so nothing is out of flow beside the
+        content and `--rail` has no consumer left.
       */}
-      <div className={inProduct ? "lg:pl-[var(--rail)]" : undefined}>
+      <div>
         <SourceBanner />
 
         <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">
