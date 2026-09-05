@@ -37,7 +37,7 @@ import { usePathname } from "next/navigation";
 
 import { Field } from "./field";
 import { useFlowStage } from "./flow-gate";
-import { Mark, NavBar, Rail } from "./nav";
+import { Mark, MobileTabs, NavBar, Rail } from "./nav";
 import { RouteShell } from "./route-shell";
 import { SourceBanner } from "./source-banner";
 import { ThemeToggle } from "./theme-toggle";
@@ -88,13 +88,22 @@ export function Chrome({ children }: { children: React.ReactNode }) {
       {inProduct ? <Rail /> : null}
 
       {/*
+        And the phone's version of it, pinned to the bottom, also out of flow.
+
+        Same gate for the same reason: a first-run reader must not be given a row of tabs the flow gate will
+        bounce them back from. The `pb-16` on the column below is what keeps the last line of the footer out
+        from under it.
+      */}
+      {inProduct ? <MobileTabs /> : null}
+
+      {/*
         The content column, offset by exactly the rail's width from `lg` up.
 
         `--rail` rather than a literal, because the rail sets its own width from the same variable and the
         two must not be able to disagree. It is 14rem expanded and 3.5rem collapsed; `html[data-rail]`
         switches it, so this one class covers both states with no JavaScript in the offset at all.
       */}
-      <div className={cx(inProduct && "lg:pl-[var(--rail)]")}>
+      <div className={cx(inProduct && "pb-16 lg:pb-0 lg:pl-[var(--rail)]")}>
         {inProduct ? <NavBar /> : <FlowBar />}
 
         <SourceBanner />

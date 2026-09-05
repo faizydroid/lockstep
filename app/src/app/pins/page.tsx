@@ -46,10 +46,25 @@ export default function PinsPage() {
    * What it stops is holding an unbounded string from someone else's link in state that several
    * components read, which is the shape a real bug grows from later.
    */
+  /*
+   * No dependency array, deliberately, and it replaces a mount-only version of the same read.
+   *
+   * The mount effect was correct for the only way in that existed at the time: a deep link from somewhere
+   * else, which mounts this page. The command palette can now push `?pin=` while the reader is already
+   * standing on `/pins`, and that is a client navigation rather than a mount -- so the URL changed, the
+   * mount effect did not re-run, and a search result silently did nothing.
+   *
+   * Running after every render is cheap: it reads one query parameter and almost always no-ops. It cannot
+   * fight `select` below either, because that sets state before it rewrites the URL, so by the time this
+   * runs the two already agree.
+   *
+   * The absent-parameter case leaves state alone on purpose. Navigating to a bare `/pins` should keep
+   * whatever panel is open rather than snapping back to the first pin in the list.
+   */
   useEffect(() => {
     const fromUrl = pinIdFromQuery(window.location.search);
-    if (fromUrl !== undefined) setSelectedId(fromUrl);
-  }, []);
+    if (fromUrl !== undefined && fromUrl !== selectedId) setSelectedId(fromUrl);
+  });
 
   const selected = snapshot.pins.find((p) => p.pinId === selectedId) ?? snapshot.pins[0];
 

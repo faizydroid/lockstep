@@ -103,9 +103,18 @@ describe("nothing links a mid-flow reader somewhere they will be bounced from", 
      * unconditional `lg:pl-[var(--rail)]` would indent the first-run flow pages against a rail those pages
      * deliberately do not render.
      */
-    expect(stripComments(chrome), "the rail offset is missing").toMatch(
-      /cx\(inProduct && "lg:pl-\[var\(--rail\)\]"\)/,
-    );
+    const offset = /cx\(inProduct && "([^"]+)"\)/.exec(stripComments(chrome))?.[1] ?? "";
+
+    expect(offset, "the rail offset is missing").toContain("lg:pl-[var(--rail)]");
+    /*
+     * And the room for the bottom tab bar, in the same expression for the same reason.
+     *
+     * The phone's navigation is `fixed bottom-0`, so without bottom padding on this column the last line of
+     * the footer renders underneath it. Conditional too: the first-run flow does not draw the tab bar, and
+     * padding a page for a bar that is not there is a strip of dead space at the end of the profile form.
+     */
+    expect(offset, "nothing leaves room for the mobile tab bar").toContain("pb-16");
+    expect(offset, "the padding is not dropped once the rail appears").toContain("lg:pb-0");
   });
 
   it("keeps the only in-flow link pointed at a route allowed from every stage", () => {

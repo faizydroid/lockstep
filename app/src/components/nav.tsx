@@ -49,6 +49,7 @@ import type { ReactNode } from "react";
 
 import { applyRail } from "@/lib/rail";
 
+import { CommandPalette } from "./command-palette";
 import { useCertainty, useSnapshot } from "./data";
 import { WalletMenu } from "./wallet-menu";
 import { AnimatePresence, SPRING_SOFT, motion } from "./motion";
@@ -115,6 +116,18 @@ const GROUPS: readonly NavGroup[] = [
 
 /** Flattened, for the mobile sheet and for anything that wants the set rather than the structure. */
 const LINKS: readonly NavLink[] = GROUPS.flatMap((group) => group.links);
+
+/*
+ * The three that get a tab of their own on a phone, in order.
+ *
+ * Referenced by href and resolved against `LINKS` rather than duplicated, so a label or an outcome line is
+ * edited in one place. Three plus an overflow item is four targets, which is inside the three-to-five range
+ * every platform guideline gives and leaves each one comfortably wider than a fingertip.
+ *
+ * These three are the questions a reader opens the app to answer: is anything wrong, what changed, and what
+ * is a skill allowed to do. Bonds and Badge are things you do once; Approvals is a record you consult.
+ */
+const TAB_HREFS: readonly string[] = ["/dashboard", "/drift", "/pins"];
 
 function useIsActive() {
   const pathname = usePathname();
@@ -317,29 +330,9 @@ function Badge({ count, compact }: { count: number; compact: boolean }) {
  * they are reading -- which the wallet menu, by definition, cannot tell them.
  */
 export function NavBar() {
-  const isActive = useIsActive();
   const { expanded, toggle } = useRail();
-  const needsDecision = useNeedsDecision();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [open]);
 
   return (
-    <>
     <header className="sticky top-0 z-30 border-b border-line bg-bg">
       <div className="gutter flex h-14 items-center gap-2">
         {/* The mark, below `lg` only. Above it, the rail already has one and two would be a duplicate. */}
@@ -359,40 +352,130 @@ export function NavBar() {
           <IconPanel open={expanded} />
         </button>
 
+        {/*
+          The palette, next to the rail toggle rather than out on the right.
+
+          Left-of-centre is where every product that ships one puts it, because it belongs to the content
+          rather than to the account. The right-hand cluster is identity and appearance; putting a search
+          control in it would make the reader hunt for it among things that are not search.
+        */}
+        <CommandPalette />
+
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <NetworkChip />
           <WalletMenu />
           <span className="hidden sm:block">
             <ThemeToggle />
           </span>
-
-          {/* The menu button, below `lg`, where there is no rail. */}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-expanded={open}
-            aria-controls="nav-sheet"
-            aria-label="Open menu"
-            className="press chunk grid size-9 place-items-center rounded-md bg-panel text-muted lg:hidden"
-          >
-            <span aria-hidden className="grid gap-[3px]">
-              <span className="block h-[2px] w-4 rounded-pill bg-current" />
-              <span className="block h-[2px] w-4 rounded-pill bg-current" />
-              <span className="block h-[2px] w-4 rounded-pill bg-current" />
-            </span>
-          </button>
         </div>
       </div>
     </header>
+  );
+}
 
-    {/*
-      The sheet lives with the button that opens it.
+/**
+ * Below `lg`: a bottom tab bar, with everything else behind one overflow item.
+ *
+ * ## Why the bottom, and why four
+ *
+ * The hamburger this replaces put every destination two taps away and both of them at the top of the
+ * screen, which is the hardest place to reach one-handed on a phone. A tab bar is one tap, in the thumb
+ * zone, and it shows where you are without being opened. Three to five items is the ceiling in every
+ * platform guideline for the same reason: past five the targets are closer together than a fingertip is
+ * wide. Each one is at least 44px, which is what a fingertip actually covers.
+ *
+ * Dashboard, Drift and Pins are the three, chosen as the three questions a reader opens this app to answer:
+ * is anything wrong, what changed, and what is a skill allowed to do. Approvals, Publishers, Bonds and
+ * Badge are behind "More", which opens the full grouped list — so nothing is unreachable and nothing common
+ * costs two taps.
+ *
+ * The icons keep their labels. An icon-only tab bar is a memory test, and these are project coinages: a
+ * reader cannot deduce "drift" from a glyph they have never seen attached to the word.
+ */
+export function MobileTabs() {
+  const isActive = useIsActive();
+  const needsDecision = useNeedsDecision();
+  const [open, setOpen] = useState(false);
 
-      It is `fixed`, so its position in the document does not matter, and keeping the pair in one component
-      means the open state never has to leave this file. The rail is a separate export because it has to be
-      mounted outside the column it offsets; the sheet has no such constraint.
-    */}
-    <AnimatePresence>
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const tabs = TAB_HREFS.map((href) => LINKS.find((link) => link.href === href)).filter(
+    (link): link is NavLink => link !== undefined,
+  );
+
+  return (
+    <>
+      {/*
+        `pb-[env(safe-area-inset-bottom)]` is not cosmetic. Without it the row sits under the iOS home
+        indicator, so the bottom third of every target is a gesture area rather than a button.
+      */}
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
+        <ul className="grid grid-cols-4">
+          {tabs.map((link) => {
+            const active = isActive(link.href);
+            const Icon = link.icon;
+            const count = link.href === "/drift" ? needsDecision : 0;
+
+            return (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cx(
+                    "relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 px-1 py-2",
+                    active ? "text-text" : "text-faint",
+                  )}
+                >
+                  <Icon heavy={active} />
+                  <span className="text-label leading-none">{link.label}</span>
+                  {count > 0 ? <Badge count={count} compact /> : null}
+                </Link>
+              </li>
+            );
+          })}
+
+          <li>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-expanded={open}
+              aria-controls="nav-sheet"
+              className={cx(
+                "flex min-h-[44px] w-full flex-col items-center justify-center gap-0.5 px-1 py-2",
+                open ? "text-text" : "text-faint",
+              )}
+            >
+              <IconMore />
+              <span className="text-label leading-none">More</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      {/*
+        The overflow sheet. Comes up from the bottom now, because that is where the button that opens it is.
+
+        A sheet that drops from the top while the finger is at the bottom of the screen makes the reader
+        move their hand to a menu they just asked for from where their hand already was.
+      */}
+      <AnimatePresence>
       {open ? (
         <>
           <motion.button
@@ -406,17 +489,18 @@ export function NavBar() {
             transition={{ duration: 0.18 }}
           />
 
-          <motion.div
+          <motion.nav
             id="nav-sheet"
-            className="fixed inset-x-0 top-0 z-50 border-b border-line bg-bg lg:hidden"
-            initial={{ y: "-100%" }}
+            aria-label="All sections"
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-xl border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden"
+            initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "-100%" }}
+            exit={{ y: "100%" }}
             transition={SPRING_SOFT}
           >
             <div className="gutter py-3">
               <div className="flex h-8 items-center justify-between">
-                <span className="shout text-label text-faint">Menu</span>
+                <span className="shout text-label text-faint">All sections</span>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -475,7 +559,7 @@ export function NavBar() {
                 <ThemeToggle />
               </div>
             </div>
-          </motion.div>
+          </motion.nav>
         </>
       ) : null}
     </AnimatePresence>
@@ -648,6 +732,22 @@ function IconShield({ heavy = false }: { heavy?: boolean }) {
  * same panel at two widths and the icon should say that. An arrow would say "go somewhere", which is what
  * every other control in this bar does.
  */
+/**
+ * Three dots, for the overflow tab.
+ *
+ * Horizontal rather than vertical: vertical dots mean "actions on this item" everywhere else on the web, and
+ * this is not an item, it is more of the same list.
+ */
+function IconMore() {
+  return (
+    <Glyph>
+      <circle cx="5.5" cy="12" r="0.1" />
+      <circle cx="12" cy="12" r="0.1" />
+      <circle cx="18.5" cy="12" r="0.1" />
+    </Glyph>
+  );
+}
+
 function IconPanel({ open }: { open: boolean }) {
   return (
     <svg
