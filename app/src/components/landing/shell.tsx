@@ -20,6 +20,7 @@ import Link from "next/link";
 
 import { Mark } from "../nav";
 import { useExplore } from "../start";
+import { ThemeToggle } from "../theme-toggle";
 
 /**
  * Where the header points. Three items, which is as many as a landing page can carry usefully.
@@ -51,6 +52,17 @@ export function LandingHeader() {
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
+          {/*
+            The theme toggle belongs here now.
+
+            While the landing page was its own `.clinical` scope it forced `color-scheme: dark` and a toggle
+            would have had nothing to change, so there was none -- and a reader who set light mode in the app
+            and came back to `/` found it ignored with nothing to explain why. One language means one control.
+          */}
+          <span className="mr-1 hidden sm:block">
+            <ThemeToggle />
+          </span>
+
           {NAV.map((item) => {
             const shape =
               "rounded-md px-2.5 py-1.5 text-note text-muted transition-colors hover:bg-raise hover:text-text sm:px-3";

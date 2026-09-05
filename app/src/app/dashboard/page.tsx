@@ -21,12 +21,12 @@
 
 import Link from "next/link";
 
-import { useSnapshot } from "@/components/data";
+import { useCertainty, useSnapshot } from "@/components/data";
 import { FingerprintDiff, FingerprintMark } from "@/components/fingerprint";
 import { CountUp, Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Quickstart } from "@/components/quickstart";
 import { Scoreboard } from "@/components/scoreboard";
-import { Button, Card, Pill, Section, StatePill, cx } from "@/components/ui";
+import { Button, Card, Empty, Pill, Section, StatePill, cx } from "@/components/ui";
 import { formatBond, formatCount, timeAgo } from "@/lib/format";
 import type { DataSource } from "@/lib/model";
 import { displayName } from "@/lib/untrusted";
@@ -68,6 +68,18 @@ export default function DashboardPage() {
             </Button>
           }
         >
+          {/*
+            An empty registry rendered the "Pins" heading and the "All pins" button above an empty div.
+
+            Every other list in the app has a real `Empty` state; this one had no length guard at all, so a
+            fresh deployment showed a section that looked broken rather than one that looked new.
+          */}
+          {pins.length === 0 ? (
+            <Empty title="No pins yet">
+              Nothing has been published to this registry. The first publish locks a bond priced by how much
+              the skill may do, so an empty registry is the normal starting state rather than a fault.
+            </Empty>
+          ) : (
           <RevealGroup className="space-y-3">
             {pins.slice(0, 5).map((pin) => (
               <RevealItem key={pin.pinId}>
@@ -105,22 +117,23 @@ export default function DashboardPage() {
               </RevealItem>
             ))}
           </RevealGroup>
+          )}
         </Section>
 
         <Section eyebrow="Refused at settlement" title="Blocked calls">
           {blocked.length === 0 ? (
-            <Card>
-              <p className="font-display text-lg font-extrabold text-text">
-                Nothing to show here yet
-              </p>
-              <p className="mt-2 text-sm leading-relaxed font-semibold text-muted">
-                A refusal emits no event, deliberately: a log written before a revert is rolled back
-                and never reaches an indexer. An earlier version did emit one, which made a refusal
-                cost more gas than a success while still telling nobody. Reading them needs a node
-                that can replay reverted transactions, which is the watcher&rsquo;s job rather than a
-                browser&rsquo;s.
-              </p>
-            </Card>
+            /*
+              Was a hand-rolled Card with a `font-display` paragraph standing in for a title.
+
+              Five other lists in the app use `Empty`, which carries the mascot and a consistent type scale,
+              so this was the one empty state that looked like a different product. Same copy, shared shell.
+            */
+            <Empty title="Nothing to show here yet">
+              A refusal emits no event, deliberately: a log written before a revert is rolled back and never
+              reaches an indexer. An earlier version did emit one, which made a refusal cost more gas than a
+              success while still telling nobody. Reading them needs a node that can replay reverted
+              transactions, which is the watcher&rsquo;s job rather than a browser&rsquo;s.
+            </Empty>
           ) : (
             <RevealGroup className="space-y-3">
               {blocked.slice(0, 4).map((attempt) => (
@@ -177,7 +190,17 @@ function Ledger({
   source: DataSource;
 }) {
   const bondWhole = Number(totals.bondLocked / 10n ** BigInt(pricing.bondAssetDecimals));
-  const live = source.kind === "chain";
+
+  /*
+   * Three states, not `source.kind === "chain"`.
+   *
+   * While the read is in flight the seeded snapshot is a fixture, so the old expression titled this section
+   * "What this looks like with data in it" and captioned the big figure "sample" before it had looked at
+   * anything. See `useCertainty` in components/data.tsx.
+   */
+  const certainty = useCertainty();
+  const live = certainty === "chain";
+  const reading = certainty === "reading";
 
   const rows = [
     {
@@ -214,10 +237,16 @@ function Ledger({
    */
   return (
     <Section
-      eyebrow={live ? "Registry" : "Registry \u00b7 sample"}
-      title={live ? "What is on chain right now" : "What this looks like with data in it"}
+      eyebrow={live ? "Registry" : reading ? "Registry \u00b7 reading" : "Registry \u00b7 sample"}
+      title={
+        live
+          ? "What is on chain right now"
+          : reading
+            ? "Reading the registry"
+            : "What this looks like with data in it"
+      }
       description={
-        live ? undefined : (
+        live || reading ? undefined : (
           <>
             No registry address is configured, so these are worked examples, not readings. Every
             figure below is derived from the sample fixtures rather than a deployment &mdash; the
@@ -232,7 +261,12 @@ function Ledger({
         <Reveal>
           <div>
             <p className="shout text-label text-faint">
-              Live pins {live ? null : <span className="text-attention-ink">&middot; sample</span>}
+              Live pins{" "}
+              {live ? null : reading ? (
+                <span className="text-muted">&middot; reading</span>
+              ) : (
+                <span className="text-attention-ink">&middot; sample</span>
+              )}
             </p>
             {/* Deliberately oversized. One number should dominate, or none of them register. */}
             <p className="font-display text-5xl leading-[0.85] font-extrabold tracking-[-0.04em] text-bonded-ink sm:text-6xl xl:text-6xl">

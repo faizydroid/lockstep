@@ -37,7 +37,7 @@
  * has expressed no preference yet when they arrive.
  */
 
-import { useSnapshot } from "@/components/data";
+import { useCertainty, useSnapshot } from "@/components/data";
 import { Hero } from "@/components/landing/hero";
 import { Hook } from "@/components/landing/hook";
 import { Mechanism } from "@/components/landing/mechanism";
@@ -48,7 +48,17 @@ import { StartHere } from "@/components/start";
 
 export default function LandingPage() {
   const { snapshot } = useSnapshot();
-  const live = snapshot.source.kind === "chain";
+
+  /*
+   * Three states, not two.
+   *
+   * `source.kind === "chain"` is false while the read is in flight, because the provider seeds a fixture
+   * snapshot so the first paint is a complete layout rather than a page of skeletons. Deriving "live" from it
+   * therefore made this page assert that no registry was configured for the first second of every visit. See
+   * `useCertainty` in components/data.tsx.
+   */
+  const certainty = useCertainty();
+  const live = certainty === "chain";
 
   /*
    * The hook needs two hashes that genuinely disagree, and handles not having them.
@@ -61,29 +71,41 @@ export default function LandingPage() {
   const drift = snapshot.drifted[0];
 
   return (
-    <div className="clinical min-h-dvh">
+    <div className="min-h-dvh">
       <LandingHeader />
 
-      <Hero live={live} chainId={live ? snapshot.source.chainId : undefined} />
-
-      <Hook approvedHash={drift?.approvedHash} currentHash={drift?.currentHash} live={live} />
-
-      <Registry snapshot={snapshot} />
-
-      <Mechanism />
-
       {/*
-        The ask, once, after the argument and before the boundary.
+        `id="main"` so the layout's skip link works here.
 
-        `StartHere` carries the wallet priming and the durable skip, so a reader who will not connect is not
-        stranded here -- which matters more on this page than anywhere else, since the people this is built
-        for are the most likely to refuse.
+        It was broken on this route: the skip link targets `#main`, which lived inside the app chrome, and
+        this page opts out of that chrome. A keyboard user landing on the front page had a skip link that
+        went nowhere -- which is worse than not having one, because it looks like the page is broken.
       */}
-      <section className="mx-auto w-full max-w-3xl px-5 pb-16 sm:px-8 sm:pb-20">
-        <StartHere />
-      </section>
+      <main id="main">
+        <Hero
+          certainty={certainty}
+          chainId={snapshot.source.kind === "chain" ? snapshot.source.chainId : undefined}
+        />
 
-      <ThreatModel />
+        <Hook approvedHash={drift?.approvedHash} currentHash={drift?.currentHash} live={live} />
+
+        <Registry snapshot={snapshot} certainty={certainty} />
+
+        <Mechanism />
+
+        {/*
+          The ask, once, after the argument and before the boundary.
+
+          `StartHere` carries the wallet priming and the durable skip, so a reader who will not connect is
+          not stranded here -- which matters more on this page than anywhere else, since the people this is
+          built for are the most likely to refuse.
+        */}
+        <section className="mx-auto w-full max-w-3xl px-5 pb-16 sm:px-8 sm:pb-20">
+          <StartHere />
+        </section>
+
+        <ThreatModel />
+      </main>
 
       <LandingFooter />
     </div>

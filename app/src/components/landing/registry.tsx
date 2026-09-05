@@ -22,21 +22,33 @@
  * furniture.
  */
 
+import type { Certainty } from "@/components/data";
 import { useExplore } from "@/components/start";
 import { bondBreakdown } from "@/lib/bond";
 import { formatBond, formatCount } from "@/lib/format";
 import type { Pin, Snapshot } from "@/lib/model";
 import { displayName } from "@/lib/untrusted";
 
-export function Registry({ snapshot }: { snapshot: Snapshot }) {
+export function Registry({ snapshot, certainty }: { snapshot: Snapshot; certainty: Certainty }) {
   const { source, totals, pricing } = snapshot;
-  const live = source.kind === "chain";
+  const live = certainty === "chain";
   const explore = useExplore();
 
   const metrics: readonly { label: string; value: string }[] = [
     {
+      /*
+       * Narrowed on `source.kind` rather than on `live`.
+       *
+       * `live` now comes from `certainty`, which the compiler cannot use to narrow the DataSource union — and
+       * it is right not to: the two are only correlated, and `blockNumber` exists on exactly one member.
+       */
       label: "Current block",
-      value: live ? formatCount(Number(source.blockNumber)) : "\u2014",
+      value:
+        source.kind === "chain"
+          ? formatCount(Number(source.blockNumber))
+          : certainty === "reading"
+            ? "\u2026"
+            : "\u2014",
     },
     { label: "Live pins", value: formatCount(totals.livePins) },
     {
@@ -54,11 +66,25 @@ export function Registry({ snapshot }: { snapshot: Snapshot }) {
       <div className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="hash text-label tracking-wide text-faint">
-              {live ? "READ FROM CHAIN" : "WORKED EXAMPLE"}
+            {/*
+              Three states, because two of them used to be one.
+
+              "Worked example" was printed for the whole duration of the chain read as well as when there was
+              genuinely no registry, so the section claimed the figures were invented before it had looked.
+            */}
+            <p className="shout text-label text-faint">
+              {certainty === "chain"
+                ? "Read from chain"
+                : certainty === "reading"
+                  ? "Reading"
+                  : "Worked example"}
             </p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text sm:text-3xl">
-              {live ? "Live registry" : "What the registry looks like with data in it"}
+            <h2 className="mt-2 text-2xl tracking-tight text-text sm:text-3xl">
+              {certainty === "chain"
+                ? "Live registry"
+                : certainty === "reading"
+                  ? "Reading the registry"
+                  : "What the registry looks like with data in it"}
             </h2>
           </div>
 
@@ -78,14 +104,19 @@ export function Registry({ snapshot }: { snapshot: Snapshot }) {
           Rendered only when it is true. An unconditional caveat is wallpaper; one that appears exactly when
           the figures are invented is information.
         */}
-        {live ? null : (
+        {certainty === "sample" ? (
           <p className="mt-4 max-w-2xl text-note leading-relaxed text-attention-ink">
             No registry address is configured in this build, so every figure below is derived from sample
             fixtures rather than read from a deployment. Point{" "}
             <code className="hash text-label">NEXT_PUBLIC_PIN_REGISTRY</code> at one and the same components
             read it instead.
           </p>
-        )}
+        ) : certainty === "reading" ? (
+          <p className="mt-4 max-w-2xl text-note leading-relaxed text-muted">
+            Reading the registry now. The figures below are placeholders until it answers, and they will be
+            replaced rather than adjusted.
+          </p>
+        ) : null}
 
         <div className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line lg:grid-cols-4">
           {metrics.map((metric) => (

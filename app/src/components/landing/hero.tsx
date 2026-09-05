@@ -26,11 +26,27 @@
  * page the example.
  */
 
+import type { Certainty } from "../data";
 import { useExplore } from "../start";
 import { Term } from "../term";
 
-export function Hero({ live, chainId }: { live: boolean; chainId: number | undefined }) {
+/**
+ * @param certainty Whether the badge may claim to be live. Three states, not two.
+ *
+ * This took a `live: boolean` and printed "NO REGISTRY CONFIGURED" whenever it was false — including for the
+ * whole duration of the chain read, because the seeded snapshot is a fixture. So the first thing a visitor
+ * saw was the product asserting that its own deployment did not exist, followed by a silent flip to "LIVE ON
+ * MONAD TESTNET". "Not yet looked" and "looked and found nothing" need different words.
+ */
+export function Hero({
+  certainty,
+  chainId,
+}: {
+  certainty: Certainty;
+  chainId: number | undefined;
+}) {
   const explore = useExplore();
+  const live = certainty === "chain";
 
   return (
     <section className="mx-auto w-full max-w-4xl px-5 pt-14 pb-10 text-center sm:px-8 sm:pt-20 sm:pb-14">
@@ -43,13 +59,19 @@ export function Hero({ live, chainId }: { live: boolean; chainId: number | undef
       <div className="inline-flex items-center gap-2 rounded-pill border border-line bg-raise px-3 py-1.5">
         <span
           className={`relative flex size-1.5 shrink-0 rounded-pill ${
-            live ? "live-ring bg-bonded text-bonded" : "bg-faint text-faint"
+            live
+              ? "live-ring bg-bonded text-bonded"
+              : certainty === "reading"
+                ? "live-ring bg-attention text-attention"
+                : "bg-faint text-faint"
           }`}
         />
-        <span className="hash text-label tracking-wide text-muted">
-          {live
-            ? `LIVE ON MONAD ${chainId === 143 ? "MAINNET" : "TESTNET"}`
-            : "NO REGISTRY CONFIGURED"}
+        <span className="shout text-label text-muted">
+          {certainty === "chain"
+            ? `Live on Monad ${chainId === 143 ? "mainnet" : "testnet"}`
+            : certainty === "reading"
+              ? "Reading the registry"
+              : "No registry configured"}
         </span>
       </div>
 

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 /**
  * Account: who you are here, whether anything is enforcing it, and the few things you can change.
  *
@@ -276,9 +278,17 @@ function Profile() {
               It has {publisher.pinCount} pin{publisher.pinCount === 1 ? "" : "s"} in this registry
               and {publisher.hasEquivocated ? "has been slashed for equivocation" : "a clean record"}.
               Worth knowing when reading the reviewer panel on{" "}
-              <a className="underline decoration-2 underline-offset-2" href="/publishers">
+              {/*
+                `Link`, not a raw anchor. This was the only internal navigation in the app that was not one,
+                so it triggered a full document load: the whole chain read ran again and the profile/settings
+                tab state was lost, for a link that reads as ordinary in-app navigation.
+              */}
+              <Link
+                className="underline decoration-line-strong underline-offset-4 hover:decoration-text"
+                href="/publishers"
+              >
                 publishers
-              </a>
+              </Link>
               : an account that approves its own release is vouching for itself, which is true and is
               not independent review.
             </p>

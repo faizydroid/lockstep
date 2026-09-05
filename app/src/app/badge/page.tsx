@@ -9,7 +9,7 @@
  * notice would be a publisher whose README looked wrong.
  */
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { renderBadge, badgeSnippet } from "@lockstep/badge";
 import type { BadgeInput, BadgeState } from "@lockstep/badge";
 
@@ -220,25 +220,39 @@ function Slider({
   onChange: (next: number) => void;
   hint: string;
 }) {
+  /*
+   * `useId`, not a slug of the label.
+   *
+   * The id was `slider-${label}`, and the labels are prose: "Bond, whole units" and "High-risk
+   * capabilities". That produced ids containing a comma and spaces, which are not valid in an id and break
+   * the `htmlFor` association — so clicking the visible label did not focus the slider. Deriving an id from
+   * copy is the bug; copy is allowed to contain anything.
+   */
+  const id = useId();
+
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-4">
-        <label className="text-sm text-text" htmlFor={`slider-${label}`}>
+        <label className="text-note text-text" htmlFor={id}>
           {label}
         </label>
-        <span className="hash text-sm text-muted">{value}</span>
+        <span className="hash text-note text-muted">{value}</span>
       </div>
       <input
-        id={`slider-${label}`}
+        id={id}
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-pill bg-raise-strong accent-pinned"
+        /*
+          `py-2` on a range gives the thumb a 32px hit band without changing the 6px track's appearance.
+          The bare `h-1.5` track was a 6px target, which is unusable with a finger.
+        */
+        className="w-full cursor-pointer appearance-none rounded-pill bg-raise-strong py-2 accent-pinned"
       />
-      <p className="text-xs leading-relaxed text-faint">{hint}</p>
+      <p className="text-label leading-relaxed text-faint">{hint}</p>
     </div>
   );
 }

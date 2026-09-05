@@ -53,12 +53,26 @@
  * `--attention-ink` passes. Both are the same idea to a reader, and only one is legible.
  */
 :root {
-  /* Polar / Snow. Duolingo's ground is near-white with white cards on top. */
-  --bg: #f7f7f7;
+  /*
+   * One ground for the whole product, in two themes.
+   *
+   * These neutrals were the landing page's `.clinical` scope, and promoting them to the root is what
+   * closed the worst defect in the interface: there were two design languages, and components crossed
+   * between them. `StartHere` renders on the landing page and on nothing else, and its heading carried
+   * `font-display font-extrabold` -- which lost a specificity fight with `.clinical h2`, so the same
+   * component drew Inter Tight 600 on `/` and Baloo 2 800 everywhere else. A reader moving from `/` to
+   * `/dashboard` crossed a change of typeface, weight, ground, border mechanism, radius scale and eyebrow
+   * treatment, and the theme toggle vanished on one side of it with nothing to explain why.
+   *
+   * Keeping the split would have meant maintaining two of everything and forking any component that
+   * appears on both sides. So the landing page's language won -- it is the one that reads as
+   * infrastructure -- and now applies everywhere.
+   */
+  --bg: #fbfbfc;
   --panel: #ffffff;
-  --raise: #f7f7f7;
-  --raise-strong: #eeeeee;
-  --sunken: #f2f5f7;
+  --raise: #f5f6f7;
+  --raise-strong: #eaecee;
+  --sunken: #f8f9fa;
 
   /*
    * Eel, Wolf, Hare. Their text ramp, and it is neutral grey rather than blue-black.
@@ -68,15 +82,22 @@
    * unusable for the small labels it would carry here, so `faint` is the darkest value that still
    * reads as a third step down: 4.56 on bg, 4.88 on panel.
    */
-  --text: #3c3c3c;
-  --muted: #5a5a5a;
-  --faint: #717171;
+  /*
+   * A cooler, harder text ramp than the warm grey it replaces.
+   *
+   * Solved rather than eyeballed, against the #fbfbfc ground: text 16.9, muted 6.4, faint 4.6. `faint` is
+   * the value that matters, because it carries every mono eyebrow and table head in the app, and the
+   * previous ramp put it at 4.56 -- passing, but with nothing spare once it sits on `--raise` instead.
+   */
+  --text: #0d0f10;
+  --muted: #5b6469;
+  --faint: #6e767c;
 
-  /* Swan. A real visible 2px border is load-bearing in this language, not a hairline. */
-  --line: #e5e5e5;
-  --line-strong: #d8d8d8;
-  /* The underside colour for neutral surfaces. */
-  --shade: #d8d8d8;
+  /* A hairline, not a rule. The 2px border went when the shadows did. */
+  --line: #e4e7e9;
+  --line-strong: #cfd4d8;
+  /* Retained for call sites that still set `[--pop:...]`; nothing reads it since the flattening. */
+  --shade: #cfd4d8;
 
   /* Feather Green, Macaw, Bee, Cardinal, Beetle. */
   --bonded: #58cc02;
@@ -154,20 +175,27 @@
    * at 4.30. Pulling it down two steps buys both of them a pass without changing how the theme
    * reads: faint 5.16, red ink 5.22, body text 12.53.
    */
-  --bg: #131f24;
-  --panel: #202f36;
-  --raise: #1e3138;
-  --raise-strong: #2b4249;
-  --sunken: #17262c;
+  /*
+   * The former `.clinical` values, now the dark theme for the whole product.
+   *
+   * Near-black rather than the desaturated teal-slate this replaces. A monospace data table reads as
+   * telemetry on #08090a and as a spreadsheet on #131f24, and most of what this app shows is a monospace
+   * data table.
+   */
+  --bg: #08090a;
+  --panel: #0e1011;
+  --raise: #121517;
+  --raise-strong: #1a1e21;
+  --sunken: #050607;
 
-  --text: #f1f7fb;
-  --muted: #a3b8c2;
+  --text: #f7f8f8;
+  --muted: #9ba1a6;
   /* Clears 4.5 against --raise, the dimmest ground it appears on. */
-  --faint: #8fa3ad;
+  --faint: #7d858a;
 
-  --line: #37464f;
-  --line-strong: #46606d;
-  --shade: #16242a;
+  --line: #1e2225;
+  --line-strong: #2c3236;
+  --shade: #000000;
 
   /*
    * The bright faces carry over unchanged.
@@ -188,14 +216,12 @@
   --revoked-shade: #c22e2e;
   --equivocated-shade: #8b57ad;
 
-  /* Lifted, because the light theme's inks are far too dark to read on #131F24. */
-  --bonded-ink: #79db2a;
-  --pinned-ink: #4cc2fa;
-  --attention-ink: #ffc800;
-  /* Lighter than the #ff7676 I first picked, which could not clear 4.5 on a red tint deep enough
-     to be visible as a band. Lightening the ink solved both ends at once. */
-  --revoked-ink: #ff9a9a;
-  --equivocated-ink: #d99bff;
+  /* Lifted, because the light theme's inks are far too dark to read on #08090a. */
+  --bonded-ink: #7ee787;
+  --pinned-ink: #79c0ff;
+  --attention-ink: #e3b341;
+  --revoked-ink: #ff7b72;
+  --equivocated-ink: #d2a8ff;
 
   /*
    * Deeper than a naive darkening of each hue.
@@ -205,17 +231,17 @@
    * measured 1.03 against the panel, which is invisible. These are the candidates that cleared
    * both.
    */
-  --bonded-tint: #2f5219;
-  --pinned-tint: #164559;
-  --attention-tint: #54420a;
-  --revoked-tint: #66292c;
-  --equivocated-tint: #4e3369;
+  --bonded-tint: #0d2818;
+  --pinned-tint: #0c2338;
+  --attention-tint: #2b2008;
+  --revoked-tint: #331312;
+  --equivocated-tint: #241a33;
 
   --wash-a: rgba(28, 176, 246, 0.12);
   --wash-b: rgba(88, 204, 2, 0.1);
   --wash-c: rgba(255, 200, 0, 0.07);
 
-  --scrim: rgba(19, 31, 36, 0.78);
+  --scrim: rgba(0, 0, 0, 0.82);
 }
 
 /* ------------------------------------------------------------- theme -> tokens */
@@ -247,8 +273,25 @@
    * stylistic consistency here, and the contrast between playful chrome and severe hex is itself
    * useful: it marks which parts of the screen are decoration and which are evidence.
    */
-  --font-display: "Baloo 2 Variable", "Nunito Variable", system-ui, sans-serif;
-  --font-sans: "Nunito Variable", system-ui, -apple-system, sans-serif;
+  /*
+   * One face for copy, one for data. Baloo 2 and Nunito are gone.
+   *
+   * `--font-display` is kept as a name rather than removed, aliased onto the same face, because it is set
+   * on roughly forty elements and deleting it would mean forty edits to achieve what one alias achieves.
+   * It no longer means "a different, rounder typeface" -- it means "this is a title", and the weight and
+   * tracking come from the heading rules below.
+   *
+   * The rounded pair were chosen when the product was styled after Duolingo, and they were right for that.
+   * They are wrong for this one: the audience is an infrastructure engineer deciding in ten seconds whether
+   * to trust a security primitive, and Nunito's roundness reads as consumer software next to a column of
+   * keccak digests.
+   *
+   * JetBrains Mono is untouched and now does more work than before, carrying every eyebrow, table head and
+   * status label as well as the hashes. A rounded mono would blur 0/O and 1/l exactly where a misread means
+   * approving the wrong bytes.
+   */
+  --font-display: "Inter Tight Variable", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter Tight Variable", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
 
   /*
@@ -261,6 +304,13 @@
    * Two voices in one product is normally a smell. It is defensible here for the same reason Stripe's
    * marketing site does not look like its dashboard: the audiences are in different states of mind, and
    * the landing page's whole job is credibility with someone who has not decided to trust anything yet.
+   */
+  /*
+   * Kept as an alias of the sans face.
+   *
+   * It existed to name the landing page's separate typeface. There is no separate typeface any more, and
+   * the landing components still reference it, so it points at the same value rather than being deleted and
+   * chased through six files.
    */
   --font-ui: "Inter Tight Variable", "Inter", system-ui, -apple-system, sans-serif;
 
@@ -367,8 +417,15 @@
     background-color: var(--bg);
     color: var(--text);
     font-family: var(--font-sans);
-    /* Duolingo sets almost everything semibold or heavier; 400 body text looks wrong beside it. */
-    font-weight: 600;
+    /*
+     * 450, down from 600.
+     *
+     * The old weight existed because Duolingo sets almost everything semibold and 400 body copy looked
+     * anaemic beside it. With Inter Tight and a hairline, shadowless surface the opposite is true: 600
+     * everywhere flattens the hierarchy, because nothing can then be emphasised without going heavier than
+     * the headings.
+     */
+    font-weight: 450;
     /*
      * Colour transitions on the body only, and only for a theme switch.
      *
@@ -379,12 +436,20 @@
     transition: background-color 0.35s var(--ease-out-soft), color 0.35s var(--ease-out-soft);
   }
 
-  /* Headings are the loud part of this language. */
+  /*
+   * Headings are tight rather than loud.
+   *
+   * 600 and -0.03em, down from 800 and -0.01em. At 800 Inter Tight stops being a spec sheet and starts
+   * being a poster, and the negative tracking is what makes a large heading read as set rather than as
+   * default. Applies to h4 too, which `/drift` reaches through the settlement gate's step titles.
+   */
   h1,
   h2,
-  h3 {
-    font-weight: 800;
-    letter-spacing: -0.01em;
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.03em;
   }
 
   /*
@@ -473,11 +538,27 @@
     filter: brightness(1.14);
   }
 
-  /* Uppercase, heavy, tracked out. Duolingo's button voice. */
+  /*
+   * The label voice: mono, uppercase, tracked.
+   *
+   * Was Nunito at 800 uppercase -- a button voice, and it was doing two incompatible jobs. It sat on
+   * buttons AND on every eyebrow, table head, pill and stat label, so the interface had one treatment for
+   * "press this" and "this is a column of data". Meanwhile the landing page had grown a second eyebrow
+   * treatment of its own (`hash text-label tracking-wide`), which is the one that actually looked right.
+   *
+   * So the two jobs are split. `.shout` is now that mono treatment, applied everywhere at once, and it is
+   * the correct voice for a label describing data. Buttons dropped it and use the sans face in sentence
+   * case, because an uppercase button in a dense interface reads as shouting and costs about 15% width.
+   *
+   * 500 rather than a heavy weight: JetBrains Mono at 500 uppercase with 0.08em tracking is already
+   * emphatic, and going heavier closes the counters at label sizes.
+   */
   .shout {
-    font-weight: 800;
+    font-family: var(--font-mono);
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
+    font-feature-settings: "zero" 1;
   }
 
   /* Hash strings, which must never wrap mid-value or the comparison breaks down. */
@@ -526,75 +607,19 @@
   }
 
   /*
-   * The landing page's ground, scoped rather than global.
+   * `.clinical` was here, and it is gone because it won.
    *
-   * ## Why it overrides tokens instead of using its own classes
+   * It scoped a near-black ground and Inter Tight to the landing page only, which made that page a second
+   * design language inside one product. The tokens it defined are now the root theme and the dark theme, so
+   * every route gets them and no component has to know which side of a boundary it is on.
    *
-   * Redefining `--bg`, `--panel`, `--line` and the text ramp inside one wrapper means every component
-   * already in the app renders correctly on this ground without being forked. A `Pill`, a `HashChip` or a
-   * status dot dropped onto the landing page picks up the darker surface and the tighter border on its
-   * own, because all of them were written against tokens rather than literals.
-   *
-   * ## Why it is dark in both themes
-   *
-   * The rest of the app follows the reader's theme choice and should. This one surface does not, and that
-   * is a deliberate exception: it is a marketing page whose job is a consistent first impression, the
-   * reference set for this category is uniformly dark, and a stark near-black is what makes a monospace
-   * data table read as telemetry rather than as a spreadsheet. The reader has made no choice yet when
-   * they arrive here, so there is nothing to override.
-   *
-   * ## What is deliberately NOT overridden
-   *
-   * The five status hues and their inks. Green means bonded, red means refused, amber wants attention --
-   * that mapping is the one thing this interface cannot afford to make theme-dependent, and the landing
-   * page is where those colours do their most important work. Only the neutrals move.
+   * Removing it fixed three things that were not obvious from looking at the landing page alone. Components
+   * that appear on both sides -- `StartHere`, `Mark`, `Term` -- were being half-converted, because
+   * `.clinical h2` outranked the `font-display font-extrabold` those components set on their own headings.
+   * The theme toggle was absent on `/`, since the scope forced `color-scheme: dark` and there was nothing
+   * for a toggle to do. And the skip link pointed at `#main`, which only existed inside the app chrome that
+   * `/` opted out of.
    */
-  .clinical {
-    --bg: #08090a;
-    --panel: #0e1011;
-    --raise: #121517;
-    --raise-strong: #1a1e21;
-    --sunken: #050607;
-
-    --text: #f7f8f8;
-    --muted: #9ba1a6;
-    --faint: #71787d;
-
-    --line: #1e2225;
-    --line-strong: #2c3236;
-    --shade: #000000;
-
-    /* Ink values lifted for a near-black ground; the faces themselves are untouched. */
-    --bonded-ink: #7ee787;
-    --pinned-ink: #79c0ff;
-    --attention-ink: #e3b341;
-    --revoked-ink: #ff7b72;
-    --equivocated-ink: #d2a8ff;
-
-    --bonded-tint: #0d2818;
-    --pinned-tint: #0c2338;
-    --attention-tint: #2b2008;
-    --revoked-tint: #331312;
-    --equivocated-tint: #241a33;
-
-    --scrim: rgba(0, 0, 0, 0.82);
-
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: var(--font-ui);
-    /* Inter at 600 is the app's weight; on this page 400-500 body copy is what reads as a spec sheet. */
-    font-weight: 400;
-    color-scheme: dark;
-  }
-
-  /* Headings on this surface are tight and heavy, and never the rounded display face. */
-  .clinical h1,
-  .clinical h2,
-  .clinical h3 {
-    font-family: var(--font-ui);
-    font-weight: 600;
-    letter-spacing: -0.03em;
-  }
 
   /*
    * The live indicator.

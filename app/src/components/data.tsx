@@ -103,3 +103,40 @@ export function useSnapshot(): State {
   }
   return state;
 }
+
+/**
+ * Whether the figures on screen are a live reading, still loading, or fixtures — as three states.
+ *
+ * ## The bug this exists to fix
+ *
+ * `status` was exposed from the moment this provider was written and read by exactly one component, the
+ * source banner. Every page destructured only `snapshot`, and then computed `live = source.kind === "chain"`.
+ * During the read that expression is `false`, because the seeded snapshot is a fixture — so the interface
+ * did not say "loading", it asserted the *negative*:
+ *
+ *   the landing hero printed "NO REGISTRY CONFIGURED"
+ *   the registry block printed "WORKED EXAMPLE" under the heading "What the registry looks like with data
+ *   in it", plus an amber paragraph explaining that no registry was configured
+ *   the dashboard ledger titled itself "What this looks like with data in it"
+ *
+ * and then all of it silently flipped to the live version a moment later. On a page whose entire argument is
+ * that a claim and a reading are different things, that is the worst available failure: for the first second
+ * the product tells a visitor its own deployment does not exist.
+ *
+ * Two states could not express this. "Live or not" collapses "we have not looked yet" into "we looked and
+ * there is nothing", and those need different words.
+ */
+export type Certainty = "reading" | "chain" | "sample";
+
+export function useCertainty(): Certainty {
+  const { status, snapshot } = useSnapshot();
+
+  /*
+   * `status` is checked before the snapshot's own source.
+   *
+   * The seeded snapshot is a real fixture with `kind: "sample"`, so asking it first would report "sample"
+   * for the whole duration of the read and reintroduce exactly the false claim above.
+   */
+  if (status === "loading") return "reading";
+  return snapshot.source.kind === "chain" ? "chain" : "sample";
+}

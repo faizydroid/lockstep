@@ -156,10 +156,20 @@ const BUTTON_QUIET: Record<Tone, string> = {
     "bg-panel text-equivocated-ink [--line:var(--equivocated)] [--pop:var(--equivocated-shade)]",
 };
 
+/*
+ * Fixed heights rather than vertical padding.
+ *
+ * The audit found roughly ten distinct control heights across the app, several of them a couple of pixels
+ * apart, because every bespoke button picked its own `py-*`. Naming the height instead means two buttons of
+ * the same size always line up, including when one has an icon and the other does not.
+ *
+ * 36 / 40 / 44px. The top of the range is a comfortable touch target and the bottom is the smallest thing
+ * that still reads as a button rather than as a chip.
+ */
 const BUTTON_SIZE = {
-  sm: "px-4 py-2 text-label",
-  md: "px-6 py-3 text-sm",
-  lg: "px-8 py-4 text-base",
+  sm: "h-9 px-3.5 text-note",
+  md: "h-10 px-4 text-sm",
+  lg: "h-11 px-6 text-sm",
 } as const;
 
 /**
@@ -198,8 +208,16 @@ export function Button({
   full?: boolean;
   "aria-label"?: string;
 }) {
+  /*
+   * Sentence case and the sans face, not `.shout`.
+   *
+   * `.shout` is now the mono label voice used by eyebrows, table heads and pills, and it was previously
+   * doing that job *and* this one -- so "press this" and "this is a column of data" were set identically.
+   * An uppercase mono button also costs about 15% more width than sentence case at the same size, which in
+   * a dense interface is the difference between two buttons fitting on a row and not.
+   */
   const shape = cx(
-    "shout press inline-flex items-center justify-center gap-2 rounded-xl select-none",
+    "press inline-flex items-center justify-center gap-2 rounded-md font-medium select-none",
     variant === "solid" ? "pop-bare" : "pop",
     variant === "solid" ? BUTTON_SOLID[tone] : BUTTON_QUIET[tone],
     BUTTON_SIZE[size],

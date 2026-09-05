@@ -139,10 +139,26 @@ export default function ProfilePage() {
                 autoComplete="off"
                 spellCheck={false}
                 placeholder="Ada"
-                className="chunk w-full rounded-lg bg-sunken px-3 py-2.5 text-sm font-semibold text-text"
+                aria-describedby="name-rule"
+                className="chunk w-full rounded-md bg-sunken px-3 py-2.5 text-sm text-text placeholder:text-faint"
               />
-              <span className="block text-label font-semibold text-faint">
-                Used to greet you and nothing else. {name.trim().length}/{DISPLAY_NAME_MAX}
+              {/*
+                States the rule, not just the count.
+
+                Continue is disabled until the name is usable, and the only nearby signal was a character
+                counter that never said what made a name invalid. A disabled button with no reason is a dead
+                end, and `Button`'s disabled style sets `pointer-events-none`, so not even a tooltip can fire.
+              */}
+              <span
+                id="name-rule"
+                className={cx(
+                  "block text-label",
+                  name.length > 0 && !valid ? "text-attention-ink" : "text-faint",
+                )}
+              >
+                {name.length > 0 && !valid
+                  ? `Needs at least one character, up to ${DISPLAY_NAME_MAX}.`
+                  : `Used to greet you and nothing else. ${name.trim().length}/${DISPLAY_NAME_MAX}`}
               </span>
             </label>
 
@@ -160,7 +176,8 @@ export default function ProfilePage() {
                     <label
                       key={option}
                       className={cx(
-                        "press chunk flex cursor-pointer items-start gap-3 rounded-xl px-4 py-3 transition-colors",
+                        "press chunk flex cursor-pointer items-start gap-3 rounded-md px-4 py-3 transition-colors",
+                        "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-pinned",
                         active ? "bg-pinned-tint [--line:var(--pinned)]" : "bg-raise hover:bg-panel",
                       )}
                     >
@@ -169,13 +186,21 @@ export default function ProfilePage() {
                         group semantics and the announced state all come free, and a div with
                         role="radio" would have to reimplement every one of them.
                       */}
+                      {/*
+                        `peer sr-only`, not bare `sr-only`.
+
+                        Without `peer` nothing downstream can react to the input's state, so this group had no
+                        visible focus indicator at all: the global `:focus-visible` rule drew a ring on a
+                        visually hidden element. A keyboard user arrowing through four options saw nothing
+                        move. `theme-toggle.tsx` and `gate.tsx` already did it this way.
+                      */}
                       <input
                         type="radio"
                         name="role"
                         value={option}
                         checked={active}
                         onChange={() => setRole(option)}
-                        className="sr-only"
+                        className="peer sr-only"
                       />
                       <span
                         aria-hidden

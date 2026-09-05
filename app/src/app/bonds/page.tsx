@@ -307,8 +307,22 @@ function Counter({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-4">
-        <label className="text-sm text-text">{label}</label>
-        <div className="flex items-center gap-1 rounded-pill bg-raise p-1 chunk">
+        {/*
+          A `<span>`, not a `<label>`.
+
+          It was a `<label>` with no `htmlFor` and no wrapped control, because the stepper is two buttons and
+          a readout rather than an input. A label that labels nothing is worse than a span: it is announced as
+          a form label, and clicking it does nothing when a reader reasonably expects focus to move.
+
+          The group gets the name instead, via `role="group"` and `aria-label`, and each button already
+          carries its own "Decrease …" / "Increase …" name.
+        */}
+        <span className="text-note text-text">{label}</span>
+        <div
+          role="group"
+          aria-label={label}
+          className="flex items-center gap-1 rounded-pill bg-raise p-1 chunk"
+        >
           <Step label={`Decrease ${label}`} disabled={value <= min} onClick={() => onChange(value - 1)}>
             &minus;
           </Step>
