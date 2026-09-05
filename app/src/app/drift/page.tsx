@@ -11,6 +11,7 @@
 
 import { useSnapshot } from "@/components/data";
 import { FingerprintDiff } from "@/components/fingerprint";
+import { SettlementGate } from "@/components/gate";
 import { GuardSays } from "@/components/guard";
 import { Pop, Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, HashDiff, Pill, Section, cx } from "@/components/ui";
@@ -37,6 +38,24 @@ export default function DriftPage() {
 
   return (
     <div className="space-y-12">
+      {/*
+        The settlement gate, moved here from the landing page.
+
+        It is the only operable demonstration in the product: the reader flips a switch to change what the
+        publisher ships and watches the same call either settle or be turned away. That could not survive
+        the landing page's rebuild into near-black Inter Tight -- the gate is rounded, mascot-led and
+        brightly filled, and the two languages would have collided mid-page -- but dropping it would have
+        cost the app its best explanation of itself.
+
+        This route is where it belonged in the first place. Everything above is a list of skills that have
+        drifted; this is what happens to them at settlement. It also keeps the quickstart's refusal step
+        reachable, since that step is satisfied by actually driving the gate to a refusal rather than by
+        visiting a URL.
+      */}
+      <Reveal>
+        <SettlementGate />
+      </Reveal>
+
       <Reveal>
         <Section
           eyebrow="Version drift"

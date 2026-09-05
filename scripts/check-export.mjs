@@ -60,11 +60,28 @@ const PAGES = {
    * gate is on this page because it is the demonstration a reader gets before anything is asked of them.
    */
   index: [
-    "A lockfile for agent money",
+    "A lockfile for",
+    "agent money.",
     "233f0359",
     "1eac5d90",
     "NOT_PINNED",
-    'aria-label="Guard',
+
+    /*
+     * The four corrections to the design brief, asserted as copy.
+     *
+     * The brief for this page asked for "Out-of-bounds execution is slashed in 300ms" and a toast reading
+     * "Transaction Reverted. 1,250 AUSD Bond Slashed." Both conflate two mechanisms that this system keeps
+     * strictly apart: a hash mismatch reverts the call and touches no bond, while slashing requires
+     * proving a publisher signed conflicting bytes under one version string. The 300ms was also invented --
+     * viem's own monadTestnet declares a 400ms block time.
+     *
+     * These four strings are the corrected claims. They are the easiest thing on the page for a later
+     * edit to "tighten" back into the punchier, false version, which is exactly why they are pinned.
+     */
+    "reverts inside the settling transaction",
+    "No bond was slashed",
+    "HASH POSITIONS DIFFER",
+    "provable fraud against a bond",
 
     /*
      * The invitation, and the escape from it.
@@ -78,33 +95,27 @@ const PAGES = {
     "No signature is requested",
 
     /*
-     * The gate's teaching scaffolding.
+     * The boundary, which now sits collapsed at the bottom of the page rather than mid-flow.
      *
-     * A reader told me the first version of that panel was incomprehensible, and the fix was almost
-     * entirely words: naming the three stations, giving the switch its missing subject (the
-     * publisher), numbering the steps, and replacing "attested" with "the code that is asking".
-     * None of that is load-bearing for the build, which is exactly why it needs a test -- a refactor
-     * that tidied the labels away would leave a panel that renders perfectly and explains nothing.
+     * Collapsed is not the same as gone, and this is the assertion that holds that line. The content is
+     * inside a `<details>`, so it ships in the HTML whether or not it is open -- meaning this check still
+     * fails if somebody removes the section rather than merely folding it.
      */
-    /*
-     * The boundary panel.
-     *
-     * The strongest thing taken from the onboarding material: stating a limit raises credibility with an
-     * audience that was going to probe for it. Every limit in it is already in the README, so removing the
-     * panel would leave every claim intact and the honesty invisible — which is exactly the kind of
-     * deletion that looks like a tidy-up.
-     */
-    "What this does not stop",
+    "Security boundaries",
     "hostile from its first publish",
     "overclaiming",
-    "Probably not for you if",
+    "PROBABLY NOT FOR YOU IF",
 
-    "Choose what the publisher ships",
-    "The publisher ships",
-    "The skill",
-    "the code you approved",
-    "the code that is asking",
-    "Settlement",
+    /*
+     * The three mechanism cards, which replaced the interactive gate on this page.
+     *
+     * Each card names the identifier a reader can check against the contracts -- `liveSkillHash`, the
+     * comparison, the revert -- because a three-node lifecycle diagram with arrows and no identifiers is
+     * the most common way a page in this category says nothing at all.
+     */
+    "liveSkillHash(pinId)",
+    "revert NOT_PINNED",
+    "Publisher ships a version",
   ],
   /*
    * The dashboard: what the landing page used to carry below its own pitch.
@@ -142,7 +153,30 @@ const PAGES = {
     "Go to the dashboard",
   ],
   pins: ["Published pins", "kuru-quote"],
-  drift: ["What changed since you approved it", "Gained", "Dropped", "approve(address,uint256)"],
+  /*
+   * The settlement gate moved here from the landing page, and these assertions moved with it.
+   *
+   * It is the only operable demonstration in the product -- a reader flips a switch and watches the same
+   * call settle or be turned away -- so dropping it when the landing page was rebuilt would have been a
+   * real loss, not a tidy-up. It could not stay: the gate is rounded, mascot-led and brightly filled, and
+   * the new landing page is near-black Inter Tight, so the two languages would have collided in the middle
+   * of the page. `/drift` is where it belongs anyway, being the route about refusals.
+   *
+   * The scaffolding strings are here because a reader told me the first version of that panel was
+   * incomprehensible and the fix was almost entirely words: naming the three stations, giving the switch
+   * its missing subject, numbering the steps, and replacing "attested" with "the code that is asking".
+   * None of it is load-bearing for the build, which is exactly why it needs a check.
+   */
+  drift: [
+    "What changed since you approved it",
+    "Gained",
+    "Dropped",
+    "approve(address,uint256)",
+    "Choose what the publisher ships",
+    "the code you approved",
+    "the code that is asking",
+    'aria-label="Guard',
+  ],
   approvals: ["Approved versions", "read only", "The executor is not the account"],
   publishers: ["Publishers", "Challenger reward", "equivocat"],
   bonds: ["What a pin costs to publish", "Declared capabilities", "Bond required"],

@@ -20,6 +20,17 @@
 @import "@fontsource-variable/nunito/index.css";
 @import "@fontsource-variable/baloo-2/index.css";
 @import "@fontsource-variable/jetbrains-mono/index.css";
+/*
+ * Inter Tight, for the landing page only.
+ *
+ * Already a dependency, so this costs no new supply-chain surface -- which is the reason every face here
+ * is self-hosted from npm rather than fetched from a CDN at runtime. A security product whose front page
+ * phones a font host on load is arguing against itself.
+ *
+ * Tight rather than plain Inter because the landing headline is set very large, and at display sizes
+ * Inter's default tracking reads loose next to a monospace data table.
+ */
+@import "@fontsource-variable/inter-tight/index.css";
 
 /* ---------------------------------------------------------------- the palette */
 
@@ -239,6 +250,19 @@
   --font-display: "Baloo 2 Variable", "Nunito Variable", system-ui, sans-serif;
   --font-sans: "Nunito Variable", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  /*
+   * The landing page's face. Deliberately a different voice from the app's.
+   *
+   * The dashboard is rounded and warm on purpose -- it is a tool someone uses repeatedly and it carries a
+   * mascot. The landing page is arguing to a sceptical infrastructure engineer in the first ten seconds,
+   * and Nunito's roundness reads as consumer software in that context. Inter Tight reads as a spec sheet.
+   *
+   * Two voices in one product is normally a smell. It is defensible here for the same reason Stripe's
+   * marketing site does not look like its dashboard: the audiences are in different states of mind, and
+   * the landing page's whole job is credibility with someone who has not decided to trust anything yet.
+   */
+  --font-ui: "Inter Tight Variable", "Inter", system-ui, -apple-system, sans-serif;
 
   /*
    * Four radii wearing eight names.
@@ -499,6 +523,105 @@
   .grain {
     background-image: radial-gradient(var(--line) 1px, transparent 1px);
     background-size: 3px 3px;
+  }
+
+  /*
+   * The landing page's ground, scoped rather than global.
+   *
+   * ## Why it overrides tokens instead of using its own classes
+   *
+   * Redefining `--bg`, `--panel`, `--line` and the text ramp inside one wrapper means every component
+   * already in the app renders correctly on this ground without being forked. A `Pill`, a `HashChip` or a
+   * status dot dropped onto the landing page picks up the darker surface and the tighter border on its
+   * own, because all of them were written against tokens rather than literals.
+   *
+   * ## Why it is dark in both themes
+   *
+   * The rest of the app follows the reader's theme choice and should. This one surface does not, and that
+   * is a deliberate exception: it is a marketing page whose job is a consistent first impression, the
+   * reference set for this category is uniformly dark, and a stark near-black is what makes a monospace
+   * data table read as telemetry rather than as a spreadsheet. The reader has made no choice yet when
+   * they arrive here, so there is nothing to override.
+   *
+   * ## What is deliberately NOT overridden
+   *
+   * The five status hues and their inks. Green means bonded, red means refused, amber wants attention --
+   * that mapping is the one thing this interface cannot afford to make theme-dependent, and the landing
+   * page is where those colours do their most important work. Only the neutrals move.
+   */
+  .clinical {
+    --bg: #08090a;
+    --panel: #0e1011;
+    --raise: #121517;
+    --raise-strong: #1a1e21;
+    --sunken: #050607;
+
+    --text: #f7f8f8;
+    --muted: #9ba1a6;
+    --faint: #71787d;
+
+    --line: #1e2225;
+    --line-strong: #2c3236;
+    --shade: #000000;
+
+    /* Ink values lifted for a near-black ground; the faces themselves are untouched. */
+    --bonded-ink: #7ee787;
+    --pinned-ink: #79c0ff;
+    --attention-ink: #e3b341;
+    --revoked-ink: #ff7b72;
+    --equivocated-ink: #d2a8ff;
+
+    --bonded-tint: #0d2818;
+    --pinned-tint: #0c2338;
+    --attention-tint: #2b2008;
+    --revoked-tint: #331312;
+    --equivocated-tint: #241a33;
+
+    --scrim: rgba(0, 0, 0, 0.82);
+
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    /* Inter at 600 is the app's weight; on this page 400-500 body copy is what reads as a spec sheet. */
+    font-weight: 400;
+    color-scheme: dark;
+  }
+
+  /* Headings on this surface are tight and heavy, and never the rounded display face. */
+  .clinical h1,
+  .clinical h2,
+  .clinical h3 {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
+  /*
+   * The live indicator.
+   *
+   * A ring that expands and fades rather than the whole dot pulsing, so the dot itself stays a fixed,
+   * readable point. Dropped entirely under reduced motion, where a permanently visible dot says the same
+   * thing.
+   */
+  @keyframes ping-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    70%,
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
+
+  .live-ring::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: currentColor;
+    animation: ping-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite;
   }
 }
 

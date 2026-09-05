@@ -33,6 +33,7 @@
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { useFlowStage } from "./flow-gate";
 import { Mark, Nav } from "./nav";
@@ -42,7 +43,20 @@ import { ThemeToggle } from "./theme-toggle";
 
 export function Chrome({ children }: { children: React.ReactNode }) {
   const stage = useFlowStage();
+  const pathname = usePathname();
   const inProduct = stage === "ready";
+
+  /*
+   * The landing page brings its own header, footer and ground, so it opts out of all of this.
+   *
+   * Two reasons, and the second is the one the brief was right about. It is a different visual language --
+   * near-black, Inter Tight, hairline rules -- and wrapping it in the app's rail or compact bar would put
+   * two typefaces and two grounds in the first 60px of the page. And the source banner is a disclosure
+   * panel directly above the fold, which is unusable to a reader who has not yet been told what the product
+   * is. That disclosure did not disappear: it moved into the live registry block, against the figures it
+   * qualifies, where it is read rather than skimmed past.
+   */
+  if (pathname === "/") return <>{children}</>;
 
   return (
     <>

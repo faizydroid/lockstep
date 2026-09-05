@@ -6,21 +6,40 @@ import { describe, expect, it } from "vitest";
 /**
  * Guards the vertical budget of the first screen.
  *
- * The overview opened with a stacked eyebrow, a 6.5rem headline and a four-line paragraph, which
+ * The overview once opened with a stacked eyebrow, a 6.5rem headline and a four-line paragraph, which
  * against the type scale came to roughly 610px before any real content -- about seventy percent of a
- * laptop fold. The scoreboard that answers "is anything wrong with my account" sat underneath it.
+ * laptop fold, with the scoreboard that answers "is anything wrong" sitting underneath it.
  *
- * These assertions are on the source rather than on rendered pixels, and that limit is worth being
- * plain about: measuring real layout needs a browser, and there is none in this suite. What they can
- * do is catch the specific regressions that produced the problem -- a display-size headline growing
- * back, the hero collapsing to a single column so the paragraph re-enters the vertical stack, and
- * the page rhythm returning to `space-y-24`. Each of those was a deliberate decision, so each gets
- * an assertion rather than a comment.
+ * The fix at the time was a two-column hero: headline left, explanation right, so the paragraph left the
+ * vertical stack entirely. That is no longer the layout. The landing page was rebuilt as a centred,
+ * tight, single-column fold, and the hero moved out of `app/page.tsx` into `components/landing/hero.tsx`.
+ * So the assertions below follow the hero to its new file, and the two-column check is replaced by the
+ * constraint that actually holds the budget now: a capped measure and a bounded headline.
+ *
+ * These are source assertions, and that limit is worth being plain about: measuring real layout needs a
+ * browser and there is none in this suite. What they catch is the specific regression that produced the
+ * original problem -- a display-size headline growing back, and prose running the full width of a
+ * 1600px viewport.
  */
 
 const APP = join(import.meta.dirname, "..", "src");
 
+/**
+ * Source with comments removed.
+ *
+ * The fifth appearance of one mistake in this suite, so it is worth stating flatly: any assertion about
+ * what the code *does* has to read stripped source, because this repo documents the patterns it rejects.
+ * The check below for a directly-linked product route failed against a comment reading
+ * "`<Link href="/dashboard">` here would bounce them back" -- prose whose entire purpose is to say that
+ * exact thing must not be written.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
+const hero = readFileSync(join(APP, "components", "landing", "hero.tsx"), "utf8");
+const heroCode = stripComments(hero);
 const layout = readFileSync(join(APP, "app", "layout.tsx"), "utf8");
 const chrome = readFileSync(join(APP, "components", "chrome.tsx"), "utf8");
 const banner = readFileSync(join(APP, "components", "source-banner.tsx"), "utf8");
@@ -43,31 +62,44 @@ function headlineSizes(source: string): number[] {
 
 describe("the overview fold", () => {
   it("has a headline, so the selector above is actually finding something", () => {
-    expect(headlineSizes(overview).length).toBeGreaterThan(0);
+    expect(headlineSizes(hero).length).toBeGreaterThan(0);
   });
 
   it("keeps the headline under 5rem at every breakpoint", () => {
-    // 6.5rem over two lines at leading 0.94 is ~196px of headline alone. 4.5rem is ~128px.
-    for (const size of headlineSizes(overview)) {
+    // 6.5rem over two lines at leading 0.94 is ~196px of headline alone. 3.75rem is ~107px.
+    for (const size of headlineSizes(hero)) {
       expect(size, `headline size ${size}rem`).toBeLessThanOrEqual(5);
     }
   });
 
-  it("lays the hero out in two columns from lg, so the dek is beside the headline not under it", () => {
-    // This is the change that actually bought the space. Losing it would undo the fix even if the
-    // headline stayed small, because the paragraph would return to the vertical stack.
-    const hero = /function Hero\(\)[\s\S]*?\n}/.exec(overview)?.[0] ?? "";
-    expect(hero).toMatch(/lg:grid-cols-\[/);
+  it("caps the measure of the fold's prose", () => {
+    /*
+     * Replaces the two-column assertion, which no longer describes the design.
+     *
+     * The old hero put the explanation beside the headline specifically to get it out of the vertical
+     * stack. The rebuilt fold is centred and single-column by request, so the paragraph is back in the
+     * stack -- and the thing keeping it from costing the same 200px is that it is short and capped. An
+     * uncapped centred paragraph on a 1600px viewport is one long line, which is worse than either.
+     */
+    expect(hero).toMatch(/max-w-\w+/);
+    expect(hero).toMatch(/text-center/);
   });
 
-  it("gives the fold something to do", () => {
+  it("gives the fold something to do, without linking somewhere the gate will bounce", () => {
     /*
-     * Was `<Button href=`. The hero's two buttons used to link straight to /drift and /pins, and the
-     * first-run flow turned that into a trap: a first-time reader would click one and be steered back
-     * here by the gate, having apparently broken something. The call to action is a flow action now.
+     * Two buttons, and neither is a plain link to a product route.
+     *
+     * This trap has now appeared three times: the hero's original buttons, the navigation rail, and then
+     * the rebuilt hero's primary call to action. The flow gate turns a reader at the landing stage away
+     * from product routes, so `<Link href="/dashboard">` here would bounce them back to the page they are
+     * standing on. `useExplore` records that following it *is* choosing to look around, then navigates.
      */
-    const hero = /function Hero\(\)[\s\S]*?\n}/.exec(overview)?.[0] ?? "";
-    expect(hero, "the hero had no call to action at all").toMatch(/<StartHere\b/);
+    expect(heroCode).toMatch(/useExplore/);
+    expect(heroCode).toMatch(/Explore registry/);
+    expect(heroCode).toMatch(/Install CLI/);
+    expect(heroCode, "a product route is linked directly from the fold").not.toMatch(
+      /href="\/(?:dashboard|pins|drift|bonds|approvals|publishers|badge)"/,
+    );
   });
 
   it("does not go back to a 96px section rhythm", () => {
@@ -185,34 +217,49 @@ describe("copy that is load-bearing", () => {
     expect(limits).toMatch(/overclaiming/);
   });
 
-  it("puts the boundary after the demonstration and before the ask", () => {
+  it("still carries the boundary, collapsed at the bottom rather than mid-page", () => {
     /*
-     * This used to assert the boundary came before `<Ledger`, which lived on the same page. The ledger
-     * moved to /dashboard with the route split, so the original assertion could only ever pass by
-     * accident. The decision it was protecting is still here and is now sharper, because the order on
-     * the landing page is the argument:
+     * The intent of this assertion was reversed on instruction, and that is worth recording rather than
+     * quietly rewriting, because the two positions encode opposite judgements.
      *
-     *   the gate demonstrates the mechanism, the boundary says what it does not catch, and only then is
-     *   the reader asked for anything.
+     * It used to require the boundary panel *before* the ask, on the reasoning that stating a limit first
+     * is what makes the ask credible. The design brief for the rebuilt landing page took the other view:
+     * four paragraphs of "out of scope" above the conversion flow is unusable to a reader who has not yet
+     * been told what the product does, so it belongs at the bottom behind a disclosure.
      *
-     * Stating a limit before the ask is what makes the ask credible. Putting it after would make it
-     * small print on a page the reader has already committed to.
+     * Both are defensible. What is not defensible is the version where "moved to the bottom" quietly
+     * becomes "deleted", since every limit in it is already in the README and its absence would leave the
+     * claims intact and the honesty invisible. So this now asserts presence and reachability instead of
+     * position: the section is on the page, it is after the ask, and the header links to it so a sceptic
+     * is one click from it.
      */
-    const gateAt = overview.indexOf("<SettlementGate />");
-    const limitsAt = overview.indexOf("<Limits />");
     const askAt = overview.indexOf("<StartHere />");
+    const boundaryAt = overview.indexOf("<ThreatModel />");
 
-    expect(gateAt, "the gate is not on the landing page").toBeGreaterThan(-1);
-    expect(limitsAt, "the boundary is not on the landing page").toBeGreaterThan(-1);
-    expect(askAt, "the closing invitation is not on the landing page").toBeGreaterThan(-1);
+    expect(askAt, "the invitation is not on the landing page").toBeGreaterThan(-1);
+    expect(boundaryAt, "the boundary section is not on the landing page").toBeGreaterThan(-1);
+    expect(boundaryAt).toBeGreaterThan(askAt);
 
-    expect(gateAt).toBeLessThan(limitsAt);
-    expect(limitsAt).toBeLessThan(askAt);
+    // Reachable in one click from the top, or "at the bottom" really does mean buried.
+    const shell = readFileSync(join(APP, "components", "landing", "shell.tsx"), "utf8");
+    expect(shell).toMatch(/#threat-model/);
+  });
+
+  it("uses a real disclosure element for the boundary", () => {
+    /*
+     * `<details>` rather than a div with state. Keyboard operation and the correct ARIA semantics come
+     * free, and on a security page an accordion a keyboard user cannot open is a disclosure that does not
+     * exist for them. It also means the content ships in the HTML whether or not it is open, so
+     * check-export can still assert the copy.
+     */
+    const threat = readFileSync(join(APP, "components", "landing", "threat-model.tsx"), "utf8");
+    expect(threat).toMatch(/<details/);
+    expect(threat).toMatch(/<summary/);
   });
 
   it("keeps the instrument off the landing page", () => {
-    // The split's whole point. A returning reader should not pay for the pitch to see the scoreboard,
-    // and a first-time reader should not meet a ledger before knowing what it counts.
+    // A returning reader should not pay for the pitch to see the scoreboard, and a first-time reader
+    // should not meet a ledger before knowing what it counts.
     for (const marker of ["<Scoreboard", "<Ledger", "<Quickstart"]) {
       expect(overview, `${marker} belongs on /dashboard`).not.toContain(marker);
     }

@@ -32,6 +32,33 @@ import { useIdentity } from "./identity";
 import { useSettings } from "./settings";
 import { Button, Card, Pill, cx } from "./ui";
 
+/**
+ * A handler for any link that takes a reader from the landing page into the product.
+ *
+ * ## Why a plain `href` would be broken
+ *
+ * The flow gate bounces a reader at the landing stage off product routes, so `<Link href="/dashboard">`
+ * on the landing page sends them straight back where they came from. That is the trap this project has now
+ * hit three times -- first in the hero's buttons, then in the navigation rail -- and the third time it was
+ * on the page's primary call to action, which is the worst possible place for it.
+ *
+ * ## Why this is the honest fix rather than a workaround
+ *
+ * Following "Explore registry" *is* choosing to look around without connecting. It is the same intent the
+ * skip expresses, so recording it as the skip is not a trick to get past the gate -- it is naming what the
+ * reader just did. `stageFor` treats that as durable, so they are not asked again on the next navigation,
+ * and they can still build a profile later from the account page.
+ */
+export function useExplore(): (target: string) => void {
+  const { update } = useSettings();
+  const router = useRouter();
+
+  return (target: string) => {
+    update({ skippedSetup: true });
+    router.push(target);
+  };
+}
+
 export function StartHere({ compact = false }: { compact?: boolean }) {
   const { connected, available, connect, connecting } = useIdentity();
   const { settings, update } = useSettings();
