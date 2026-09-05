@@ -1,23 +1,45 @@
 "use client";
 
 /**
- * The left navigation rail.
+ * The primary navigation: a full-height left rail, and a slim bar across the content beside it.
  *
- * Moved from a top bar, and the visual language is the reason it works better here. Duolingo's own
- * navigation is a left rail with an icon and a heavy uppercase label per item, and a selected state
- * drawn as a tinted box with a matching border. A horizontal strip of seven of those either wraps or
- * forces the labels down to a size that fights the rest of the type.
+ * ## Why this is a rail again
  *
- * It also buys the thing this app actually needs: vertical space is cheap here and horizontal space
- * is not. The tables on /pins and /publishers are wide, and a 272px rail costs less than a 64px
- * header did, because the header was stealing from the scarce axis.
+ * It was a rail, then a 56px top bar, and now a rail with a top bar. The reversal is not indecision; the
+ * first two shapes were each argued from one half of the evidence.
  *
- * The active indicator is a shared `layoutId`, so it slides between items rather than disappearing
- * and reappearing. Worth the complexity: the movement tells you where you came from, which a hard cut
- * does not, and in a vertical list the travel reads as position in a menu.
+ * The rule that settles it, and which both earlier versions were missing: a sidebar is for a product with
+ * many sections, a top bar is for a product with three to six, and mature products run both -- the bar for
+ * global context, the rail for primary navigation. This app has seven primary areas. A horizontal strip of
+ * seven coined nouns is a list to read, not a menu to use, and it has nowhere to put the words that explain
+ * what "drift" and "pin" mean. Eye-tracking puts six items in three fixations vertically against three
+ * horizontally, which is the same finding from the other direction.
  *
- * Under `lg` the rail becomes a drawer behind a compact top bar, because a fixed 272px rail on a
- * 390px phone leaves 118px of content.
+ * The top-bar version was right about one thing and it is kept: 272px off every page is too much on a
+ * product whose main content is wide tables of addresses. So the rail collapses to 56px, the choice
+ * persists, and the reader who opens `/pins` can have their horizontal axis back without losing wayfinding.
+ * The bar keeps only what is genuinely global -- the network, the wallet, the theme -- which is what a bar
+ * is for.
+ *
+ * ## What the rail carries, and what left
+ *
+ * Seven links in four groups, because seven flat items is a list and four labelled groups of one to three
+ * is a menu. The groups also draw the distinction the app cares about: things about your agent, things
+ * about the registry, and a tool.
+ *
+ * Account is gone from the navigation entirely. Its facts -- address, network, whether anything is
+ * enforcing -- now live in the wallet menu at the top right, which is where every wallet-connected
+ * dashboard puts them and where a reader looks first. Keeping a nav item pointing at the same information
+ * would be two front doors to one room.
+ *
+ * Drift carries a count when something needs a decision. That is the one piece of state worth promoting
+ * into the chrome: it turns the rail into a work queue, so "is anything wrong" is answered before the
+ * reader clicks anything. It is drawn from the same `widened` derivation `/drift` leads with, so the badge
+ * and the page cannot disagree.
+ *
+ * The outcome lines are back as visible text rather than `title`. They were dropped when the bar had
+ * nowhere to put a second line; a rail does. They are the fix for the actual problem with these labels,
+ * which is that six of the seven are coinages of this project and mean nothing on a first read.
  */
 
 import Link from "next/link";
@@ -25,84 +47,279 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { applyRail } from "@/lib/rail";
+
+import { useCertainty, useSnapshot } from "./data";
 import { WalletMenu } from "./wallet-menu";
-import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion";
+import { AnimatePresence, SPRING_SOFT, motion } from "./motion";
+import { useSettings } from "./settings";
 import { ThemeToggle } from "./theme-toggle";
 import { cx } from "./ui";
 
-/*
- * Every item carries an outcome line as well as a label.
- *
- * Seven of the eight labels are coinages of this project -- pin, drift, bond, badge -- and mean nothing
- * on a first read. The quickstart already learned this lesson and titles its steps by outcome rather than
- * by destination; the nav is the primary wayfinding and was still naming features.
- *
- * Shown always in the mobile drawer, where there is room, and on hover or focus in the rail, where a
- * permanent second line would double the height of eight items to solve a problem a reader has once.
- */
-const LINKS = [
-  /*
-   * `/dashboard`, not `/`. The rail points at the instrument, not at the pitch.
-   *
-   * This item used to be "Overview" on `/`, when that route was both the landing page and the dashboard.
-   * The split gave each reader their own page, and the one holding a rail is by definition inside the
-   * product -- putting the marketing page in their primary navigation would make them scroll past an
-   * argument they have already accepted to reach the numbers.
-   *
-   * The landing page stays reachable: the Lockstep mark at the top of the rail links to it, in both the
-   * drawer and the mobile bar, which is where a reader looks for a home link anyway.
-   */
-  { href: "/dashboard", label: "Dashboard", icon: IconHome, outcome: "Is anything wrong right now" },
-  { href: "/pins", label: "Pins", icon: IconPin, outcome: "What each skill is allowed to do" },
-  { href: "/drift", label: "Drift", icon: IconDrift, outcome: "What changed since you approved it" },
-  { href: "/approvals", label: "Approvals", icon: IconCheck, outcome: "What your agent may spend under" },
-  { href: "/publishers", label: "Publishers", icon: IconPublisher, outcome: "Who has money at stake" },
-  { href: "/bonds", label: "Bonds", icon: IconCoins, outcome: "What a lie costs a publisher" },
-  { href: "/badge", label: "Badge", icon: IconShield, outcome: "Show a pin in your README" },
-  /*
-   * Account last, and it carries settings with it rather than getting its own item.
-   *
-   * Seven was already a lot for a primary rail; nine would make it a list to scan rather than a menu.
-   * Profile and settings answer the same question -- things about me, as opposed to things about the
-   * registry -- so they are two sections of one route, reachable at /account#settings.
-   */
-  { href: "/account", label: "Account", icon: IconAccount, outcome: "Whether anything is enforcing it" },
-] as const;
+interface NavLink {
+  readonly href: string;
+  readonly label: string;
+  readonly icon: (props: { heavy?: boolean }) => ReactNode;
+  readonly outcome: string;
+}
 
+interface NavGroup {
+  /** Absent for the first group, which is one item and needs no header above it. */
+  readonly label?: string;
+  readonly links: readonly NavLink[];
+}
+
+/*
+ * Four groups, and the headers are the point rather than decoration.
+ *
+ * Seven items with no structure is scanned linearly, which is the failure mode a rail is supposed to avoid.
+ * Grouped, the reader answers a cheaper question first -- is this about my agent or about the registry --
+ * and then picks from two or three.
+ *
+ * `/dashboard`, not `/`. The rail points at the instrument, not at the pitch: a reader holding a rail is by
+ * definition inside the product, and putting the marketing page in their primary navigation would make them
+ * scroll past an argument they have already accepted to reach the numbers. The landing page stays reachable
+ * from the mark at the top of the rail, which is where a reader looks for a home link anyway.
+ */
+const GROUPS: readonly NavGroup[] = [
+  {
+    links: [{ href: "/dashboard", label: "Dashboard", icon: IconHome, outcome: "Is anything wrong right now" }],
+  },
+  {
+    /*
+     * "Your agent", not "Needs you".
+     *
+     * Only Drift needs anyone. Approvals is a record of what the account already decided plus one narrowing
+     * write, and filing it under a header that promises a queue would overstate it every time the queue is
+     * empty. The urgency lives on the badge, which is honest because it counts something.
+     */
+    label: "Your agent",
+    links: [
+      { href: "/drift", label: "Drift", icon: IconDrift, outcome: "What changed since you approved it" },
+      { href: "/approvals", label: "Approvals", icon: IconCheck, outcome: "What your agent may spend under" },
+    ],
+  },
+  {
+    label: "The registry",
+    links: [
+      { href: "/pins", label: "Pins", icon: IconPin, outcome: "What each skill is allowed to do" },
+      { href: "/publishers", label: "Publishers", icon: IconPublisher, outcome: "Who has money at stake" },
+      { href: "/bonds", label: "Bonds", icon: IconCoins, outcome: "What a lie costs a publisher" },
+    ],
+  },
+  {
+    label: "Tools",
+    links: [{ href: "/badge", label: "Badge", icon: IconShield, outcome: "Show a pin in your README" }],
+  },
+];
+
+/** Flattened, for the mobile sheet and for anything that wants the set rather than the structure. */
+const LINKS: readonly NavLink[] = GROUPS.flatMap((group) => group.links);
+
+function useIsActive() {
+  const pathname = usePathname();
+  return (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+}
 
 /**
- * The primary navigation, as a compact top bar.
+ * How many drifted skills actually need a person.
  *
- * ## Why this replaced a 272px left rail
+ * `widened` rather than `drifted.length`, matching what `/drift` leads with. A release that only removes
+ * capabilities or lowers its ceiling has changed and does not need a decision, and badging it would train
+ * the reader to ignore the badge -- which is the failure every notification count eventually has.
  *
- * The rail was chosen when the product was styled after Duolingo, whose own navigation is a left rail with
- * an icon and a heavy uppercase label per item. That reasoning was sound for that design and does not
- * survive it: the app is now a clinical, dense, data-first dashboard, and every convention in that category
- * puts navigation in a single thin bar across the top.
- *
- * It also cost more than it looked like it did. 272px is 17rem taken off every page at every width above
- * `lg`, on a product whose main content is wide tables of addresses and hashes -- the exact axis that was
- * already scarce. The rail's own justification claimed the opposite, that vertical space was the cheap one,
- * which was true of a page of stat cards and false of `/pins` and `/publishers`.
- *
- * ## What the bar carries, in the order a reader expects it
- *
- * Mark left, links beside it, account right. That is the layout of every wallet-connected dashboard a
- * reader has already used, and matching it means they do not have to learn where anything is. The account
- * control is a dropdown rather than a permanently expanded panel -- see `wallet-menu.tsx`.
- *
- * The outcome lines are gone from the links. They were a second line under each label, revealed on hover,
- * explaining what the destination answers; they earned their place in a rail where there was vertical room
- * and a reader was reading a menu. In a horizontal bar there is nowhere to put them that does not either
- * double the bar's height or cover the content below it. The words survive where they are still useful: as
- * `title`, so a hover or the accessibility tree still reaches them.
- *
- * Below `lg` the links collapse behind a menu button, and the account control stays visible. That split is
- * deliberate: on a phone the thing a reader most often wants from the chrome is their address and the
- * network, and burying it one tap deeper to keep the bar tidy would be tidiness winning over use.
+ * Returns 0 while the read is in flight. During that window the snapshot is still the seeded fixture, so a
+ * badge drawn from it is a number about sample data wearing the appearance of an alert about this account.
  */
-export function Nav() {
-  const pathname = usePathname();
+function useNeedsDecision(): number {
+  const { snapshot } = useSnapshot();
+  const certainty = useCertainty();
+  if (certainty === "reading") return 0;
+  return snapshot.drifted.filter((skill) => skill.diff.widened).length;
+}
+
+/** Reads the persisted rail state and writes it back, keeping the DOM attribute in step. */
+function useRail() {
+  const { settings, update } = useSettings();
+  return {
+    expanded: settings.navExpanded,
+    toggle: () => {
+      const next = !settings.navExpanded;
+      /*
+       * The attribute is set here as well as persisted, because the persisted value is only read by the
+       * blocking script on the next load. Without this call the rail would not move until a reload.
+       */
+      applyRail(next);
+      update({ navExpanded: next });
+    },
+  };
+}
+
+/**
+ * The rail. Fixed, full height, hidden below `lg`.
+ *
+ * Out of flow deliberately: it must not scroll with the page, and the content column offsets itself by
+ * `--rail` rather than sitting in a grid, so a page can still run full-bleed to the right edge.
+ *
+ * Below `lg` there is no rail at all. A fixed 224px sidebar on a 390px phone leaves 166px of content, so
+ * the links move into a sheet behind the bar's menu button.
+ */
+export function Rail() {
+  const isActive = useIsActive();
+  const { expanded } = useRail();
+  const needsDecision = useNeedsDecision();
+
+  return (
+    <div
+      className="fixed inset-y-0 left-0 z-40 hidden w-[var(--rail)] flex-col border-r border-line bg-bg lg:flex"
+      /*
+       * The width transition is on the container, not on each item.
+       *
+       * Animating seven items independently means seven elements whose text reflows at slightly different
+       * moments, which reads as the rail tearing. One transition on the box, with the labels simply
+       * clipped by `overflow-hidden`, reads as a panel sliding.
+       */
+      style={{ transition: "width 180ms ease" }}
+    >
+      <div className={cx("flex h-14 shrink-0 items-center border-b border-line", expanded ? "px-3" : "px-2")}>
+        <Link
+          href="/"
+          className="flex min-w-0 shrink-0 items-center gap-2 rounded-md py-1"
+          title="Lockstep — back to the front page"
+        >
+          <Mark />
+          {expanded ? (
+            <span className="font-display truncate text-base tracking-tight text-text">Lockstep</span>
+          ) : null}
+        </Link>
+      </div>
+
+      <nav aria-label="Primary" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3">
+        {GROUPS.map((group, index) => (
+          <div key={group.label ?? "overview"} className={index === 0 ? undefined : "mt-4"}>
+            {/*
+              The group header, expanded only.
+
+              Collapsed there is no room for a word, and an abbreviation nobody agreed on would be worse
+              than the rule that survives without it: the groups are still separated by the gap above.
+            */}
+            {group.label === undefined ? null : (
+              <p className={cx("shout px-3 pb-1 text-label text-faint", expanded ? "block" : "sr-only")}>
+                {group.label}
+              </p>
+            )}
+
+            <ul className="grid gap-0.5 px-2">
+              {group.links.map((link) => {
+                const active = isActive(link.href);
+                const Icon = link.icon;
+                const count = link.href === "/drift" ? needsDecision : 0;
+
+                return (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      // The tooltip is the only label when the rail is collapsed, so it carries both halves.
+                      title={expanded ? link.outcome : `${link.label} — ${link.outcome}`}
+                      aria-current={active ? "page" : undefined}
+                      className={cx(
+                        "relative flex items-center gap-2 rounded-md transition-colors",
+                        expanded ? "px-2.5 py-2" : "justify-center px-0 py-2",
+                        active ? "text-text" : "text-muted hover:text-text",
+                      )}
+                    >
+                      {active ? (
+                        <motion.span
+                          layoutId="nav-active"
+                          transition={SPRING_SOFT}
+                          className="absolute inset-0 rounded-md bg-raise"
+                        />
+                      ) : null}
+
+                      <span className="relative grid shrink-0 place-items-center">
+                        <Icon heavy={active} />
+                      </span>
+
+                      {expanded ? (
+                        <span className="relative min-w-0 flex-1">
+                          <span className="block truncate text-note leading-tight">{link.label}</span>
+                          {/*
+                            The outcome line, and the reason the rail is worth its width.
+
+                            Six of the seven labels are words this project invented. A permanent second line
+                            costs 14px per item in a column that has hundreds to spare, and it is the
+                            difference between a menu a first-time reader can use and one they have to
+                            click through to decode.
+                          */}
+                          <span className="mt-0.5 block truncate text-label leading-tight text-faint">
+                            {link.outcome}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="sr-only">
+                          {link.label}. {link.outcome}
+                        </span>
+                      )}
+
+                      {count > 0 ? <Badge count={count} compact={!expanded} /> : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+/**
+ * The count on Drift.
+ *
+ * Amber rather than red. Red is spent in this app on `revoked` and `slashed` -- states that are final --
+ * and drift is a decision waiting, not a loss taken. Also carries a word for a screen reader, because a
+ * number alone announces "3" and leaves the listener to guess what three of.
+ */
+function Badge({ count, compact }: { count: number; compact: boolean }) {
+  return (
+    <span
+      className={cx(
+        "shout grid place-items-center rounded-pill bg-attention text-label text-on-face",
+        /*
+          Two positionings, not one with an override.
+          
+          Collapsed, the badge sits on the icon's top-right corner because there is no row left to sit at
+          the end of. Expanded it is a normal end-of-row element. Emitting `relative` and `absolute`
+          together and letting the cascade choose is how a badge ends up in the corner of the page.
+        */
+        compact ? "absolute top-1 right-1 size-4" : "relative ml-auto h-5 min-w-5 px-1.5",
+      )}
+    >
+      <span aria-hidden>{count}</span>
+      <span className="sr-only">
+        {count} {count === 1 ? "skill needs" : "skills need"} your decision
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The bar across the top of the content column.
+ *
+ * Everything global and nothing local. At `lg` and up the mark and the links are in the rail, so the left
+ * slot carries the rail's collapse toggle -- which is where Linear and Notion put theirs, next to the
+ * content rather than inside the panel it controls, so it is in the same place whether the panel is open
+ * or shut. Below `lg` the left slot carries the mark and the right gains a menu button.
+ *
+ * The network is stated here rather than only behind the wallet chevron. Chain context decides what every
+ * figure on the page means, and a reader who has not connected anything still needs to know which chain
+ * they are reading -- which the wallet menu, by definition, cannot tell them.
+ */
+export function NavBar() {
+  const isActive = useIsActive();
+  const { expanded, toggle } = useRail();
+  const needsDecision = useNeedsDecision();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -121,162 +338,199 @@ export function Nav() {
     };
   }, [open]);
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-line bg-bg">
-        <div className="gutter flex h-14 items-center gap-2">
-          <Link href="/" className="flex shrink-0 items-center gap-2 rounded-md py-1">
-            <Mark />
-            <span className="font-display text-base tracking-tight text-text">Lockstep</span>
-          </Link>
+    <header className="sticky top-0 z-30 border-b border-line bg-bg">
+      <div className="gutter flex h-14 items-center gap-2">
+        {/* The mark, below `lg` only. Above it, the rail already has one and two would be a duplicate. */}
+        <Link href="/" className="flex shrink-0 items-center gap-2 rounded-md py-1 lg:hidden">
+          <Mark />
+          <span className="font-display text-base tracking-tight text-text">Lockstep</span>
+        </Link>
 
-          {/*
-            The links, from `md` up.
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse the navigation labels" : "Expand the navigation labels"}
+          title={expanded ? "Collapse the navigation" : "Expand the navigation"}
+          className="press hidden size-8 place-items-center rounded-md text-faint hover:bg-raise hover:text-text lg:grid"
+        >
+          <IconPanel open={expanded} />
+        </button>
 
-            Text only, no icons. The icon set was drawn for a rail where each item had a 20px glyph and a
-            label on its own line; at 13px inline the glyphs stop being legible and start being noise beside
-            the word they duplicate. They are still used for the mobile sheet, where the vertical layout is
-            the one they were designed for.
-          */}
-          <nav aria-label="Primary" className="ml-2 hidden min-w-0 md:block">
-            <ul className="flex items-center gap-0.5">
-              {LINKS.map((link) => {
-                const active = isActive(link.href);
-                return (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      title={link.outcome}
-                      aria-current={active ? "page" : undefined}
-                      className={cx(
-                        "relative block rounded-md px-2.5 py-1.5 text-note whitespace-nowrap transition-colors",
-                        active ? "text-text" : "text-muted hover:bg-raise hover:text-text",
-                      )}
-                    >
-                      {active ? (
-                        <motion.span
-                          layoutId="nav-active"
-                          transition={SPRING_SOFT}
-                          className="absolute inset-0 rounded-md bg-raise"
-                        />
-                      ) : null}
-                      <span className="relative">{link.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <NetworkChip />
+          <WalletMenu />
+          <span className="hidden sm:block">
+            <ThemeToggle />
+          </span>
 
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <WalletMenu />
-            <span className="hidden sm:block">
-              <ThemeToggle />
+          {/* The menu button, below `lg`, where there is no rail. */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-expanded={open}
+            aria-controls="nav-sheet"
+            aria-label="Open menu"
+            className="press chunk grid size-9 place-items-center rounded-md bg-panel text-muted lg:hidden"
+          >
+            <span aria-hidden className="grid gap-[3px]">
+              <span className="block h-[2px] w-4 rounded-pill bg-current" />
+              <span className="block h-[2px] w-4 rounded-pill bg-current" />
+              <span className="block h-[2px] w-4 rounded-pill bg-current" />
             </span>
-
-            {/* The menu button, below `md`, where the links do not fit. */}
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              aria-expanded={open}
-              aria-controls="nav-sheet"
-              aria-label="Open menu"
-              className="press chunk grid size-9 place-items-center rounded-md bg-panel text-muted md:hidden"
-            >
-              <span aria-hidden className="grid gap-[3px]">
-                <span className="block h-[2px] w-4 rounded-pill bg-current" />
-                <span className="block h-[2px] w-4 rounded-pill bg-current" />
-                <span className="block h-[2px] w-4 rounded-pill bg-current" />
-              </span>
-            </button>
-          </div>
+          </button>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <AnimatePresence>
-        {open ? (
-          <>
-            <motion.button
-              type="button"
-              aria-label="Close menu"
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-[var(--scrim)] md:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-            />
+    {/*
+      The sheet lives with the button that opens it.
 
-            <motion.div
-              id="nav-sheet"
-              className="fixed inset-x-0 top-0 z-50 border-b border-line bg-bg md:hidden"
-              initial={{ y: "-100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "-100%" }}
-              transition={SPRING_SOFT}
-            >
-              <div className="gutter py-3">
-                <div className="flex h-8 items-center justify-between">
-                  <span className="shout text-label text-faint">Menu</span>
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="press rounded-md px-2 py-1 text-note text-muted hover:text-text"
-                  >
-                    Close
-                  </button>
-                </div>
+      It is `fixed`, so its position in the document does not matter, and keeping the pair in one component
+      means the open state never has to leave this file. The rail is a separate export because it has to be
+      mounted outside the column it offsets; the sheet has no such constraint.
+    */}
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 bg-[var(--scrim)] lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+          />
 
-                <ul className="mt-2 grid gap-0.5">
-                  {LINKS.map((link) => {
-                    const active = isActive(link.href);
-                    const Icon = link.icon;
-                    return (
-                      <li key={link.href}>
-                        <Link
-                          href={link.href}
-                          onClick={() => setOpen(false)}
-                          aria-current={active ? "page" : undefined}
-                          className={cx(
-                            "flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors",
-                            active ? "bg-raise text-text" : "text-muted hover:text-text",
-                          )}
-                        >
-                          <span className="grid place-items-center">
-                            <Icon heavy={active} />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-note">{link.label}</span>
-                            {/* Room for the outcome line here, which is where it always read best. */}
-                            <span className="block truncate text-label text-faint">{link.outcome}</span>
-                          </span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                <div className="mt-3 border-t border-line pt-3 sm:hidden">
-                  <ThemeToggle />
-                </div>
+          <motion.div
+            id="nav-sheet"
+            className="fixed inset-x-0 top-0 z-50 border-b border-line bg-bg lg:hidden"
+            initial={{ y: "-100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "-100%" }}
+            transition={SPRING_SOFT}
+          >
+            <div className="gutter py-3">
+              <div className="flex h-8 items-center justify-between">
+                <span className="shout text-label text-faint">Menu</span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="press rounded-md px-2 py-1 text-note text-muted hover:text-text"
+                >
+                  Close
+                </button>
               </div>
-            </motion.div>
-          </>
-        ) : null}
-      </AnimatePresence>
+
+              {/*
+                Grouped here too, and with the headers visible.
+
+                A sheet has the room a collapsed rail does not, and a reader who opened a menu is reading
+                rather than glancing -- which is exactly when the structure earns its two lines.
+              */}
+              {GROUPS.map((group, index) => (
+                <div key={group.label ?? "overview"} className={index === 0 ? "mt-2" : "mt-3"}>
+                  {group.label === undefined ? null : (
+                    <p className="shout px-2 pb-1 text-label text-faint">{group.label}</p>
+                  )}
+
+                  <ul className="grid gap-0.5">
+                    {group.links.map((link) => {
+                      const active = isActive(link.href);
+                      const Icon = link.icon;
+                      const count = link.href === "/drift" ? needsDecision : 0;
+
+                      return (
+                        <li key={link.href}>
+                          <Link
+                            href={link.href}
+                            onClick={() => setOpen(false)}
+                            aria-current={active ? "page" : undefined}
+                            className={cx(
+                              "flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors",
+                              active ? "bg-raise text-text" : "text-muted hover:text-text",
+                            )}
+                          >
+                            <span className="grid shrink-0 place-items-center">
+                              <Icon heavy={active} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-note">{link.label}</span>
+                              <span className="block truncate text-label text-faint">{link.outcome}</span>
+                            </span>
+                            {count > 0 ? <Badge count={count} compact={false} /> : null}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+
+              <div className="mt-3 border-t border-line pt-3 sm:hidden">
+                <ThemeToggle />
+              </div>
+            </div>
+          </motion.div>
+        </>
+      ) : null}
+    </AnimatePresence>
     </>
   );
 }
 
+/**
+ * Which chain the figures on screen came from.
+ *
+ * Deliberately not a switcher. There is one deployment and the app reads it whether a wallet is connected
+ * or not, so a dropdown offering chains that hold no registry would be a control whose only outcome is an
+ * empty page. When the connected wallet is on a different chain the wallet menu takes over the whole
+ * button, which is the louder signal that belongs to that state.
+ */
+function NetworkChip() {
+  const certainty = useCertainty();
+
+  return (
+    <span
+      className="chunk hidden items-center gap-1.5 rounded-pill bg-panel px-2.5 py-1 md:inline-flex"
+      title={
+        certainty === "chain"
+          ? "Figures on this page were read from Monad testnet"
+          : certainty === "reading"
+            ? "Reading Monad testnet now"
+            : "No registry is configured, so the figures are worked examples"
+      }
+    >
+      <span
+        aria-hidden
+        className={cx(
+          "block size-1.5 rounded-pill",
+          certainty === "chain" ? "bg-bonded" : certainty === "reading" ? "bg-pinned" : "bg-attention",
+        )}
+      />
+      <span className="shout text-label text-muted">Monad testnet</span>
+    </span>
+  );
+}
+
+/*
+ * There is no single `Nav` export any more, and that is a structural consequence rather than a tidy-up.
+ *
+ * The rail is `fixed`, so it must be mounted outside the column that offsets itself against it; the bar is
+ * `sticky`, so it must be mounted inside that column or it spans underneath the rail. One component cannot
+ * be in two places, so `chrome.tsx` mounts `Rail` and `NavBar` on either side of the wrapper.
+ */
 
 /*
  * Thick strokes, round joins, no fills.
  *
  * 2.5 at 20px, which matches the weight of the 2px borders and the mascot's outline. A 1.5-stroke
- * icon set beside 800-weight uppercase labels looks like it was borrowed from another product, and
- * that mismatch is the most common way a Duolingo-adjacent interface falls apart.
+ * icon set beside heavier labels looks like it was borrowed from another product, and that mismatch
+ * is the most common way an interface falls apart at the seams.
  */
 /**
  * @param heavy Selected state. Draws the same path at 3.2 instead of 2.5.
@@ -288,7 +542,7 @@ export function Nav() {
  *
  * Weight and not a filled variant, deliberately. Filling these would mean a second set of thirty-odd
  * paths to keep in step with the first, and the failure mode of two icon sets is that they drift and
- * the nav ends up mixing styles — which is the thing this comment already warns about below. One set,
+ * the nav ends up mixing styles — which is the thing this comment already warns about above. One set,
  * two weights, nothing to keep synchronised.
  */
 function Glyph({ children, heavy = false }: { children: ReactNode; heavy?: boolean }) {
@@ -377,21 +631,38 @@ function IconShield({ heavy = false }: { heavy?: boolean }) {
   );
 }
 
-/**
- * A key, for the account.
+/*
+ * `IconAccount` was deleted with the Account nav item.
  *
- * Not the usual head-and-shoulders silhouette, which would be wrong here in a way worth naming: the
- * account is not a person, it is a keypair. `IconPublisher` already uses the person glyph for the
- * thing that genuinely is an actor with a reputation, and reusing it would collapse a distinction the
- * rest of the app is careful about.
+ * It was a key rather than the usual head-and-shoulders silhouette, on the grounds that an account is a
+ * keypair and not a person. That reasoning was right and is why it is not being kept "just in case": the
+ * wallet menu identifies the account with a fingerprint derived from the address itself, which is a
+ * stronger version of the same idea, and a spare glyph nobody renders is what gets rediscovered and
+ * reinstated next to the one that replaced it.
  */
-function IconAccount({ heavy = false }: { heavy?: boolean }) {
+
+/**
+ * A panel with its edge marked: the rail's collapse toggle.
+ *
+ * The bar inside the rectangle moves rather than the whole glyph flipping, because the two states are the
+ * same panel at two widths and the icon should say that. An arrow would say "go somewhere", which is what
+ * every other control in this bar does.
+ */
+function IconPanel({ open }: { open: boolean }) {
   return (
-    <Glyph heavy={heavy}>
-      <circle cx="8.5" cy="8.5" r="4" />
-      <path d="M11.4 11.6 20 20.5" />
-      <path d="M16.5 17 14.5 19" />
-    </Glyph>
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className="size-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d={open ? "M10 4v16" : "M7 4v16"} />
+    </svg>
   );
 }
 

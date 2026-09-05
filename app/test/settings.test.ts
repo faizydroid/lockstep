@@ -164,10 +164,25 @@ describe("serialise", () => {
       // keeps failing whenever a field is added to Settings without being persisted.
       onboardingAcknowledged: true,
       skippedSetup: false,
+      // `false` deliberately: this field defaults to true, so only the non-default value proves it survives.
+      navExpanded: false,
       profile: { displayName: "Ada", role: "owner", org: "Kuru" },
     };
 
     expect(parse(serialise(settings))).toEqual(settings);
+  });
+
+  it("keeps the rail expanded for an entry written before the field existed", () => {
+    /*
+     * The one boolean here that defaults to true, which makes the usual `=== true` read wrong.
+     *
+     * Every returning reader already has a settings entry with no `navExpanded` in it. Parsed as `=== true`
+     * they would all find the rail collapsed on the first load after deploy, with nothing they did to
+     * connect it to.
+     */
+    expect(parse(JSON.stringify({ motion: "system" })).navExpanded).toBe(true);
+    expect(parse(JSON.stringify({ navExpanded: false })).navExpanded).toBe(false);
+    expect(parse(JSON.stringify({ navExpanded: "no" })).navExpanded).toBe(true);
   });
 
   it("omits absent fields rather than writing nulls", () => {

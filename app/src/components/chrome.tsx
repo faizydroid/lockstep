@@ -37,10 +37,11 @@ import { usePathname } from "next/navigation";
 
 import { Field } from "./field";
 import { useFlowStage } from "./flow-gate";
-import { Mark, Nav } from "./nav";
+import { Mark, NavBar, Rail } from "./nav";
 import { RouteShell } from "./route-shell";
 import { SourceBanner } from "./source-banner";
 import { ThemeToggle } from "./theme-toggle";
+import { cx } from "./ui";
 
 export function Chrome({ children }: { children: React.ReactNode }) {
   const stage = useFlowStage();
@@ -76,13 +77,26 @@ export function Chrome({ children }: { children: React.ReactNode }) {
       */}
       <Field />
 
-      {inProduct ? <Nav /> : <FlowBar />}
+      {/*
+        The rail is out of flow, so it is mounted before the column that sits beside it.
+
+        Only when the reader is out of the first-run flow. The rail rendered on every route once, while the
+        gate bounces a mid-flow reader off product routes -- so a first-time visitor could see Pins, Drift
+        and Bonds in the primary navigation, click one, and be silently returned to where they started. A
+        rail is the one thing a reader trusts to be navigable.
+      */}
+      {inProduct ? <Rail /> : null}
 
       {/*
-        No offset any more. The 272px left rail became a top bar, so nothing is out of flow beside the
-        content and `--rail` has no consumer left.
+        The content column, offset by exactly the rail's width from `lg` up.
+
+        `--rail` rather than a literal, because the rail sets its own width from the same variable and the
+        two must not be able to disagree. It is 14rem expanded and 3.5rem collapsed; `html[data-rail]`
+        switches it, so this one class covers both states with no JavaScript in the offset at all.
       */}
-      <div>
+      <div className={cx(inProduct && "lg:pl-[var(--rail)]")}>
+        {inProduct ? <NavBar /> : <FlowBar />}
+
         <SourceBanner />
 
         <main id="main" className="gutter relative z-10 w-full pb-24 pt-5">

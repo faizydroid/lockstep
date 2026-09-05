@@ -113,6 +113,18 @@ export interface Settings {
    * is not re-asked on every navigation.
    */
   readonly skippedSetup: boolean;
+  /**
+   * Whether the left navigation rail shows its labels.
+   *
+   * A layout preference rather than a piece of product state, and it is stored for one specific reason:
+   * the reader who collapses it is the reader looking at `/pins` or `/publishers`, which are wide tables,
+   * and re-expanding the rail on every navigation would undo the choice they just made about their own
+   * screen.
+   *
+   * Defaults to expanded, and `parse` reads it as `!== false` rather than `=== true` so an entry written
+   * before this field existed keeps the default instead of silently collapsing.
+   */
+  readonly navExpanded: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -121,6 +133,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quickstartDismissed: false,
   onboardingAcknowledged: false,
   skippedSetup: false,
+  navExpanded: true,
 };
 
 export const STORAGE_KEY = "lockstep.settings.v1";
@@ -259,6 +272,15 @@ export function parse(raw: string | null): Settings {
     quickstartDismissed: record.quickstartDismissed === true,
     onboardingAcknowledged: record.onboardingAcknowledged === true,
     skippedSetup: record.skippedSetup === true,
+    /*
+     * `!== false`, not `=== true`, and this is the one field where that asymmetry is correct.
+     *
+     * Every other boolean here defaults to false, so reading an absent key as false is the same as the
+     * default. This one defaults to true. Written as `=== true` it would collapse the rail for every
+     * reader who already has a settings entry -- which is every returning reader -- on the first load
+     * after deploy, for no reason they could connect to anything they did.
+     */
+    navExpanded: record.navExpanded !== false,
     ...(rpcUrl === undefined ? {} : { rpcUrl }),
     ...(account === undefined ? {} : { account }),
     ...(deployBlock === undefined ? {} : { deployBlock }),
@@ -274,6 +296,7 @@ export function serialise(settings: Settings): string {
     quickstartDismissed: settings.quickstartDismissed,
     onboardingAcknowledged: settings.onboardingAcknowledged,
     skippedSetup: settings.skippedSetup,
+    navExpanded: settings.navExpanded,
     ...(settings.rpcUrl === undefined ? {} : { rpcUrl: settings.rpcUrl }),
     ...(settings.account === undefined ? {} : { account: settings.account }),
     ...(settings.deployBlock === undefined ? {} : { deployBlock: settings.deployBlock.toString() }),

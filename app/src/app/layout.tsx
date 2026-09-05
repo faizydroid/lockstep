@@ -13,12 +13,12 @@ import type { Metadata } from "next";
  */
 import { Chrome } from "@/components/chrome";
 import { SnapshotProvider } from "@/components/data";
-import { Field } from "@/components/field";
 import { FlowGate } from "@/components/flow-gate";
 import { IdentityProvider } from "@/components/identity";
 import { VisitTracker } from "@/components/quickstart";
 import { SettingsProvider } from "@/components/settings";
 import { THEME_SCRIPT, ThemeProvider } from "@/components/theme";
+import { RAIL_SCRIPT } from "@/lib/rail";
 
 import "./globals.css";
 
@@ -71,22 +71,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="referrer" content="no-referrer" />
 
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+
+        {/*
+          Sets the navigation rail's width before first paint, for the same reason as the theme above.
+
+          Both read a stored preference that React cannot see until it runs, and React runs after the first
+          paint. Deferred to an effect, a reader who collapsed the rail watches every page render at 224px
+          and then snap to 56px — a 168px lurch on every navigation. See lib/rail.ts.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: RAIL_SCRIPT }} />
       </head>
       <body className="min-h-dvh antialiased">
         {/*
           A skip link, because the rail is a dozen tab stops and this app is meant to be read.
 
-          Offset past the rail from `lg`. Pinned to `left-6` it appeared underneath a fixed 272px
-          sidebar on exactly the screens where the rail exists, which is the one case where a skip
-          link has to work: a keyboard user on a wide screen tabbing past seven nav items.
-        */}
-        {/*
-          The rail-width offset is gone with the rail. It existed because a `fixed` 272px sidebar covered a
-          skip link pinned to `left-6` on exactly the screens where the rail existed.
+          Offset past the rail from `lg`, and the offset is back because the rail is back. Pinned to
+          `left-6` it renders underneath the fixed sidebar on exactly the screens where that sidebar
+          exists, which is the one case a skip link has to work for: a keyboard user on a wide screen
+          who does not want to tab through seven nav items to reach the page.
+
+          `calc()` rather than a second variable, so collapsing the rail moves the link with it.
         */}
         <a
           href="#main"
-          className="sr-only rounded-md bg-text px-4 py-2 text-sm font-bold text-bg focus:not-sr-only focus:absolute focus:top-6 focus:left-6 focus:z-[60]"
+          className="sr-only rounded-md bg-text px-4 py-2 text-sm font-bold text-bg focus:not-sr-only focus:absolute focus:top-6 focus:left-6 focus:z-[60] lg:focus:left-[calc(var(--rail)+1.5rem)]"
         >
           Skip to content
         </a>

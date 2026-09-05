@@ -297,17 +297,37 @@ describe("copy that is load-bearing", () => {
     expect(priming).toMatch(/no server/);
   });
 
-  it("keeps an outcome line for every nav item", () => {
+  it("keeps an outcome line for every nav item, as visible text", () => {
     /*
-     * Still eight, still in `nav.tsx`, but they are `title` now rather than a visible second line.
+     * Seven now, not eight -- Account left the navigation for the wallet menu -- and they are rendered
+     * rather than hidden in a `title`.
      *
-     * In the rail each item had a label and a revealed sub-line explaining what the destination answers,
-     * which worked because a vertical menu has the room. A horizontal bar has nowhere to put a second line
-     * that does not either double the bar's height or cover the page. The words are worth keeping regardless:
-     * seven of the eight labels are coinages of this project and mean nothing on a first read.
+     * The words exist because six of the seven labels are coinages of this project and mean nothing on a
+     * first read. They were briefly `title`-only, when navigation was a horizontal bar with nowhere to put
+     * a second line. A rail has the room, so they are back on screen, which is where they were always the
+     * fix for the actual problem rather than a consolation for it.
      */
     const items = navSrc.match(/outcome: "/g) ?? [];
-    expect(items).toHaveLength(8);
-    expect(navSrc, "the outcome text is no longer reachable").toMatch(/title=\{link\.outcome\}/);
+    expect(items).toHaveLength(7);
+    expect(navSrc, "the outcome text is hidden again").toMatch(/\{link\.outcome\}\n\s*<\/span>/);
+  });
+
+  it("does not badge a count drawn from fixtures mid-read", () => {
+    /*
+     * The rail puts a count on Drift, which is the one piece of product state promoted into the chrome.
+     *
+     * While a read is in flight the snapshot is still the seeded fixture, so a badge computed from it is a
+     * number about sample data wearing the appearance of an alert about this account. The same mistake the
+     * landing page made when it printed "NO REGISTRY CONFIGURED" during every read.
+     */
+    expect(navSrc).toMatch(/if \(certainty === "reading"\) return 0/);
+  });
+
+  it("counts only the drift that needs a decision", () => {
+    /*
+     * `widened`, matching what /drift leads with. A release that only removes capabilities or lowers its
+     * ceiling has changed and needs nobody, and badging it is how a reader learns to ignore the badge.
+     */
+    expect(navSrc).toMatch(/drifted\.filter\(\(skill\) => skill\.diff\.widened\)\.length/);
   });
 });

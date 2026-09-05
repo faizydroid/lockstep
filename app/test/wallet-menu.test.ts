@@ -106,20 +106,44 @@ describe("the wallet menu follows the convention it borrows", () => {
   });
 });
 
-describe("the navigation is a compact bar", () => {
-  it("is one 56px row, not a 272px rail", () => {
-    expect(nav).toMatch(/h-14/);
-    expect(stripComments(nav), "the rail width is back").not.toMatch(/var\(--rail\)/);
-  });
-
-  it("puts the account control in the bar", () => {
-    expect(nav).toMatch(/<WalletMenu \/>/);
-  });
-
-  it("keeps the icons for the layout they were drawn for", () => {
+describe("the navigation is a rail beside a slim bar", () => {
+  it("draws the rail from the shared width token, in both states", () => {
     /*
-     * 20px glyphs above their own label line. Inline at 13px they stop being legible and start duplicating
-     * the word beside them, so the horizontal bar is text-only and the mobile sheet keeps them.
+     * The rail sets its own width and the content column offsets by the same amount, from two different
+     * components. The token is the only place they can agree, so a literal `w-56` here would be a pair
+     * that silently drifts the first time either number is adjusted.
+     */
+    expect(stripComments(nav), "the rail width is not read from the token").toMatch(/w-\[var\(--rail\)\]/);
+    expect(nav, "the bar is no longer 56px").toMatch(/h-14/);
+  });
+
+  it("puts the account control in the bar, not the rail", () => {
+    /*
+     * Top right is what this category means by "the account", and the rail is for destinations. A wallet
+     * control in a collapsible panel would disappear at exactly the width where a reader most wants it.
+     */
+    const bar = /export function NavBar\(\)[\s\S]*?\n}/.exec(nav)?.[0] ?? "";
+    expect(bar, "the wallet menu left the bar").toMatch(/<WalletMenu \/>/);
+
+    const rail = /export function Rail\(\)[\s\S]*?\n}/.exec(nav)?.[0] ?? "";
+    expect(rail, "the wallet menu is in the rail as well").not.toMatch(/WalletMenu/);
+  });
+
+  it("has no Account item duplicating the wallet menu", () => {
+    /*
+     * Address, network and whether anything is enforcing all moved into the menu. Leaving the nav item
+     * pointed at the same facts would be two front doors to one room, and the rail is the one that cannot
+     * show them without a page load.
+     */
+    expect(stripComments(nav), "Account is back in the navigation").not.toMatch(/href: "\/account"/);
+  });
+
+  it("keeps the icons, which the rail was the right layout for all along", () => {
+    /*
+     * 19px glyphs beside a label and its outcome line. They were dropped from the horizontal bar because
+     * inline at 13px they duplicated the word next to them; in a vertical item they are the thing that
+     * survives when the rail collapses, and they carry an `sr-only` label so the collapsed state is not a
+     * picture-only menu.
      */
     expect(nav).toMatch(/<Icon heavy=\{active\} \/>/);
     expect(nav).toMatch(/nav-sheet/);

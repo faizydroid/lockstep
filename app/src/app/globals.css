@@ -156,14 +156,34 @@
   --scrim: rgba(255, 255, 255, 0.78);
 
   /*
-   * Width of the left navigation rail.
+   * Width of the left navigation rail, expanded.
    *
    * Lives here because two unrelated places need to agree on it: the rail sets its own width, and the
    * content wrapper offsets itself by exactly that much. Tailwind cannot read a TypeScript constant
    * inside an arbitrary value, so the alternative was the same magic number in a component and in a
    * layout, which is the kind of pair that drifts the first time someone adjusts one of them.
+   *
+   * 14rem, down from the 17rem the first rail used. 272px was chosen for a Duolingo-styled rail whose
+   * items were a 20px glyph above a heavy uppercase label; 224px fits a 13px label and a 10px outcome
+   * line beside a 19px glyph with room to spare, and gives 48px back to the wide tables on /pins and
+   * /publishers that were the reason the rail got deleted once already.
    */
-  --rail: 17rem;
+  --rail: 14rem;
+}
+
+/*
+ * The collapsed rail: icons only, no labels.
+ *
+ * Set as an attribute on <html> rather than a class on the rail itself, because the width has to be
+ * readable by the content wrapper that offsets against it, and those two elements are in different
+ * components. An attribute on the root is the one place both can see.
+ *
+ * `html[data-rail]` outranks `:root` on specificity, so the override holds regardless of source order.
+ * `lib/rail.ts` sets the attribute before first paint for the same reason the theme script exists: read
+ * in an effect instead, and a reader who collapsed the rail watches it snap shut after the page renders.
+ */
+html[data-rail="shut"] {
+  --rail: 3.5rem;
 }
 
 .dark {

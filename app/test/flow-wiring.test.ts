@@ -84,22 +84,28 @@ describe("nothing links a mid-flow reader somewhere they will be bounced from", 
      * the primary navigation, click one, and be silently returned to where they started. The hero's
      * buttons had already been fixed for exactly this; the rail had not, and a rail is the one thing a
      * reader trusts to be navigable.
+     *
+     * Two mounts rather than one now: the rail is `fixed` and lives outside the content column, the bar is
+     * `sticky` and lives inside it. Both are gated on the same flag, which is what this protects.
      */
     expect(chrome).toMatch(/const inProduct = stage === "ready"/);
-    expect(chrome).toMatch(/\{inProduct \? <Nav \/> : <FlowBar \/>\}/);
+    expect(chrome).toMatch(/\{inProduct \? <Rail \/> : null\}/);
+    expect(chrome).toMatch(/\{inProduct \? <NavBar \/> : <FlowBar \/>\}/);
   });
 
-  it("applies no rail offset at all, because there is no rail", () => {
+  it("offsets the content column by the rail, and only when there is a rail", () => {
     /*
-     * This used to assert the offset was conditional, so the landing page was not indented 272px against a
-     * sidebar it did not render. The sidebar is gone entirely -- navigation is a top bar now -- so the
-     * correct assertion is that nothing offsets anything.
+     * The offset went away with the first rail and is back with the second. Both directions have bitten:
+     * a stale offset pushes every page right against a sidebar that is not there, and a missing one puts
+     * the whole dashboard underneath the sidebar that is.
      *
-     * A stale `lg:pl-[var(--rail)]` would be invisible in a screenshot of the dashboard and would push every
-     * page 272px right for no reason, which is exactly the kind of leftover this catches.
+     * Asserted as one expression so the conditional cannot be dropped while the class survives. An
+     * unconditional `lg:pl-[var(--rail)]` would indent the first-run flow pages against a rail those pages
+     * deliberately do not render.
      */
-    // Stripped: chrome.tsx's own comment records that `--rail` has no consumer left.
-    expect(stripComments(chrome), "the rail offset is back").not.toMatch(/--rail/);
+    expect(stripComments(chrome), "the rail offset is missing").toMatch(
+      /cx\(inProduct && "lg:pl-\[var\(--rail\)\]"\)/,
+    );
   });
 
   it("keeps the only in-flow link pointed at a route allowed from every stage", () => {
