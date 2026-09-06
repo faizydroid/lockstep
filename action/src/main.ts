@@ -24,18 +24,21 @@ import { createPublicClient, createWalletClient, formatUnits, http, isAddress, t
 import { privateKeyToAccount } from "viem/accounts";
 import { monad, monadTestnet } from "viem/chains";
 
-import { badgeSnippet, renderBadge } from "@lockstep/badge";
+import { badgeSnippet, renderBadge, LOCKSTEP_DASHBOARD } from "@lockstep/badge";
 import { hashSkillDirectory } from "@lockstep/runtime";
 
 import { loadManifest, isHighRiskSelector, HIGH_RISK_LABELS, registryAbi } from "./shared.ts";
 
 /**
- * Where a badge links to. Matches the CLI's constant deliberately.
+ * Where a badge links to. Shared with the CLI rather than matched by hand.
  *
- * Not configurable, for the same reason it is not in the CLI: a badge's only claim is that it points at
- * this registry, and letting a workflow input change that removes the claim.
+ * "Matches the CLI's constant deliberately" is what this comment used to say, which is a promise a
+ * comment cannot keep. Both now read the same exported value.
+ *
+ * Still not configurable: a badge's only claim is that it points at this registry, and letting a
+ * workflow input change that removes the claim.
  */
-const DASHBOARD_URL = "https://lockstep.dev";
+const DASHBOARD_URL = LOCKSTEP_DASHBOARD;
 
 /**
  * Reads a workflow input the way the runner actually publishes it.

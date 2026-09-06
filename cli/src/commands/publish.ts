@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { formatUnits } from "viem";
 
-import { badgeSnippet, renderBadge } from "@lockstep/badge";
+import { badgeSnippet, renderBadge, LOCKSTEP_DASHBOARD } from "@lockstep/badge";
 import { hashSkillDirectory } from "@lockstep/runtime";
 
 import { pinRegistryAbi } from "../abi.ts";
@@ -18,11 +18,15 @@ import { HIGH_RISK_LABELS, isHighRiskSelector } from "../risk.ts";
 /**
  * Where a badge links to.
  *
- * A constant rather than configuration, because it is the address of the public registry viewer and a
- * publisher pasting a badge into their README wants the canonical one. Making it settable would mean a
- * badge could link somewhere that is not this registry, which is the badge's only claim.
+ * Imported rather than declared. This used to be a local constant, and so did the Action's, and so did
+ * the dashboard's own badge preview — three copies of a string that gets pasted into other people's
+ * READMEs, where a drifted copy is already published somewhere nobody can edit.
+ *
+ * Still a constant rather than configuration, for the reason it always was: a badge's only claim is
+ * that it describes a pin in this registry, and a settable link is a badge that can point elsewhere
+ * while looking identical.
  */
-const DASHBOARD_URL = "https://lockstep.dev";
+const DASHBOARD_URL = LOCKSTEP_DASHBOARD;
 
 export interface PublishOptions {
   readonly skillDir: string | undefined;

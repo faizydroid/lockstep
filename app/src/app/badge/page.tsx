@@ -10,7 +10,7 @@
  */
 
 import { useId, useMemo, useState } from "react";
-import { renderBadge, badgeSnippet } from "@lockstep/badge";
+import { renderBadge, badgeSnippet, LOCKSTEP_DASHBOARD } from "@lockstep/badge";
 import type { BadgeInput, BadgeState } from "@lockstep/badge";
 
 import { useSnapshot } from "@/components/data";
@@ -44,7 +44,7 @@ export default function BadgePage() {
    * Built by the same helper the CLI and the Action use, so this preview cannot drift from what a
    * publisher actually gets.
    *
-   * It used to show a hosted URL -- `https://lockstep.dev/badge/kuru-quote.svg` -- which contradicted
+   * It used to show a hosted URL -- `<host>/badge/kuru-quote.svg` -- which contradicted
    * the sentence directly above it about the badge not phoning home. A hosted image reports every
    * README view to whoever runs the host. The image path is relative because it is a file the publisher
    * commits; the link is absolute because a README is read on github.com and the registry is not there.
@@ -62,7 +62,9 @@ export default function BadgePage() {
   const snippet = badgeSnippet({
     skillName: displayName(livePin?.skillName, "kuru-quote"),
     pinId: livePin?.pinId ?? `0x${"0".repeat(64)}`,
-    dashboard: "https://lockstep.dev",
+    // The shared constant, not a copy. This page tells a reader to paste the snippet into a README,
+    // so a preview showing a different host than the CLI writes would be actively misleading.
+    dashboard: LOCKSTEP_DASHBOARD,
   });
 
   return (

@@ -56,5 +56,13 @@ outputs:
     value: ${{ steps.pin.outputs.bond-required }}
 
 runs:
-  using: node20
+  # node24, not node20, and the date matters rather than the tidiness.
+  #
+  # Node 20 reached end of life in April 2026, GitHub began forcing JavaScript actions onto Node 24
+  # by default on 2 June 2026, and Node 20 is removed from the runners on 16 September 2026. This
+  # action declared `node20`, so it had a hard expiry inside the submission window.
+  #
+  # The first run of `pin-skill.yml` reported the deprecation as a warning and it was easy to read
+  # past, because the job failed for a different reason on the same line.
+  using: node24
   main: dist/index.js

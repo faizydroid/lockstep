@@ -20317,6 +20317,7 @@ function safeAltText(skillName) {
   const cleaned = skillName.replace(/[^A-Za-z0-9 ._-]+/g, "").trim();
   return cleaned === "" ? "pin" : cleaned;
 }
+var LOCKSTEP_DASHBOARD = "https://lockstep.dofolabs.space";
 function pinUrl(dashboard, pinId) {
   const base = dashboard.replace(/\/+$/, "");
   return `${base}/pins?pin=${pinId}`;
@@ -21241,7 +21242,7 @@ var pinRegistryAbi = [
 ];
 
 // src/main.ts
-var DASHBOARD_URL = "https://lockstep.dev";
+var DASHBOARD_URL = LOCKSTEP_DASHBOARD;
 function input(name, fallback = "") {
   const upper = name.toUpperCase();
   const asRunnerSetsIt = process.env[`INPUT_${upper.replace(/ /g, "_")}`];

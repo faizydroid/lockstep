@@ -131,7 +131,7 @@ export function badgeMarkdown(badgeUrl: string, linkUrl: string, alt = "Lockstep
  * Where the badge lives, and why it is a file rather than a URL.
  *
  * The badge is an SVG that cannot phone home, and that constraint decides the shape of everything
- * below. A hosted badge — `https://lockstep.dev/badge/<pin>.svg` in an `<img>` — would report every
+ * below. A hosted badge — `https://lockstep.dofolabs.space/badge/<pin>.svg` in an `<img>` — would report every
  * README view to whoever runs the host: which repositories carry a pin, how often they are read, and
  * from where. For a supply-chain security product that is a map of its own users' security posture,
  * served to a third party. So there is no badge host, and there is not going to be one.
@@ -178,6 +178,23 @@ export function safeAltText(skillName: string): string {
   const cleaned = skillName.replace(/[^A-Za-z0-9 ._-]+/g, "").trim();
   return cleaned === "" ? "pin" : cleaned;
 }
+
+/**
+ * The public registry viewer a badge links to.
+ *
+ * One definition, in the package all three callers already import — the CLI's `publish`, the GitHub
+ * Action, and the dashboard's own badge preview. Each of those used to hardcode its own copy, which
+ * is the wrong number of copies for a string that gets pasted into other people's READMEs: the copies
+ * drift, and the ones that drift are already published somewhere nobody can edit.
+ *
+ * It is a constant rather than configuration on purpose. A badge's only claim is that it describes a
+ * pin in *this* registry, and a settable link is a badge that can point somewhere else while looking
+ * identical. That is worth more than the flexibility of an override.
+ *
+ * `badgeSnippet` and `pinUrl` still take the base as a parameter, so the package stays pure and a
+ * test can pass whatever it likes. This constant is what production passes.
+ */
+export const LOCKSTEP_DASHBOARD = "https://lockstep.dofolabs.space";
 
 /** The dashboard URL that shows the pin this badge describes. */
 export function pinUrl(dashboard: string, pinId: string): string {

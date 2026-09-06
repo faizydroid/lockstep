@@ -45,7 +45,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, matching ci.yml. The root `engines` field requires >=22.18.0 because these packages
+          # are run as TypeScript by plain node, and that is only on by default from 22.18.
+          node-version: 22
           cache: npm
 
       - run: npm ci

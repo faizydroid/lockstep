@@ -4,7 +4,7 @@
     "private":  true,
     "type":  "module",
     "scripts":  {
-                    "build":  "esbuild src/entry.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from\u0027module\u0027;const require=createRequire(import.meta.url);\"",
+                    "build":  "esbuild src/entry.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.js --banner:js=\"import{createRequire}from\u0027module\u0027;const require=createRequire(import.meta.url);\"",
                     "test":  "vitest run",
                     "typecheck":  "tsc --noEmit"
                 },

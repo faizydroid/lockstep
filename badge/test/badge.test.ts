@@ -6,6 +6,7 @@ import {
   badgeSnippet,
   pinUrl,
   renderBadge,
+  LOCKSTEP_DASHBOARD,
   type BadgeState,
 } from "../src/badge.ts";
 
@@ -146,6 +147,32 @@ describe("pinUrl", () => {
   it("does not double the slash when the base has a trailing one", () => {
     expect(pinUrl("https://lockstep.dev/", pin)).toBe(`https://lockstep.dev/pins?pin=${pin}`);
     expect(pinUrl("https://lockstep.dev///", pin)).toBe(`https://lockstep.dev/pins?pin=${pin}`);
+  });
+});
+
+/**
+ * The one place the real host is asserted.
+ *
+ * Every other test above passes an arbitrary base on purpose — a unit test of URL joining should not
+ * care where the site lives. But the value production uses is now a single exported constant that the
+ * CLI, the Action and the dashboard's own preview all read, and it ends up pasted into other people's
+ * READMEs where a mistake is published somewhere nobody can edit. So its shape is checked once, here.
+ *
+ * The trailing-slash assertion is not pedantry: `pinUrl` strips them, but the constant is also
+ * concatenated directly in the CLI's post-publish output, which does not.
+ */
+describe("LOCKSTEP_DASHBOARD", () => {
+  const pin = `0x${"ab".repeat(32)}`;
+
+  it("is the deployed host, over https, with no trailing slash", () => {
+    expect(LOCKSTEP_DASHBOARD).toBe("https://lockstep.dofolabs.space");
+    expect(LOCKSTEP_DASHBOARD.endsWith("/")).toBe(false);
+  });
+
+  it("produces the pin link a badge points at", () => {
+    expect(pinUrl(LOCKSTEP_DASHBOARD, pin)).toBe(
+      `https://lockstep.dofolabs.space/pins?pin=${pin}`,
+    );
   });
 });
 
