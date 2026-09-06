@@ -278,9 +278,14 @@ describe("copy that is load-bearing", () => {
   });
 
   it("keeps the instrument off the landing page", () => {
-    // A returning reader should not pay for the pitch to see the scoreboard, and a first-time reader
-    // should not meet a ledger before knowing what it counts.
-    for (const marker of ["<Scoreboard", "<Ledger", "<Quickstart"]) {
+    // A returning reader should not pay for the pitch to see the verdict, and a first-time reader should not
+    // meet a registry total before knowing what it counts.
+    /*
+     * Dashboard-only components, by name. Deliberately not `<Registry`: the landing page has its own registry
+     * block, and the dashboard's is a local function in its own page rather than a shared component, so that
+     * marker would fail on a legitimate section while catching nothing.
+     */
+    for (const marker of ["<Verdict", "<Position", "<Activity", "<Quickstart"]) {
       expect(overview, `${marker} belongs on /dashboard`).not.toContain(marker);
     }
   });

@@ -120,16 +120,24 @@ const PAGES = {
   /*
    * The dashboard: what the landing page used to carry below its own pitch.
    *
-   * "Integrity" and "Bond coverage" prove the scoreboard rendered its derived figures rather than just its
-   * frame, and "approved skills still match" proves a denominator reached the page -- a ring showing a
+   * "Integrity" and "Bond coverage" prove the ratio tiles rendered their derived figures rather than just
+   * their frame, and "approved skills still match" proves a denominator reached the page -- a ring showing a
    * percentage with no denominator is the failure mode that check exists for.
+   *
+   * "your decision" is the verdict sentence, which is the route's h1 and the reason the page is ordered the
+   * way it is. If it stops appearing, the page has gone back to leading with a registry-wide count.
+   *
+   * "Activity" replaced "Blocked calls". Refusals used to be a column of their own while executions were a
+   * table on another route, so no surface answered "what has this account been doing"; they are one record
+   * now, and the assertion follows the record rather than the old column heading.
    */
   dashboard: [
+    "your decision",
     "Live pins",
     "Integrity",
     "Bond coverage",
     "approved skills still match",
-    "Blocked calls",
+    "Activity",
   ],
   /*
    * The two flow stages.
