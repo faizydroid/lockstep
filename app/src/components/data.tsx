@@ -15,6 +15,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
+import { resolveAccount } from "@/lib/account";
+import type { AccountSource } from "@/lib/account";
 import { loadSnapshot, readConfig } from "@/lib/chain";
 import { sampleSnapshot } from "@/lib/fixtures";
 import type { Snapshot } from "@/lib/model";
@@ -77,12 +79,24 @@ export function SnapshotProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       const base = readConfig();
+      /*
+       * The account comes from `resolveAccount`, not from three spreads in a row.
+       *
+       * The precedence is unchanged -- wallet, then setting, then the build -- but it is expressed once, in
+       * `lib/account.ts`, because the source banner has to disclose which rung this landed on. Two places
+       * computing the same precedence is a pair that drifts, and a drifted disclosure is a banner confidently
+       * naming an account other than the one these figures came from.
+       */
+      const account = resolveAccount({
+        configured: base.account,
+        setting: settings.account,
+        wallet: address,
+      });
       const config = {
         ...base,
         ...(settings.rpcUrl === undefined ? {} : { rpcUrl: settings.rpcUrl }),
         ...(settings.deployBlock === undefined ? {} : { deployBlock: settings.deployBlock }),
-        ...(settings.account === undefined ? {} : { account: settings.account }),
-        ...(address === undefined ? {} : { account: address }),
+        ...(account.address === undefined ? {} : { account: account.address }),
       };
       /*
        * Wrapped, because an unhandled rejection here was the app's quietest failure mode.
@@ -180,4 +194,24 @@ export function useCertainty(): Certainty {
    */
   if (status === "loading") return "reading";
   return snapshot.source.kind === "chain" ? "chain" : "sample";
+}
+
+/**
+ * Whose account the account-scoped figures belong to, and which rung named it.
+ *
+ * Lives here rather than in the banner because this is the module that does the resolving, and the disclosure
+ * has to be derived from the same call the read uses. It recomputes rather than reading back what the effect
+ * used, deliberately: `resolveAccount` is pure over three inputs this component already holds, so recomputing
+ * cannot disagree, while storing the effect's answer in state would leave the banner one render behind every
+ * connect and disconnect -- naming the previous account at exactly the moment the reader is watching it change.
+ */
+export function useAccountSource(): AccountSource {
+  const { address } = useIdentity();
+  const { settings } = useSettings();
+
+  return resolveAccount({
+    configured: readConfig().account,
+    setting: settings.account,
+    wallet: address,
+  });
 }

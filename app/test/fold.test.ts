@@ -53,6 +53,29 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+/**
+ * Everywhere the deleted mascot is still referenced, as a list of reasons.
+ *
+ * Computed at module scope rather than inside the test, which is where every other read in this file happens
+ * and is not incidental: walking `src` and reading forty files takes longer than the five-second per-test
+ * timeout on a slow machine, and a sweep that times out is a sweep that reports a defect it never looked for.
+ *
+ * `\b` after the name, so `GuardStation` in the settlement gate is not a hit. That is the checkpoint in the
+ * diagram, named after the LockstepGuard contract, and it has no face.
+ */
+const MASCOT_REFERENCES: readonly string[] = sourceFiles(join(import.meta.dirname, "..", "src")).flatMap(
+  (file) => {
+    const source = stripComments(readFileSync(file, "utf8"));
+    const name = file.slice(join(import.meta.dirname, "..", "src").length + 1);
+
+    return [
+      ...(/<Guard\b|<GuardSays\b/.test(source) ? [`${name}: renders it`] : []),
+      ...(/from "\.\.?\/guard"|components\/guard"/.test(source) ? [`${name}: imports it`] : []),
+      ...(/Guard (looks|is watching)/.test(source) ? [`${name}: speaks for it`] : []),
+    ];
+  },
+);
+
 const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
 const hero = readFileSync(join(APP, "components", "landing", "hero.tsx"), "utf8");
 const heroCode = stripComments(hero);
@@ -208,13 +231,8 @@ describe("design decisions worth pinning", () => {
      */
     expect(existsSync(join(APP, "components", "guard.tsx")), "guard.tsx is back").toBe(false);
 
-    for (const file of sourceFiles(APP)) {
-      const source = stripComments(readFileSync(file, "utf8"));
-      const name = file.slice(APP.length + 1);
-      expect(source, `${name} renders the mascot`).not.toMatch(/<Guard\b|<GuardSays\b/);
-      expect(source, `${name} imports the mascot`).not.toMatch(/from "\.\.?\/guard"|components\/guard"/);
-      expect(source, `${name} still speaks for the mascot`).not.toMatch(/Guard (looks|is watching)/);
-    }
+    // One assertion over the whole sweep, so a failure names every offender at once rather than the first.
+    expect(MASCOT_REFERENCES).toEqual([]);
   });
 
   it("keeps the empty state to a title and a reason", () => {

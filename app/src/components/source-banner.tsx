@@ -10,9 +10,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 
-import { useSnapshot } from "./data";
+import { useAccountSource, useSnapshot } from "./data";
 import { useSettings } from "./settings";
 import { HashChip, Pill } from "./ui";
+import { shortAddress } from "@/lib/format";
 import { rpcHost } from "@/lib/settings";
 
 export function SourceBanner() {
@@ -21,20 +22,65 @@ export function SourceBanner() {
   const { settings } = useSettings();
 
   /*
-   * One short label naming which setting is in effect, or nothing.
+   * Short labels naming everything in effect that changes what this page reads.
    *
-   * Deliberately terse and deliberately present. The full explanation lives in Account; what this bar
-   * owes a reader is that the numbers beside it are not the default build's.
+   * A list now, not one label. This was a chained ternary that returned the first match, so a reader with a
+   * custom RPC *and* a custom account was told about the RPC only -- and the whole condition attached to
+   * allowing those overrides is that they get disclosed. One winning over another was a quiet way to
+   * half-honour it.
+   *
+   * Deliberately terse and deliberately present. The full explanation lives in Account; what this bar owes a
+   * reader is that the numbers beside it are not the default build's.
    */
   const host = rpcHost(settings);
-  const override =
-    host !== undefined
-      ? `custom RPC \u00b7 ${host}`
-      : settings.account !== undefined
-        ? "custom account"
-        : settings.deployBlock !== undefined
-          ? "custom start block"
-          : undefined;
+  const account = useAccountSource();
+
+  const notes: { readonly label: string; readonly title: string }[] = [];
+
+  if (host !== undefined) {
+    notes.push({
+      label: `custom RPC \u00b7 ${host}`,
+      title: "A setting is changing which endpoint this page reads. Clear it in Account, settings.",
+    });
+  }
+
+  /*
+   * Which account these figures are about, whenever it is not the reader's own wallet.
+   *
+   * The `build` case is why this exists, and it is the one nothing disclosed before. Disconnecting clears the
+   * wallet and the account override together, so the resolution falls through to the address the build ships
+   * -- and every account-scoped figure on the page becomes somebody else's while still looking like it is
+   * about the reader. Naming it "the deployment's example account" is the difference between a page that
+   * changed subject and a page that said so.
+   *
+   * `wallet` gets no note. It is the expected case, the address is already in the chrome two inches away, and
+   * a pill restating it would be the third place on screen saying the same thing.
+   */
+  if (account.origin === "setting") {
+    notes.push({
+      label: `custom account \u00b7 ${shortAddress(account.address ?? "")}`,
+      title: "A setting is pointing this page at an address other than your wallet. Clear it in Account, settings.",
+    });
+  } else if (account.origin === "build") {
+    notes.push({
+      label: `demo account \u00b7 ${shortAddress(account.address ?? "")}`,
+      title:
+        "No wallet is connected, so approvals, drift and executions on this page belong to the account this deployment ships as its example. Connect a wallet to see your own.",
+    });
+  } else if (account.origin === "none") {
+    notes.push({
+      label: "no account",
+      title:
+        "Nothing names an account, so the pages about one — approvals, drift, enforcement — have nothing to read. Connect a wallet or set one in Account, settings.",
+    });
+  }
+
+  if (settings.deployBlock !== undefined) {
+    notes.push({
+      label: "custom start block",
+      title: "A setting is changing where log scanning begins, which costs completeness. Clear it in Account, settings.",
+    });
+  }
 
   return (
     <div className="gutter relative z-10 w-full pt-3">
@@ -109,14 +155,16 @@ export function SourceBanner() {
                 argument does not permit. The host is shown and never the path, since a self-hosted
                 endpoint routinely carries a key in it.
               */}
-              {override === undefined ? null : (
-                <>
-                  <span className="text-faint">&middot;</span>
-                  <Pill tone="attention" title="A setting is changing what this page reads. Clear it in Account, settings.">
-                    {override}
+              {notes.map((note) => (
+                <span key={note.label} className="inline-flex items-center gap-2">
+                  <span aria-hidden className="text-faint">
+                    &middot;
+                  </span>
+                  <Pill tone="attention" title={note.title}>
+                    {note.label}
                   </Pill>
-                </>
-              )}
+                </span>
+              ))}
             </>
           ) : (
             <>
