@@ -75,7 +75,17 @@ jobs:
       #
       # These change when the registry is redeployed. Both places must move together, and
       # `check-export.mjs` fails if the Lens address stops matching, which is the tripwire.
-      - name: Build the dashboard
+      # `npm run verify:dashboard` is build, then generate `app/out/_headers`, then check the
+      # export — the same one command CI runs and the same one a developer runs locally. It was
+      # three steps here, and splitting the sequence across workflows is exactly how CI ended up
+      # building an export with no host headers.
+      #
+      # The generated `_headers` is what delivers `frame-ancestors`, `X-Frame-Options` and
+      # `Referrer-Policy`, none of which can be expressed in a meta tag. Without it the deployed
+      # site has no frame protection and leaks pin ids and account addresses in the Referer.
+      #
+      # Nothing is uploaded if the check fails.
+      - name: Build and verify the dashboard
         env:
           NEXT_PUBLIC_CHAIN_ID: "10143"
           NEXT_PUBLIC_RPC_URL: https://testnet-rpc.monad.xyz
@@ -85,21 +95,7 @@ jobs:
           NEXT_PUBLIC_PIN_IDS: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401"
           NEXT_PUBLIC_LOCKSTEP_LENS: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664"
           NEXT_PUBLIC_LOCKSTEP_GUARD: "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510"
-        run: npm run build --workspace @lockstep/app
-
-      # A static host sends only the headers it is told to. `frame-ancestors`,
-      # `X-Frame-Options` and `Referrer-Policy` cannot be expressed in a meta tag, so without
-      # this file the deployed site has no frame protection and leaks pin ids and account
-      # addresses in the Referer. Generated from the same definition the local reference server
-      # uses, so the two cannot disagree.
-      - name: Write the host headers
-        run: node scripts/write-cloudflare-headers.mjs
-
-      # The gate. Fails if a page rendered empty, if a font came from a CDN, if anything able to
-      # sign reached the bundle, if the mock-bond disclosure went missing, or if the headers
-      # above are absent. Nothing is uploaded when this fails.
-      - name: Check the export
-        run: node scripts/check-export.mjs
+        run: npm run verify:dashboard
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

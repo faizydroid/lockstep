@@ -107,7 +107,23 @@ jobs:
       # nothing secret can be passed this way even by mistake. All of them are also in .env.example
       # and in the README. Repository variables were considered and rejected: a fork would build with
       # them empty and fail the check for a reason that has nothing to do with the change.
-      - name: Build the dashboard
+      # One step, via `npm run verify:dashboard`, which is build then generate `_headers` then
+      # check the export.
+      #
+      # It was two steps — build, then check — and the `_headers` generator was added to
+      # `deploy-dashboard.yml` without being added here. So CI built an export with no host
+      # headers and the export check failed on its own new assertion, which is the check doing
+      # exactly its job and is also a sequence nobody should have to remember in two places.
+      #
+      # The script is now the single definition of "a dashboard build that is fit to ship", and
+      # it is the same command a developer runs locally. CI and a laptop cannot diverge on it.
+      #
+      # A green build only proves it compiled. This also checks the exported HTML contains the
+      # interface, that fonts were emitted locally rather than fetched from a CDN, that the write
+      # boundary holds — no ABI fragment for approvePin, publish or execute reached the bundle,
+      # and the three narrowing writes did — that the mock-bond disclosure is present, and that
+      # the headers a static host must send were generated.
+      - name: Build and verify the dashboard
         env:
           NEXT_PUBLIC_CHAIN_ID: "10143"
           NEXT_PUBLIC_RPC_URL: https://testnet-rpc.monad.xyz
@@ -117,16 +133,7 @@ jobs:
           NEXT_PUBLIC_PIN_IDS: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401"
           NEXT_PUBLIC_LOCKSTEP_LENS: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664"
           NEXT_PUBLIC_LOCKSTEP_GUARD: "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510"
-        run: npm run build --workspace @lockstep/app
-
-      # A green build only proves it compiled. This checks the exported HTML actually contains
-      # the interface, that the fonts were emitted as local files rather than fetched from a
-      # CDN, and that the write boundary holds: no ABI fragment for approvePin, publish or
-      # execute reached the bundle, and the three narrowing writes did. It used to assert that
-      # no wallet surface existed at all, which was right while the dashboard was read-only and
-      # became wrong once it gained a connect flow.
-      - name: Check the export
-        run: node scripts/check-export.mjs
+        run: npm run verify:dashboard
 
   # Envio's CLI ships native binaries for linux and darwin only, so codegen cannot run
   # on a Windows dev machine. This job is where the indexer's config, schema, and
