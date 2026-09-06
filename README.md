@@ -825,7 +825,7 @@ exists at all — and it is also why the enforcement has to be free.
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
 | Badge | Done, 28 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
-| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. Written and green in CI; not yet listed on the Marketplace, which needs the repo public |
+| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.0`** — `uses:` accepts a subdirectory. Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
@@ -867,6 +867,41 @@ The first settles and emits `SkillExecuted`. The second reverts at the guard wit
 
 Nothing about the skill's name or version string changes between the two runs. That
 is the whole point: a policy that trusts labels permits the second one.
+
+### Why the Action is not on the Marketplace
+
+The status table used to give the reason as "needs the repo public". The repository is public now and
+the Action still is not listed, so that reason was wrong and is worth replacing with the real one.
+
+The Marketplace has two requirements that cannot both be met from here: a repository may contain
+exactly one action, and the action's metadata file must sit in the repository **root**. This is a
+monorepo — contracts, a dashboard, a CLI, a watcher, an indexer — and the metadata is at
+`action/action.yml`. No configuration changes that.
+
+**The Action works today regardless.** `uses:` accepts a subdirectory, so this is enough:
+
+```yaml
+- uses: faizydroid/lockstep/action@v0.1.0
+  with:
+    skill-dir: skills/my-skill
+    pin-registry: ${{ vars.PIN_REGISTRY }}
+    publisher-private-key: ${{ secrets.PUBLISHER_PRIVATE_KEY }}
+```
+
+What a listing adds is discovery — a searchable page — and that is worth having but not worth
+restructuring a monorepo for. `scripts/publish-action-repo.mjs` generates a standalone repository
+containing only `action.yml`, the bundled `dist/`, a README and the licence, and pushes it under a
+tag. Run it with `--dry-run` first. Ticking the Marketplace box on the resulting release is a manual
+step, because GitHub only offers it in the web UI.
+
+It is a local script rather than a workflow deliberately: pushing to a second repository from CI
+needs a long-lived token with write access outside this repo, which is a broad credential to store
+for a job that runs when a human decides to cut a release.
+
+**One dated detail worth knowing if you fork this.** The action declared `runs.using: node20`, which
+had a hard expiry: Node 20 left the runners on 16 September 2026. It is `node24` now. The first run
+of `pin-skill.yml` printed that as a deprecation warning, and it was easy to read past because the
+job failed on the same line for a different reason — the input bug described below.
 
 ### What the security pass found
 
