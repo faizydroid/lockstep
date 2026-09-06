@@ -1,14 +1,23 @@
 "use client";
 
 /**
- * Publishers, sorted by collateral at risk.
+ * Publishers, sorted by collateral at risk by default.
  *
- * The ranking is the point. Reputation here is not a score somebody assigned; it is how much a
- * publisher stands to lose if they contradict themselves about what a version contains. Sorting
- * by locked bond therefore sorts by how much their claims are worth.
+ * The default ranking is the point. Reputation here is not a score somebody assigned; it is how much a
+ * publisher stands to lose if they contradict themselves about what a version contains. Sorting by locked
+ * bond therefore sorts by how much their claims are worth.
+ *
+ * The columns are sortable now, which does not weaken that. The default is unchanged and stated, so the
+ * argument still lands on arrival; what is added is that a reader who wants the table ordered by slashes can
+ * have it, which is what a table with a right-aligned numeric column implicitly promises. Before this, those
+ * headers looked clickable and were not.
  */
 
+import { useState } from "react";
+
 import { useSnapshot } from "@/components/data";
+import { FilterBar, matches } from "@/components/filters";
+import type { FilterChip } from "@/components/filters";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { ReviewerPanel } from "@/components/reviewers";
 import { Term } from "@/components/term";
@@ -19,12 +28,51 @@ import { formatBondWith } from "@/lib/bond";
 import { readConfig } from "@/lib/chain";
 import { challengerReward, findEquivocations } from "@/lib/equivocation";
 import { formatBps, formatDuration } from "@/lib/format";
+import type { Publisher } from "@/lib/model";
+
+/*
+ * The sortable columns, and what "descending" means for each.
+ *
+ * Every one of these defaults to the direction a reader actually wants first. Biggest bond, most pins, most
+ * slashes: the interesting end of a numeric column in this table is always the high end, and making the first
+ * click ascending would mean two clicks to see anything. `address` is the exception and sorts ascending,
+ * because a hex string has no interesting end -- it is there so a reader can find a specific one by eye.
+ */
+const SORTS = {
+  bond: { label: "Bond locked", of: (p: Publisher) => p.lockedBond, dir: "desc" },
+  pins: { label: "Pins", of: (p: Publisher) => BigInt(p.pinCount), dir: "desc" },
+  slashes: { label: "Slashes", of: (p: Publisher) => BigInt(p.slashCount), dir: "desc" },
+} as const;
+
+type SortKey = keyof typeof SORTS;
 
 export default function PublishersPage() {
   const { snapshot } = useSnapshot();
   const { publishers, pricing, pins, reviewers } = snapshot;
 
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("bond");
+
   const slashed = publishers.filter((p) => p.hasEquivocated);
+
+  const visible = publishers
+    .filter((publisher) => matches(search, publisher.address))
+    /*
+     * Copied before sorting. `publishers` comes off the shared snapshot every page reads, and `sort` mutates
+     * in place -- reordering it here would silently reorder the table on `/dashboard` too.
+     */
+    .slice()
+    .sort((a, b) => {
+      const of = SORTS[sort].of;
+      const left = of(a);
+      const right = of(b);
+      if (left === right) return 0;
+      return right > left ? 1 : -1;
+    });
+
+  const chips: FilterChip[] = search.trim() === "" ? [] : [
+    { label: `matching "${search.trim()}"`, onClear: () => setSearch("") },
+  ];
 
   /*
    * Contradictions the registry would accept as proof right now.
@@ -166,19 +214,38 @@ export default function PublishersPage() {
             </RevealItem>
           </RevealGroup>
 
+          <FilterBar
+            search={search}
+            onSearch={setSearch}
+            searchLabel="Search publishers by address"
+            placeholder="Publisher address"
+            chips={chips}
+            onClearAll={() => setSearch("")}
+            showing={visible.length}
+            total={publishers.length}
+            noun="publishers"
+          />
+
           <Reveal>
             <Table>
               <thead>
                 <tr>
                   <Th>Publisher</Th>
-                  <Th className="text-right">Bond locked</Th>
-                  <Th className="text-right">Pins</Th>
-                  <Th className="text-right">Slashes</Th>
+                  {/*
+                    Sortable headers, as buttons inside the `th`.
+
+                    `aria-sort` on the `th` is what makes the current order audible; a coloured arrow alone
+                    tells a screen reader nothing. The button is inside rather than instead of the header cell
+                    because the cell is the column's name and the button is a control on it.
+                  */}
+                  <SortableTh sortKey="bond" active={sort} onSort={setSort} />
+                  <SortableTh sortKey="pins" active={sort} onSort={setSort} />
+                  <SortableTh sortKey="slashes" active={sort} onSort={setSort} />
                   <Th>Standing</Th>
                 </tr>
               </thead>
               <tbody>
-                {publishers.map((publisher) => {
+                {visible.map((publisher) => {
                   const theirPins = pins.filter(
                     (p) => p.publisher.toLowerCase() === publisher.address.toLowerCase(),
                   );
@@ -234,6 +301,7 @@ export default function PublishersPage() {
 
       {/*
         Rendered only when a LockstepLens is configured and answering.
+
         Its absence is meaningful rather than a gap: the Lens reads two ERC-8004 registries this
         project neither deployed nor controls, so a chain without them has no Lens. An empty panel
         would imply a reading that never happened.
@@ -267,5 +335,50 @@ export default function PublishersPage() {
         </Card>
       </Reveal>
     </div>
+  );
+}
+
+/**
+ * A column header that also sorts by its column.
+ *
+ * Only one direction per column, on purpose. A toggle would give a reader six orderings of a table whose
+ * interesting end is always the high one, and the cost is not the code -- it is that the second click on
+ * "Slashes" would show the publishers with the fewest slashes, which nobody asked for and which looks like
+ * the sort broke.
+ */
+function SortableTh({
+  sortKey,
+  active,
+  onSort,
+}: {
+  sortKey: SortKey;
+  active: SortKey;
+  onSort: (next: SortKey) => void;
+}) {
+  const on = active === sortKey;
+
+  return (
+    <Th className="text-right">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-pressed={on}
+        title={on ? `Sorted by ${SORTS[sortKey].label.toLowerCase()}` : `Sort by ${SORTS[sortKey].label.toLowerCase()}`}
+        className={cx(
+          "press inline-flex items-center gap-1 rounded transition-colors",
+          on ? "text-text" : "text-faint hover:text-muted",
+        )}
+      >
+        {SORTS[sortKey].label}
+        {/*
+          The marker is reserved space either way, so switching columns does not shift the header row. It is
+          `aria-hidden` because `aria-pressed` above already carries the state, and announcing both would
+          read as "sorted, pressed".
+        */}
+        <span aria-hidden className={on ? "opacity-100" : "opacity-0"}>
+          &darr;
+        </span>
+      </button>
+    </Th>
   );
 }

@@ -13,12 +13,14 @@ import { useEffect, useState } from "react";
 
 import { CapabilityConstellation } from "@/components/constellation";
 import { useSnapshot } from "@/components/data";
+import { FilterBar, matches } from "@/components/filters";
+import type { FilterChip } from "@/components/filters";
 import { FingerprintMark, HashFingerprint } from "@/components/fingerprint";
 import { AnimatePresence, Reveal, RevealGroup, RevealItem, SPRING_SOFT, motion } from "@/components/motion";
-import { Card, Empty, HashChip, Pill, Section, StatePill, cx } from "@/components/ui";
+import { Card, Empty, HashChip, Pill, Section, Segmented, StatePill, cx } from "@/components/ui";
 import { bondBreakdown, formatBondWith } from "@/lib/bond";
 import { formatNative, timeAgo } from "@/lib/format";
-import type { Pin } from "@/lib/model";
+import type { Pin, PinState } from "@/lib/model";
 import { displayName, pinIdFromQuery } from "@/lib/untrusted";
 import { readConfig } from "@/lib/chain";
 import { useSettings } from "@/components/settings";
@@ -66,7 +68,47 @@ export default function PinsPage() {
     if (fromUrl !== undefined && fromUrl !== selectedId) setSelectedId(fromUrl);
   });
 
-  const selected = snapshot.pins.find((p) => p.pinId === selectedId) ?? snapshot.pins[0];
+  /*
+   * Filter state, and it deliberately does not go in the URL.
+   *
+   * `?pin=` is there because a selected pin is a thing worth sending someone. A search box's contents is not:
+   * a link that arrives pre-narrowed to three of twelve rows, with no explanation of why, is the "the
+   * dashboard is wrong" bug reproduced on purpose. The chips make the state visible; the URL does not need to
+   * carry it.
+   */
+  const [search, setSearch] = useState("");
+  const [state, setState] = useState<PinState | "all">("all");
+
+  const visible = snapshot.pins.filter((pin) => {
+    if (state !== "all" && pin.state !== state) return false;
+    /*
+     * Hash and publisher are searched as well as the name, because that is how a reader arrives with a pin:
+     * pasted from a CI log, a README badge, or the CLI. A name-only search refuses the identifier the product
+     * itself hands out.
+     */
+    return matches(
+      search,
+      displayName(pin.skillName),
+      pin.skillVersion === undefined ? undefined : displayName(pin.skillVersion, ""),
+      pin.skillHash,
+      pin.versionId,
+      pin.publisher,
+    );
+  });
+
+  const chips: FilterChip[] = [
+    ...(search.trim() === "" ? [] : [{ label: `matching "${search.trim()}"`, onClear: () => setSearch("") }]),
+    ...(state === "all" ? [] : [{ label: `state: ${state}`, onClear: () => setState("all") }]),
+  ];
+
+  /*
+   * The selection follows the filter when it has to, and not otherwise.
+   *
+   * A detail panel showing a pin that is no longer in the list beside it is a panel a reader cannot connect
+   * to anything. Falling back to the first visible row keeps the two halves of this page describing the same
+   * thing; falling back to `snapshot.pins[0]` would show a row that is filtered out.
+   */
+  const selected = visible.find((p) => p.pinId === selectedId) ?? visible[0];
 
   const select = (pinId: string) => {
     setSelectedId(pinId);
@@ -108,9 +150,44 @@ export default function PinsPage() {
         the container capping.
       */}
       {snapshot.pins.length === 0 ? null : (
+        <FilterBar
+          search={search}
+          onSearch={setSearch}
+          searchLabel="Search pins by name, version, hash or publisher"
+          placeholder="Name, version, hash or publisher"
+          chips={chips}
+          onClearAll={() => {
+            setSearch("");
+            setState("all");
+          }}
+          showing={visible.length}
+          total={snapshot.pins.length}
+          noun="pins"
+        >
+          <Segmented
+            label="Pin state"
+            value={state}
+            onChange={setState}
+            /*
+              `all` first, then the four states in the order `PinState` declares them, which is severity.
+              Sorting them alphabetically would put `bonded` next to `equivocated` and imply they are
+              comparable.
+            */
+            options={[
+              { value: "all", label: "All" },
+              { value: "bonded", label: "Bonded", hint: "Live, with collateral at stake" },
+              { value: "pinned", label: "Pinned", hint: "Live, no bond locked" },
+              { value: "revoked", label: "Revoked", hint: "Withdrawn by the publisher" },
+              { value: "equivocated", label: "Equivocated", hint: "Publisher caught contradicting themselves" },
+            ]}
+          />
+        </FilterBar>
+      )}
+
+      {snapshot.pins.length === 0 || visible.length === 0 ? null : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] 2xl:gap-8">
           <RevealGroup className="space-y-3">
-            {snapshot.pins.map((pin) => {
+            {visible.map((pin) => {
               const active = selected !== undefined && pin.pinId === selected.pinId;
               return (
                 <RevealItem key={pin.pinId}>

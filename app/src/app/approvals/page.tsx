@@ -10,8 +10,11 @@
  */
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { useSnapshot } from "@/components/data";
+import { FilterBar, matches } from "@/components/filters";
+import type { FilterChip } from "@/components/filters";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, Pill, Section, StatePill, Table, Td, Th } from "@/components/ui";
 import { WriteAction } from "@/components/write-action";
@@ -34,6 +37,44 @@ export default function ApprovalsPage() {
     readConfig().registry ?? ("0x0000000000000000000000000000000000000000" as const);
 
   const pinFor = (pinId: string) => pins.find((p) => p.pinId === pinId);
+
+  /*
+   * One search across both lists on this page.
+   *
+   * Two boxes would be the obvious build and the wrong one: the two lists are the same subject seen twice --
+   * what this account approved, and what ran under those approvals -- so a reader typing a skill name wants
+   * both filtered. Narrowing one while the other keeps every row is how a reader concludes the second table
+   * is not about the same thing.
+   */
+  const [search, setSearch] = useState("");
+
+  const visibleApprovals = approvals.filter((approval) => {
+    const pin = pinFor(approval.pinId);
+    return matches(
+      search,
+      displayName(pin?.skillName, ""),
+      pin?.skillVersion === undefined ? undefined : displayName(pin.skillVersion, ""),
+      approval.pinId,
+      pin?.skillHash,
+    );
+  });
+
+  const visibleExecutions = executions.filter((execution) => {
+    const pin = pinFor(execution.pinId);
+    return matches(
+      search,
+      displayName(pin?.skillName, ""),
+      execution.pinId,
+      execution.skillHash,
+      execution.executor,
+      execution.txHash,
+    );
+  });
+
+  const chips: FilterChip[] = search.trim() === "" ? [] : [
+    { label: `matching "${search.trim()}"`, onClear: () => setSearch("") },
+  ];
+  const clearAll = () => setSearch("");
 
   return (
     <div className="space-y-12">
@@ -61,8 +102,21 @@ export default function ApprovalsPage() {
               NEXT_PUBLIC_ACCOUNT_ADDRESS to read a delegated account&rsquo;s policy.
             </Empty>
           ) : (
-            <RevealGroup className="space-y-3">
-              {approvals.map((approval) => {
+            <div className="space-y-4">
+              <FilterBar
+                search={search}
+                onSearch={setSearch}
+                searchLabel="Search approvals and executions by skill, pin, hash or address"
+                placeholder="Skill, pin, hash or address"
+                chips={chips}
+                onClearAll={clearAll}
+                showing={visibleApprovals.length}
+                total={approvals.length}
+                noun="approvals"
+              />
+
+              <RevealGroup className="space-y-3">
+              {visibleApprovals.map((approval) => {
                 const pin = pinFor(approval.pinId);
                 return (
                   <RevealItem key={approval.pinId}>
@@ -142,7 +196,8 @@ export default function ApprovalsPage() {
                   </RevealItem>
                 );
               })}
-            </RevealGroup>
+              </RevealGroup>
+            </div>
           )}
         </Section>
       </Reveal>
@@ -158,6 +213,17 @@ export default function ApprovalsPage() {
             listed here; refusals do not, which is why blocked attempts come from reverted
             transaction traces instead.
           </Empty>
+        ) : visibleExecutions.length === 0 ? (
+          /*
+            Filtered to nothing, said as such.
+
+            Distinct from the `Empty` above, which claims the account has never run a guarded batch. Showing
+            that sentence to someone who has simply mistyped a hash would be a false statement about their
+            account, on the page whose whole job is to be an accurate record of it.
+          */
+          <p className="text-sm leading-relaxed text-muted">
+            No execution matches the search above. Clear it to see all {executions.length}.
+          </p>
         ) : (
           <Reveal>
             <Table>
@@ -171,7 +237,7 @@ export default function ApprovalsPage() {
                 </tr>
               </thead>
               <tbody>
-                {executions.map((execution) => {
+                {visibleExecutions.map((execution) => {
                   const pin = pinFor(execution.pinId);
                   return (
                     <tr key={execution.txHash} className="transition-colors hover:bg-raise">
