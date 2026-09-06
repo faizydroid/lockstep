@@ -315,15 +315,12 @@ html[data-rail="shut"] {
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
 
   /*
-   * The landing page's face. Deliberately a different voice from the app's.
+   * Historical note, kept because the reasoning is still instructive and the conclusion has changed twice.
    *
-   * The dashboard is rounded and warm on purpose -- it is a tool someone uses repeatedly and it carries a
-   * mascot. The landing page is arguing to a sceptical infrastructure engineer in the first ten seconds,
-   * and Nunito's roundness reads as consumer software in that context. Inter Tight reads as a spec sheet.
-   *
-   * Two voices in one product is normally a smell. It is defensible here for the same reason Stripe's
-   * marketing site does not look like its dashboard: the audiences are in different states of mind, and
-   * the landing page's whole job is credibility with someone who has not decided to trust anything yet.
+   * This once described two voices: a rounded, warm dashboard carrying a mascot, and a landing page set in
+   * Inter Tight to argue with a sceptical infrastructure engineer. Both halves of that are gone now. The
+   * rounded faces were dropped when the two design languages were collapsed into one, and the mascot was
+   * deleted after it, so there is a single voice across the product and this variable is an alias.
    */
   /*
    * Kept as an alias of the sans face.

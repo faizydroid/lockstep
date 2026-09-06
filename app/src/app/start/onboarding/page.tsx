@@ -28,12 +28,11 @@
 import { useRouter } from "next/navigation";
 
 import { useSnapshot } from "@/components/data";
-import { GuardSays } from "@/components/guard";
 import { Reveal } from "@/components/motion";
 import { Quickstart } from "@/components/quickstart";
 import { useSettings } from "@/components/settings";
 import { StageHeader } from "@/components/start";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, Notice } from "@/components/ui";
 import { quickstart } from "@/lib/quickstart";
 import type { ProfileRole } from "@/lib/settings";
 import { displayName } from "@/lib/untrusted";
@@ -106,17 +105,17 @@ export default function OnboardingPage() {
       </Reveal>
 
       {/*
-        The mascot states the count in words.
+        The count, in words.
 
         Worth doing because the number on its own invites the wrong reading -- one of five looks like
         failure until someone explains that three of the four remaining steps need a terminal.
       */}
       <Reveal delay={0.05}>
-        <GuardSays mood={state.done > 1 ? "settled" : "watching"}>
+        <Notice tone={state.done > 1 ? "bonded" : "pinned"}>
           {state.done === 0
             ? "Nothing is satisfied yet, which is honest rather than broken: this build is not pointed at a registry, so there is no state to read."
             : `${state.done} of ${state.total} already holds. The rest need a terminal, because approving and publishing are claims about bytes on a disk and only the machine holding them can make those honestly.`}
-        </GuardSays>
+        </Notice>
       </Reveal>
 
       {/* One implementation of the list, shared with the dashboard panel. */}

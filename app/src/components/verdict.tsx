@@ -35,9 +35,8 @@ import type { Decision } from "@/lib/queue";
 import { formatCount } from "@/lib/format";
 
 import { useCertainty } from "./data";
-import { GuardSays } from "./guard";
 import { Pop, RevealGroup, RevealItem } from "./motion";
-import { Button, Empty, Pill, Ring, Section, Skeleton, cx } from "./ui";
+import { Button, Empty, Notice, Pill, Ring, Section, Skeleton, cx } from "./ui";
 
 /**
  * The fold: is anything wrong, and what do I do about it.
@@ -68,18 +67,18 @@ export function Verdict({ snapshot }: { snapshot: Snapshot }) {
   if (certainty === "reading") return <VerdictReading />;
 
   /*
-   * Guard's mood follows the queue, not the health verdict, in the one case they disagree.
+   * The notice's hue follows the queue, not the health verdict, in the one case they disagree.
    *
-   * `healthOf` reports `watching` for an empty registry, which is right for a ratio nobody can compute. But
-   * if there is nothing approved *and* nothing to decide, the honest face is settled rather than watchful:
+   * `healthOf` reports `watching` for an empty registry, which is right for a ratio nobody can compute. But if
+   * there is nothing approved *and* nothing to decide, the honest reading is settled rather than watchful:
    * there is no problem being monitored, there is simply nothing here yet, and the sentence below says so.
    */
-  const mood = decisions.length === 0 ? (health.approvedCount === 0 ? "watching" : "settled") : health.verdict;
+  const state = decisions.length === 0 ? (health.approvedCount === 0 ? "watching" : "settled") : health.verdict;
 
   return (
     <div className="space-y-6">
       <Pop>
-        <GuardSays mood={mood} size={128} label={GUARD_LABEL[mood]}>
+        <Notice tone={TONE[state]}>
           <p className="shout text-label opacity-70">Your agent</p>
           {/*
             The h1. It changes with the data, and that is the point.
@@ -109,7 +108,7 @@ export function Verdict({ snapshot }: { snapshot: Snapshot }) {
               </Button>
             </span>
           )}
-        </GuardSays>
+        </Notice>
       </Pop>
 
       <Queue decisions={decisions} />
@@ -131,7 +130,7 @@ function VerdictReading() {
   return (
     <div className="space-y-6" aria-busy="true">
       <Pop>
-        <GuardSays mood="watching" size={128} label="Guard is watching.">
+        <Notice tone="pinned">
           <p className="shout text-label opacity-70">Your agent</p>
           <h1 className="font-display mt-1 text-2xl leading-tight font-extrabold sm:text-3xl">
             Reading the registry.
@@ -140,7 +139,7 @@ function VerdictReading() {
             Checking every approved skill against the bytes on chain. Nothing on this page is a claim about your
             account until that read lands.
           </p>
-        </GuardSays>
+        </Notice>
       </Pop>
 
       {/*
@@ -173,7 +172,7 @@ function VerdictReading() {
 function Queue({ decisions }: { decisions: readonly Decision[] }) {
   if (decisions.length === 0) {
     return (
-      <Empty title="Nothing pending" mood="settled">
+      <Empty title="Nothing pending">
         This is where a skill that no longer matches the bytes you approved would appear, alongside any
         publisher caught shipping conflicting code under one version string. Both are read from the registry
         rather than reported by anyone, so an empty list here is a reading and not a reassurance.
@@ -235,18 +234,21 @@ const KIND_LABEL: Record<Decision["kind"], string> = {
 };
 
 /*
- * What the mascot's image role announces.
+ * The health verdict, mapped onto the semantic hues.
  *
- * The moods are named after expressions, and one is reused across two facts: the stern `blocked` face means
- * "a call was refused" on the gate and "a publisher equivocated" here. The default label describes the
- * former, so this states the latter. Short, because the sentence beside it carries the explanation and a
- * screen reader should not hear it twice.
+ * This replaces a table of spoken labels for the mascot's expressions -- "Guard looks stern." and so on. Those
+ * existed because a face is more general than a sentence and needed telling apart in the accessibility tree.
+ * Nothing needs telling apart now: the notice contains the sentence, so the words that were once the mascot's
+ * label are the words on screen.
+ *
+ * The hue is never the only signal here either. Every state's sentence says what it is, so this only decides
+ * which tint carries it.
  */
-const GUARD_LABEL: Record<ReturnType<typeof healthOf>["verdict"], string> = {
-  settled: "Guard looks settled.",
-  alarmed: "Guard looks alarmed.",
-  blocked: "Guard looks stern.",
-  watching: "Guard is watching.",
+const TONE: Record<ReturnType<typeof healthOf>["verdict"], "bonded" | "attention" | "revoked" | "pinned"> = {
+  settled: "bonded",
+  alarmed: "attention",
+  blocked: "revoked",
+  watching: "pinned",
 };
 
 /**

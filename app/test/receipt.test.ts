@@ -74,9 +74,15 @@ describe("the receipt", () => {
     }
   });
 
-  it("keeps the guard from looking pleased about an unsettled transaction", () => {
-    // `settled` is the happy mood in the Guard's vocabulary and it must not be used here.
-    expect(write).toMatch(/mood=\{phase\.kind === "sent" \? "watching" : "alarmed"\}/);
+  it("does not report a sent transaction as a settled one", () => {
+    /*
+     * This used to assert the mascot's expression: watchful once the call was in flight, never pleased, on the
+     * grounds that a happy face would be the interface asserting an outcome the chain has not returned yet.
+     * The mascot is gone and the distinction is not -- it moved to the heading, where it is a sentence a reader
+     * can act on rather than an expression they have to interpret.
+     */
+    expect(write).toMatch(/"Submitted, not yet settled"/);
+    expect(write, "a sent transaction is being reported as confirmed").not.toMatch(/Confirmed|Complete!/);
   });
 
   it("marks the explorer as somewhere else, and opens it safely", () => {

@@ -31,9 +31,15 @@ import { commonPrefixLength, shortAddress, shortHash } from "@/lib/format";
 import type { PinState } from "@/lib/model";
 import { isSafeHref } from "@/lib/untrusted";
 
+/*
+ * `cx` comes from lib rather than being defined here.
+ *
+ * It moved when `Empty` started drawing the mascot, because that made ui.tsx import the mascot module and the
+ * mascot module import `cx` — a cycle unless one of them got it from somewhere neutral. The mascot is gone and
+ * the cycle with it, but lib is still the right home for a three-line string helper that half the app uses.
+ */
 import { cx } from "@/lib/cx";
 
-import { Guard } from "./guard";
 import { Pressable, SPRING_FIRM, motion } from "./motion";
 
 /* ------------------------------------------------------------------ surfaces */
@@ -367,29 +373,33 @@ export function StatePill({ state }: { state: PinState }) {
   );
 }
 
-/* ------------------------------------------------------------ speech bubbles */
+/* ------------------------------------------------------------------- notices */
 
 /**
- * A speech bubble with a tail, for anything the interface says rather than reports.
+ * A tinted panel, for anything the interface says rather than reports.
  *
- * Duolingo uses these to separate instruction from content, and the distinction is genuinely useful
- * here: this app mixes on-chain facts with explanations of what those facts mean. A fact goes in a
- * table; an explanation goes in a bubble, so a reader can tell at a glance which is which and never
- * mistakes commentary for data.
+ * The distinction is genuinely useful here: this app mixes on-chain facts with explanations of what
+ * those facts mean. A fact goes in a table; an explanation goes in a notice, so a reader can tell at a
+ * glance which is which and never mistakes commentary for data.
  *
- * The tail is a rotated square with two of its borders showing, positioned to overlap the bubble's
- * own border and cover it. Cheap, and it inherits the bubble's border colour automatically.
+ * ## Why this used to be called `Bubble` and had a tail
+ *
+ * It was a speech bubble, because a mascot said these sentences and the tail pointed at its face. The
+ * mascot is gone, and a tail that points at nothing is a rotated square stuck to the side of a box. So
+ * the tail went with it, along with the `side` prop that chose which edge it sat on and the `TONE_BG`
+ * table that existed only because a tail cannot inherit a background through a compound class.
+ *
+ * The rename was free: nothing imported `Bubble`. `GuardSays` had its own private copy of the same
+ * bubble, which is why the shared one had no consumers, and the three pages that used `GuardSays` use
+ * this instead.
  */
-export function Bubble({
+export function Notice({
   children,
   tone = "neutral",
-  side = "left",
   className,
 }: {
   children: ReactNode;
   tone?: Tone;
-  /** Which edge the tail sits on. `left` for a bubble beside a mascot facing right. */
-  side?: "left" | "top";
   className?: string;
 }) {
   const skin =
@@ -397,41 +407,14 @@ export function Bubble({
       ? "bg-panel text-muted [--line:var(--line-strong)]"
       : TONE_CLASS[tone];
 
-  /*
-   * The tone class sits on the wrapper, not on the bubble.
-   *
-   * It carries `[--line:...]`, and the tail is a sibling of the bubble rather than a child. Setting
-   * the tone on the bubble left the tail resolving `--line` from the theme default, so a green bubble
-   * grew a grey tail. Both elements need to be inside the scope that defines it.
-   */
   return (
     <div className={cx("relative", skin, className)}>
       <div className="chunk rounded-2xl px-5 py-4 text-sm leading-relaxed font-semibold">
         {children}
       </div>
-      <span
-        aria-hidden
-        className={cx(
-          "absolute size-3 rotate-45",
-          "border-b border-l border-[var(--line)]",
-          tone === "neutral" ? "bg-panel" : TONE_BG[tone],
-          side === "left"
-            ? "top-6 -left-[7px] rounded-bl-[3px]"
-            : "-top-[7px] left-8 rotate-[135deg] rounded-bl-[3px]",
-        )}
-      />
     </div>
   );
 }
-
-/** Just the fill, for the bubble tail, which cannot inherit a background from a compound class. */
-const TONE_BG: Record<Exclude<Tone, "neutral">, string> = {
-  bonded: "bg-bonded-tint",
-  pinned: "bg-pinned-tint",
-  attention: "bg-attention-tint",
-  revoked: "bg-revoked-tint",
-  equivocated: "bg-equivocated-tint",
-};
 
 /* --------------------------------------------------------------------- meters */
 
@@ -782,53 +765,25 @@ export function Td({ children, className }: { children: ReactNode; className?: s
  * more useful than "no data".
  */
 /**
- * @param mood Which face Guard wears. Defaults to `watching`, which is the honest one for "nothing
- *        here yet" — an empty list is usually a real answer rather than a problem.
+ * The empty state: a title, and why the list is blank.
  *
- * Guard delivers empty states now, rather than them being centred text in a box.
+ * The mascot used to deliver these, on the argument that an empty screen is where a reader most needs
+ * to be told what would fill it and that a character saying so lands where a paragraph does not. The
+ * words were the part that was true; the face was not carrying them.
  *
- * The mascot already existed with four moods and was being used on the overview and in the confirm
- * dialog, which left the emptiest screens in the app as the only ones with nothing on them. That is
- * backwards: an empty state is where a reader most needs to be told what would fill it and why it is
- * blank, and a character saying it lands where a paragraph does not.
- *
- * `watching` and not a sad face. Several of these states are correct outcomes — no refusals recorded
- * is good news, and drawing it as disappointment would teach a reader to read a healthy registry as a
- * broken page.
+ * With it gone the block is centred rather than left-aligned beside a 72px figure, which is what an
+ * empty state looked like before there was anything to sit next to. The `mood` prop went too: it chose
+ * a facial expression and had no other effect, so keeping it would have been a parameter that changes
+ * nothing.
  */
-export function Empty({
-  title,
-  children,
-  mood = "watching",
-}: {
-  title: string;
-  children?: ReactNode;
-  mood?: "watching" | "settled" | "alarmed";
-}) {
+export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="pop rounded-xl bg-panel px-6 py-10">
-      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
-        {/*
-          `aria-hidden` on the wrapper, so the mascot is decorative here.
-
-          Guard normally carries `role="img"` and a spoken label, which is right where the face is the
-          message. In an empty state the title and paragraph beside it say everything, and a screen
-          reader announcing "Guard is watching" before them is noise. Hiding the subtree is the correct
-          way to say decorative; passing an empty label would leave an image with no accessible name.
-
-          `bob={false}` because an idling animation is charming in a dashboard header and fidgety
-          inside a panel someone is trying to read.
-        */}
-        <span aria-hidden>
-          <Guard mood={mood} size={72} bob={false} />
-        </span>
-
-        <div className="min-w-0">
-          <p className="font-display text-lg font-extrabold text-text">{title}</p>
-          {children === undefined ? null : (
-            <p className="mt-2 text-sm leading-relaxed font-semibold text-muted">{children}</p>
-          )}
-        </div>
+      <div className="mx-auto max-w-lg text-center">
+        <p className="font-display text-lg font-extrabold text-text">{title}</p>
+        {children === undefined ? null : (
+          <p className="mt-2 text-sm leading-relaxed font-semibold text-muted">{children}</p>
+        )}
       </div>
     </div>
   );

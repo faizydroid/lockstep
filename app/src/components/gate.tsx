@@ -45,7 +45,6 @@ import { shortHash } from "@/lib/format";
 import { REFUSAL_STEP } from "@/lib/quickstart";
 
 import { HashFingerprint } from "./fingerprint";
-import { Guard } from "./guard";
 import { useSettings } from "./settings";
 import {
   AnimatePresence,
@@ -130,8 +129,6 @@ export function SettlementGate() {
 
   const replay = () => start(80);
 
-  const mood = phase === "settled" ? "settled" : phase === "refused" ? "blocked" : "watching";
-
   /*
    * A refusal the reader actually caused satisfies the quickstart's second step.
    *
@@ -197,14 +194,7 @@ export function SettlementGate() {
         </Step>
 
         <Step n={3} title="The guard decides">
-          <Verdict
-            phase={phase}
-            matches={matches}
-            changed={changed}
-            onReplay={replay}
-            mood={mood}
-            run={run}
-          />
+          <Verdict phase={phase} matches={matches} changed={changed} onReplay={replay} run={run} />
         </Step>
       </div>
     </div>
@@ -782,14 +772,12 @@ function Verdict({
   matches,
   changed,
   onReplay,
-  mood,
   run,
 }: {
   phase: Phase;
   matches: boolean;
   changed: number;
   onReplay: () => void;
-  mood: "settled" | "blocked" | "watching";
   run: number;
 }) {
   const resolved = phase === "settled" || phase === "refused";
@@ -807,21 +795,15 @@ function Verdict({
     >
       {phase === "settled" ? <Burst trigger={run} tone="var(--bonded)" /> : null}
 
-      <div className="relative flex items-start gap-4">
-        <Guard
-          mood={mood}
-          size={72}
-          bob={resolved}
-          label={
-            mood === "settled"
-              ? "Guard looks pleased."
-              : mood === "blocked"
-                ? "Guard looks stern."
-                : "Guard is watching."
-          }
-        />
+      {/*
+        The mascot stood here, at 72px, reacting to the phase.
 
-        <div className="min-h-[6rem] flex-1">
+        The copy below was always doing the work: "Settled" against "Refused", in the hue of the outcome, with
+        a paragraph explaining which hash won. A face beside it was a second rendering of the same verdict, and
+        of the two the words are the one a reader can check.
+      */}
+      <div className="relative">
+        <div className="min-h-[6rem]">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={phase === "settled" ? "settled" : phase === "refused" ? "refused" : "pending"}

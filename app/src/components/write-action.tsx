@@ -27,7 +27,6 @@ import { needsHardConfirm } from "@/lib/policy";
 import { buildWrite } from "@/lib/writes";
 import type { WriteName } from "@/lib/writes";
 
-import { Guard } from "./guard";
 import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion";
 import { useIdentity } from "./identity";
 import { Button, HashChip, cx } from "./ui";
@@ -170,7 +169,7 @@ export function WriteAction({
   );
 }
 
-/** The dialog. Guard delivers it, because this is a consequence rather than a form. */
+/** The dialog. A consequence rather than a form, so it leads with what will happen. */
 function Confirm({
   open,
   phase,
@@ -222,23 +221,17 @@ function Confirm({
             exit={still ? { scale: 1, opacity: 0 } : { scale: 0.96, opacity: 0 }}
             transition={still ? { duration: 0 } : SPRING_SOFT}
           >
-            <div className="flex items-start gap-4">
+            <div className="flex items-start">
               {/*
-                The mascot's mood tracks the phase. Alarmed while a decision is pending, watchful once the
-                call is in flight -- not pleased. A sent transaction is not a settled one, and a happy
-                face here would be the interface asserting an outcome the chain has not returned yet.
-              */}
-              <Guard
-                mood={phase.kind === "sent" ? "watching" : "alarmed"}
-                size={68}
-                bob={false}
-                label={
-                  phase.kind === "sent"
-                    ? "Guard is watching for the transaction to settle."
-                    : "Guard looks alarmed."
-                }
-              />
+                The mascot sat here at 68px, alarmed while the decision was pending and watchful once the call
+                was in flight.
 
+                Its argument was that a sent transaction is not a settled one, so the face must not look
+                pleased. That distinction is real and it is carried by the heading -- "Submitted, not yet
+                settled" -- which says it in words a reader can act on rather than in an expression they have
+                to interpret. Removing the figure gives the dialog its full width back, which matters more here
+                than anywhere: this is the one surface in the app that asks for a signature.
+              */}
               <div className="min-w-0 flex-1 space-y-3">
                 <h2 className="font-display text-xl leading-tight font-extrabold text-text">
                   {phase.kind === "sent"

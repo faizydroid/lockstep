@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -35,6 +36,21 @@ const APP = join(import.meta.dirname, "..", "src");
  */
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
+/**
+ * Every `.ts` and `.tsx` under `src`, recursively.
+ *
+ * For the assertions that have to hold everywhere rather than in one file. Naming the files individually is
+ * how a sweep passes while the thing it forbids sits in the one component nobody added to the list.
+ */
+function sourceFiles(dir: string, acc: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(path, acc);
+    else if (/\.tsx?$/.test(entry.name)) acc.push(path);
+  }
+  return acc;
 }
 
 const overview = readFileSync(join(APP, "app", "page.tsx"), "utf8");
@@ -179,28 +195,40 @@ describe("design decisions worth pinning", () => {
     expect(nav).not.toMatch(/fill="currentColor"/);
   });
 
-  it("has the mascot deliver empty states", () => {
-    expect(ui).toMatch(/<Guard mood=\{mood\}/);
+  it("has no mascot left anywhere", () => {
+    /*
+     * Three tests used to live here asserting the opposite: that the mascot delivered empty states, that it
+     * was marked decorative, and that its default expression was watchful rather than sad. All of that was
+     * carefully reasoned and all of it is gone, because the face was a second rendering of a verdict the copy
+     * beside it already stated -- and of the two, the words are the one a reader can check.
+     *
+     * Asserted as absence across every source file rather than at each old call site, because a mascot is
+     * exactly the kind of thing that comes back one component at a time. `guard.tsx` is checked by name too:
+     * a module with no importers still typechecks, which is how a deleted feature gets rediscovered.
+     */
+    expect(existsSync(join(APP, "components", "guard.tsx")), "guard.tsx is back").toBe(false);
+
+    for (const file of sourceFiles(APP)) {
+      const source = stripComments(readFileSync(file, "utf8"));
+      const name = file.slice(APP.length + 1);
+      expect(source, `${name} renders the mascot`).not.toMatch(/<Guard\b|<GuardSays\b/);
+      expect(source, `${name} imports the mascot`).not.toMatch(/from "\.\.?\/guard"|components\/guard"/);
+      expect(source, `${name} still speaks for the mascot`).not.toMatch(/Guard (looks|is watching)/);
+    }
   });
 
-  it("keeps the empty-state mascot decorative", () => {
-    // The title and paragraph beside it say everything; a screen reader announcing "Guard is watching"
-    // before them is noise. An empty label would leave an image with no accessible name, so the
-    // subtree is hidden instead.
-    // Sliced to the next top-level export rather than to the next `}`, which a non-greedy match finds
-    // at the end of the destructured parameter list instead of the end of the body.
+  it("keeps the empty state to a title and a reason", () => {
+    /*
+     * `mood` went with the face. It selected an expression and had no other effect, so leaving it would be a
+     * parameter that changes nothing -- which is worse than removing it, because the next person sets it and
+     * reasonably expects something to happen.
+     */
     const at = ui.indexOf("export function Empty(");
     expect(at).toBeGreaterThan(-1);
     const empty = ui.slice(at, ui.indexOf("\nexport ", at + 1));
 
-    expect(empty).toMatch(/<span aria-hidden>/);
-    expect(empty).not.toMatch(/label=""/);
-  });
-
-  it("defaults the empty-state mood to watching rather than to something sad", () => {
-    // Several of these states are correct outcomes -- no refusals recorded is good news -- and drawing
-    // that as disappointment would teach a reader that a healthy registry is a broken page.
-    expect(ui).toMatch(/mood = "watching"/);
+    expect(empty, "the empty state takes a mood again").not.toMatch(/mood/);
+    expect(empty).toMatch(/\{title\}/);
   });
 });
 

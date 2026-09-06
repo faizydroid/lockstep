@@ -43,21 +43,12 @@ function textOf(html) {
  */
 const PAGES = {
   /*
-   * "Integrity" and "Bond coverage" prove the scoreboard rendered its derived figures rather than just
-   * its frame, and the "of" phrases prove the denominators reached the page -- a ring showing a
-   * percentage with no denominator is the failure mode that check exists for.
-   *
-   * The mascot is matched on `aria-label="Guard`, the spoken label, rather than on any particular
-   * wording. That is the path by which the verdict reaches a screen reader, so it is the part worth
-   * failing a build over; the drawing is decoration. Matching a specific sentence would tie this
-   * script to whichever mood the fixtures happen to produce.
-   */
-  /*
    * The landing page: the argument, and nothing that belongs to the instrument.
    *
-   * The scoreboard and ledger assertions moved to `dashboard` when the route split. Worth knowing why the
-   * mascot check stayed here: it is matched via the settlement gate's Verdict, not the scoreboard, and the
-   * gate is on this page because it is the demonstration a reader gets before anything is asked of them.
+   * The ratio-tile and registry-total assertions moved to `dashboard` when the route split, and the mascot
+   * assertion that used to sit here went with the mascot itself. It was matched on `aria-label="Guard` rather
+   * than on any wording, because that was the path by which a verdict reached a screen reader. There is no
+   * such path to protect now: the verdicts are text in the document.
    */
   index: [
     "A lockfile for",
@@ -190,7 +181,15 @@ const PAGES = {
     "Choose what the publisher ships",
     "the code you approved",
     "the code that is asking",
-    'aria-label="Guard',
+    /*
+     * The gate's third station, which holds the verdict.
+     *
+     * This slot used to be `aria-label="Guard` -- the mascot's spoken label, asserted because that was the path
+     * by which the verdict reached a screen reader. The mascot is gone; the verdict is now plain text in the
+     * document, which is a shorter path to the same place. Matching the station's heading rather than any
+     * particular outcome keeps this from depending on which phase the panel happens to render at rest.
+     */
+    "The guard decides",
   ],
   approvals: ["Approved versions", "read only", "The executor is not the account"],
   publishers: ["Publishers", "Challenger reward", "equivocat"],

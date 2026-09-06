@@ -12,9 +12,8 @@
 import { useSnapshot } from "@/components/data";
 import { FingerprintDiff } from "@/components/fingerprint";
 import { SettlementGate } from "@/components/gate";
-import { GuardSays } from "@/components/guard";
 import { Pop, Reveal, RevealGroup, RevealItem } from "@/components/motion";
-import { Card, Empty, HashChip, HashDiff, Pill, Section, cx } from "@/components/ui";
+import { Card, Empty, HashChip, HashDiff, Notice, Pill, Section, cx } from "@/components/ui";
 import { Verify } from "@/components/verify";
 import { Term } from "@/components/term";
 import { SKILL_DIR_PLACEHOLDER, displayName } from "@/lib/untrusted";
@@ -71,7 +70,7 @@ export default function DriftPage() {
       */}
       {drifted.length === 0 ? null : (
         <Pop delay={0.08}>
-          <GuardSays mood="alarmed" size={104} label="Guard looks alarmed.">
+          <Notice tone="attention">
             <span className="font-display block text-lg leading-tight font-extrabold">
               {widened === 0
                 ? `${drifted.length} skill${drifted.length === 1 ? "" : "s"} changed, none of them widened.`
@@ -82,7 +81,7 @@ export default function DriftPage() {
                 ? "Every change here removes a capability or lowers a ceiling, which cannot let the skill do anything the version you approved could not. These are safe to re-approve without reading the diff."
                 : "A widened release can call something the version you approved could not, or move more native value per call. Those are the ones worth reading. The rest only narrow what the skill can do."}
             </span>
-          </GuardSays>
+          </Notice>
         </Pop>
       )}
 
