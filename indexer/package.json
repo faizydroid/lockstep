@@ -9,8 +9,26 @@
     "start": "envio start",
     "typecheck": "tsc --noEmit"
   },
+  "//": [
+    "envio is a runtime dependency, not a dev one, and the distinction is a deployment requirement",
+    "rather than a preference: Envio Cloud requires the envio version to be declared in",
+    "`dependencies` in the indexer's root folder, and refuses the deployment otherwise. It was in",
+    "devDependencies, which is defensible locally -- the CLI is a build tool -- and would have",
+    "failed the first hosted deploy.",
+    "",
+    "Deliberately NOT a member of the root npm workspace. Envio Cloud installs with pnpm from the",
+    "root directory configured for the indexer, so this package has to resolve on its own. Being a",
+    "workspace member would put its dependency tree in the repository root, where the hosted build",
+    "would not look for it. That is also why src/EventHandlers.ts imports nothing outside this",
+    "directory, which Envio's monorepo guidance requires."
+  ],
+  "dependencies": {
+    "envio": "3.9.0"
+  },
   "devDependencies": {
-    "envio": "3.9.0",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
