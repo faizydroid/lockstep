@@ -48,7 +48,7 @@ export const pinRegistryAbi = [
           { name: "publisher", type: "address" },
           { name: "skillHash", type: "bytes32" },
           { name: "versionId", type: "bytes32" },
-          { name: "maxValuePerCall", type: "uint256" },
+          { name: "maxValuePerBatch", type: "uint256" },
           { name: "requiredBond", type: "uint256" },
           { name: "capabilityCount", type: "uint32" },
           { name: "highRiskCount", type: "uint32" },
@@ -63,11 +63,17 @@ export const pinRegistryAbi = [
   {
     type: "event",
     name: "Published",
+    // The watcher's whole job gets easier here. `versionId` is now on the event, so pins can be
+    // grouped by version straight from the log instead of by fetching each pin, and `name` and
+    // `version` mean an alert can say which release equivocated rather than quoting a digest.
     inputs: [
       { name: "pinId", type: "bytes32", indexed: true },
       { name: "publisher", type: "address", indexed: true },
       { name: "skillHash", type: "bytes32", indexed: true },
-      { name: "maxValuePerCall", type: "uint256", indexed: false },
+      { name: "versionId", type: "bytes32", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "version", type: "string", indexed: false },
+      { name: "maxValuePerBatch", type: "uint256", indexed: false },
       { name: "capabilityCount", type: "uint256", indexed: false },
       { name: "highRiskCount", type: "uint256", indexed: false },
       { name: "requiredBond", type: "uint256", indexed: false },
@@ -111,11 +117,26 @@ export const guardErrorsAbi = [
   },
   { type: "error", name: "PinNotApproved", inputs: [{ name: "pinId", type: "bytes32" }] },
   {
+    // Replaced `ValueExceedsCeiling(value, ceiling)`. The old error reported one call's value
+    // against the ceiling, which was the check the guard used to make -- and a per-call check
+    // over an unbounded batch let an executor move any amount by splitting it. The ceiling is
+    // now a budget for the whole batch, so the first argument is the batch total.
+    //
+    // The selector changed with the name, so a watcher still carrying the old fragment would
+    // silently fail to decode exactly the refusals it exists to report.
     type: "error",
-    name: "ValueExceedsCeiling",
+    name: "BatchValueExceedsCeiling",
     inputs: [
-      { name: "value", type: "uint256" },
+      { name: "total", type: "uint256" },
       { name: "ceiling", type: "uint256" },
+    ],
+  },
+  {
+    type: "error",
+    name: "TooManyCalls",
+    inputs: [
+      { name: "count", type: "uint256" },
+      { name: "max", type: "uint256" },
     ],
   },
   { type: "error", name: "NotAuthorizedExecutor", inputs: [{ name: "caller", type: "address" }] },

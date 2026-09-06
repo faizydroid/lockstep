@@ -4,7 +4,40 @@ pragma solidity 0.8.28;
 import {Fixtures} from "./Fixtures.sol";
 import {IIdentityRegistry, IReputationRegistry} from "../src/interfaces/IERC8004.sol";
 import {LockstepGuard} from "../src/LockstepGuard.sol";
-import {LockstepLens} from "../src/LockstepLens.sol";
+import {IGuardedAccount, LockstepLens} from "../src/LockstepLens.sol";
+
+/// @notice A contract that claims to approve every pin ever created.
+///
+/// The Sybil this suite previously did not have. Every fake reviewer in the original tests was a
+/// bare EOA, which has no code, so the eligibility staticcall failed and the candidate was rejected
+/// — and that only ever proved an address which cannot answer is not counted.
+///
+/// This one answers. It is the whole attack: `isPinApproved` is a one-line view, so the entire Sybil
+/// filter could be defeated by deploying this and cloning it to as many addresses as an attacker
+/// cares to fund.
+contract LyingApprover {
+    function isPinApproved(bytes32) external pure returns (bool) {
+        return true;
+    }
+}
+
+/// @notice A guard-shaped implementation that is not *the* guard.
+///
+/// An account genuinely delegated under EIP-7702, with real code, a real designator and a real
+/// approval — to the wrong implementation. Stands for the `gator create` handover the guard's own
+/// docstring warns about, and for an attacker who deploys their own permissive "guard" and delegates
+/// to that instead.
+contract RivalImplementation {
+    mapping(bytes32 => bool) public approved;
+
+    function approvePin(bytes32 pinId) external {
+        approved[pinId] = true;
+    }
+
+    function isPinApproved(bytes32 pinId) external view returns (bool) {
+        return approved[pinId];
+    }
+}
 
 /// @notice Minimal ERC-8004 stand-ins.
 ///
@@ -99,30 +132,44 @@ contract LockstepLensTest is Fixtures {
     address payable internal honestA;
     address payable internal honestB;
 
-    /// Sybils: plain addresses that wrote feedback but never trusted the code.
-    address internal sybil1 = address(0xDEAD1);
-    address internal sybil2 = address(0xDEAD2);
-    address internal sybil3 = address(0xDEAD3);
+    /// Sybils: contracts that wrote feedback and claim to approve the pin, but carry no delegation.
+    ///
+    /// @dev Deliberately not bare EOAs. An EOA has no code, so the eligibility staticcall fails and
+    ///      the candidate is rejected for a reason that has nothing to do with the filter — which is
+    ///      how a suite of thirteen passing tests coexisted with a filter that did not filter. A
+    ///      Sybil that cannot speak is not a test of whether lies are believed.
+    address internal sybil1;
+    address internal sybil2;
+    address internal sybil3;
+
+    /// Kept separately, for the one test that is specifically about an address which cannot answer.
+    address internal plainEoa = address(0xDEAD9);
 
     function setUp() public {
         publisher = makeAddr("publisher");
         deployCore();
         repRegistry = new MockReputationRegistry();
         idRegistry = new MockIdentityRegistry();
-        lens = new LockstepLens(registry, idRegistry, repRegistry);
+        lens = new LockstepLens(registry, idRegistry, repRegistry, address(guardImpl));
 
         idRegistry.setAgent(AGENT_ID, publisher, publisher);
 
         fundPublisher(publisher, 100_000 * ONE_AUSD);
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
         vm.startPrank(publisher);
-        livePin = registry.publish(keccak256("live"), keccak256("v1"), 0, targets, selectors);
-        revokedPin = registry.publish(keccak256("dead"), keccak256("v0"), 0, targets, selectors);
+        livePin =
+            registry.publish(publishParams("lens", "1.0.0", keccak256("live"), 0, targets, selectors));
+        revokedPin =
+            registry.publish(publishParams("lens", "0.9.0", keccak256("dead"), 0, targets, selectors));
         registry.revoke(revokedPin);
         vm.stopPrank();
 
         honestA = _delegatedApprover(HONEST_A_PK, livePin);
         honestB = _delegatedApprover(HONEST_B_PK, livePin);
+
+        sybil1 = address(new LyingApprover());
+        sybil2 = address(new LyingApprover());
+        sybil3 = address(new LyingApprover());
     }
 
     /// Creates an account delegated to the guard that approves `pinId`.
@@ -139,6 +186,115 @@ contract LockstepLensTest is Fixtures {
         set[0] = pinId;
     }
 
+    /// @dev The code an account carries when delegated to `implementation`.
+    function _designator(address implementation) internal pure returns (bytes memory) {
+        return abi.encodePacked(hex"ef0100", implementation);
+    }
+
+    // --- the delegation check ---
+
+    /// The premise the whole check rests on: EIP-7702 sets a delegated account's code to the
+    /// designator, and the code-inspection opcodes see *that*, not the implementation's code. If
+    /// `EXTCODEHASH` followed the delegation instead, `isGuardedAccount` would be comparing against
+    /// the wrong thing and would reject every real account.
+    function test_extcodehashSeesTheDesignatorNotTheImplementation() public view {
+        assertEq(honestA.code, _designator(address(guardImpl)), "designator installed");
+        assertEq(honestA.codehash, keccak256(_designator(address(guardImpl))));
+        assertTrue(
+            honestA.codehash != address(guardImpl).codehash,
+            "codehash must not follow the delegation"
+        );
+    }
+
+    function test_delegatedAccountIsRecognisedAsGuarded() public view {
+        assertTrue(lens.isGuardedAccount(honestA));
+    }
+
+    function test_undelegatedEoaIsNotGuarded() public view {
+        assertFalse(lens.isGuardedAccount(sybil1));
+    }
+
+    /// The attack this fix exists for. A contract that returns `true` from `isPinApproved` used to
+    /// be a fully eligible reviewer for the cost of one deployment.
+    function test_contractClaimingApprovalIsNotEligible() public {
+        address liar = address(new LyingApprover());
+
+        // The lie itself works: the staticcall the lens makes returns true.
+        assertTrue(IGuardedAccount(liar).isPinApproved(livePin), "the stub does claim approval");
+
+        // And it buys nothing, because the stub carries its own code rather than a designator.
+        assertFalse(lens.isGuardedAccount(liar));
+        assertFalse(lens.isEligibleReviewer(liar, _pinSet(livePin)));
+    }
+
+    /// Cloning the stub is the cheap part, so prove the filter holds across a full candidate list
+    /// rather than one address.
+    function test_anArmyOfLyingStubsIsFilteredOut() public {
+        address[] memory candidates = new address[](33);
+        for (uint256 i = 0; i < 32; ++i) {
+            candidates[i] = address(new LyingApprover());
+        }
+        candidates[32] = honestA;
+
+        address[] memory eligible = lens.eligibleReviewers(candidates, _pinSet(livePin));
+
+        assertEq(eligible.length, 1, "only the real account survives");
+        assertEq(eligible[0], honestA);
+    }
+
+    /// Real delegation, real approval, wrong implementation. This is the `gator create` handover the
+    /// guard's docstring warns about: the approval is genuine but nothing enforces it, so it must
+    /// not count as a reviewer's stake either.
+    function test_accountDelegatedToARivalImplementationIsNotEligible() public {
+        RivalImplementation rival = new RivalImplementation();
+        uint256 pk = 0xE5;
+        address payable account = payable(vm.addr(pk));
+        vm.signAndAttachDelegation(address(rival), pk);
+        vm.prank(account);
+        RivalImplementation(account).approvePin(livePin);
+
+        // Genuinely delegated, and it genuinely says yes.
+        assertEq(account.code, _designator(address(rival)), "delegated to the rival");
+        assertTrue(RivalImplementation(account).isPinApproved(livePin));
+
+        assertFalse(lens.isGuardedAccount(account));
+        assertFalse(lens.isEligibleReviewer(account, _pinSet(livePin)));
+    }
+
+    /// Re-delegating away from the guard must revoke eligibility, even though the approval is still
+    /// sitting in the account's storage. Storage survives a delegation change; enforcement does not.
+    function test_eligibilityIsLostWhenAnAccountIsRedelegatedAway() public {
+        assertTrue(lens.isEligibleReviewer(honestA, _pinSet(livePin)));
+
+        // Re-delegated to something maximally permissive, so the account still answers "yes" and the
+        // only thing that changed is which implementation is answering. Delegating to a
+        // *stricter* rival would make this test pass for the wrong reason — an empty mapping at a
+        // different storage slot — and prove nothing about the check under test.
+        LyingApprover elsewhere = new LyingApprover();
+        vm.signAndAttachDelegation(address(elsewhere), HONEST_A_PK);
+
+        assertTrue(IGuardedAccount(honestA).isPinApproved(livePin), "the account still says yes");
+        assertFalse(
+            lens.isEligibleReviewer(honestA, _pinSet(livePin)),
+            "an approval nothing enforces is not a reviewer's stake"
+        );
+    }
+
+    function test_theLensItselfIsNotAGuardedAccount() public view {
+        assertFalse(lens.isGuardedAccount(address(lens)));
+        assertFalse(lens.isGuardedAccount(address(registry)));
+        // Not even the guard implementation: it holds code, not a designator naming itself.
+        assertFalse(lens.isGuardedAccount(address(guardImpl)));
+    }
+
+    function test_guardIsRecordedAndCannotBeZero() public {
+        assertEq(lens.guard(), address(guardImpl));
+        assertEq(lens.DESIGNATOR_LENGTH(), 23);
+
+        vm.expectRevert(LockstepLens.ZeroGuard.selector);
+        new LockstepLens(registry, idRegistry, repRegistry, address(0));
+    }
+
     // --- eligibility ---
 
     function test_accountApprovingALivePinIsEligible() public view {
@@ -148,7 +304,7 @@ contract LockstepLensTest is Fixtures {
     /// A plain address that never delegated cannot be a reviewer. The staticcall
     /// fails and must be read as "not eligible" rather than reverting the query.
     function test_undelegatedAddressIsNotEligibleAndDoesNotRevert() public view {
-        assertFalse(lens.isEligibleReviewer(sybil1, _pinSet(livePin)));
+        assertFalse(lens.isEligibleReviewer(plainEoa, _pinSet(livePin)));
     }
 
     function test_delegatedAccountNotApprovingIsNotEligible() public {

@@ -780,8 +780,22 @@ async function readScores(
  *
  * Capabilities can only come from `CapabilityDeclared` logs: the registry keeps them in a
  * nested mapping that cannot be enumerated on chain, which is the cost of the single-SLOAD
- * check the guard makes on every call. `Published` carries no versionId either, so equivocation
- * needs the struct.
+ * check the guard makes on every call.
+ *
+ * ## Why pins here still have no human name
+ *
+ * `Published` now carries `versionId`, `name` and `version`, which it did not before -- the chain
+ * used to record no label at all, so nothing reading this registry could render a pin as anything
+ * but a hash. The labels are deliberately not read here, and the reason is the fast path below.
+ *
+ * When pin ids are configured, this function does not query `Published` at all: `getPin` supplies
+ * every field it needs, which is the difference between roughly thirty requests and four hundred
+ * against an endpoint that rate-limits and caps `eth_getLogs` at a hundred blocks. Pulling labels
+ * in would add a paged log query back to exactly the path built to avoid one, to improve a caption.
+ *
+ * So labels belong to the indexer, which already stores them (`indexer/schema.graphql`) and pays the
+ * log cost once rather than per page view. This function is the no-indexer fallback, and a fallback
+ * showing hashes is honest; a fallback that is four hundred requests slow is not.
  */
 async function readPins(
   client: PublicClient,
@@ -851,7 +865,7 @@ async function readPins(
     publisher: Address;
     skillHash: Hex;
     versionId: Hex;
-    maxValuePerCall: bigint;
+    maxValuePerBatch: bigint;
     requiredBond: bigint;
     publishedAt: bigint;
     revokedAt: bigint;
@@ -895,7 +909,7 @@ async function readPins(
       publisher: pin.publisher,
       skillHash: pin.skillHash,
       versionId: pin.versionId,
-      maxValuePerCall: pin.maxValuePerCall,
+      maxValuePerBatch: pin.maxValuePerBatch,
       requiredBond: pin.requiredBond,
       publishedAt: pin.publishedAt,
       ...(revokedAt !== undefined ? { revokedAt } : {}),

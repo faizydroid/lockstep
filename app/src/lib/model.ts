@@ -48,8 +48,14 @@ export interface Pin {
   /** Human name and version, when a manifest is available. Never trusted for identity. */
   readonly skillName?: string;
   readonly skillVersion?: string;
-  /** Native-value ceiling per call, in wei. */
-  readonly maxValuePerCall: bigint;
+  /**
+   * Ceiling on the total native value one guarded batch may move, in wei.
+   *
+   * A batch is one transaction through the guard, of at most 32 calls, and this is the sum across
+   * them. It was a per-call limit, which bounded nothing: the same pin authorised its ceiling once
+   * or a hundred times depending only on how the executor split the batch.
+   */
+  readonly maxValuePerBatch: bigint;
   /** Bond locked at publish time, in bond-asset units. Frozen per pin. */
   readonly requiredBond: bigint;
   readonly publishedAt: bigint;

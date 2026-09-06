@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 
 import {IIdentityRegistry, IReputationRegistry} from "../src/interfaces/IERC8004.sol";
+import {LockstepGuard} from "../src/LockstepGuard.sol";
 import {LockstepLens} from "../src/LockstepLens.sol";
 import {PinRegistry} from "../src/PinRegistry.sol";
 
@@ -19,6 +20,7 @@ import {PinRegistry} from "../src/PinRegistry.sol";
 ///
 /// Environment:
 ///   PIN_REGISTRY        the live registry. Required.
+///   LOCKSTEP_GUARD      the live guard implementation. Required.
 ///   ERC8004_IDENTITY    ERC-8004 Identity Registry. Required.
 ///   ERC8004_REPUTATION  ERC-8004 Reputation Registry. Required.
 ///
@@ -50,10 +52,12 @@ contract DeployLens is Script {
 
     function run() external returns (LockstepLens lens) {
         address registryAddress = vm.envAddress("PIN_REGISTRY");
+        address guard = vm.envAddress("LOCKSTEP_GUARD");
         address identity = vm.envAddress("ERC8004_IDENTITY");
         address reputation = vm.envAddress("ERC8004_REPUTATION");
 
         require(registryAddress.code.length > 0, "PIN_REGISTRY has no code on this chain");
+        require(guard.code.length > 0, "LOCKSTEP_GUARD has no code on this chain");
         require(identity.code.length > 0, "ERC8004_IDENTITY has no code on this chain");
         require(reputation.code.length > 0, "ERC8004_REPUTATION has no code on this chain");
 
@@ -62,6 +66,7 @@ contract DeployLens is Script {
         // wrong address either reverts here or returns something absurd.
         require(address(registry.bondAsset()).code.length > 0, "PIN_REGISTRY.bondAsset is not a contract");
 
+        _identifyGuard(guard, registryAddress);
         _identifyIdentityRegistry(identity);
         _identifyReputationRegistry(reputation);
         _reportProxy("identity  ", identity);
@@ -69,7 +74,7 @@ contract DeployLens is Script {
 
         vm.startBroadcast();
         lens = new LockstepLens(
-            registry, IIdentityRegistry(identity), IReputationRegistry(reputation)
+            registry, IIdentityRegistry(identity), IReputationRegistry(reputation), guard
         );
         vm.stopBroadcast();
 
@@ -78,13 +83,38 @@ contract DeployLens is Script {
         require(address(lens.pins()) == registryAddress, "pins immutable mismatch");
         require(address(lens.identity()) == identity, "identity immutable mismatch");
         require(address(lens.reputation()) == reputation, "reputation immutable mismatch");
+        require(lens.guard() == guard, "guard immutable mismatch");
 
         console.log("chainId        ", block.chainid);
         console.log("PinRegistry    ", registryAddress);
+        console.log("LockstepGuard  ", guard);
         console.log("ERC-8004 id    ", identity);
         console.log("ERC-8004 rep   ", reputation);
         console.log("LockstepLens   ", address(lens));
         console.log("MAX_CANDIDATES ", lens.MAX_CANDIDATES());
+    }
+
+    /// @dev The guard address decides every eligibility answer this lens will ever give, and it is
+    ///      `immutable`, so a wrong one is permanent for the deployment.
+    ///
+    ///      A wrong guard does not fail loudly. It produces a lens where no account is ever
+    ///      delegated to the expected implementation, so every candidate is filtered out and every
+    ///      score reports zero eligible reviewers — indistinguishable from a publisher nobody has
+    ///      reviewed. That is the worst kind of misconfiguration: silent, permanent, and it looks
+    ///      like data.
+    ///
+    ///      `registry()` is the check that catches it. A `LockstepGuard` holds the registry it
+    ///      enforces against as an immutable, so a guard belonging to a different deployment names
+    ///      a different registry, and anything that is not a guard at all reverts on the call.
+    function _identifyGuard(address guard, address registryAddress) internal view {
+        // `payable` only because the guard has a `receive` — it is an account delegate. Nothing here
+        // sends it value.
+        address enforcedRegistry = address(LockstepGuard(payable(guard)).registry());
+        require(
+            enforcedRegistry == registryAddress,
+            "LOCKSTEP_GUARD.registry() is not PIN_REGISTRY: wrong guard for this deployment"
+        );
+        console.log("guard     : LockstepGuard enforcing", enforcedRegistry);
     }
 
     /// @dev Three independent signals, cheapest first.

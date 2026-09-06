@@ -11,14 +11,54 @@ export const pinRegistryAbi = [
     type: "function",
     name: "publish",
     stateMutability: "nonpayable",
+    // A single struct rather than six positional arguments, and the two changes inside it are
+    // the point of this signature.
+    //
+    // `versionId` is gone as an input: the registry derives it from `name` and `version`, because
+    // accepting it let a publisher republish different bytes under an unrelated id and escape
+    // the only slashing condition in the system. And the value ceiling is now per *batch*, not
+    // per call, because a per-call limit over an unbounded batch bounded nothing.
     inputs: [
-      { name: "skillHash", type: "bytes32" },
-      { name: "versionId", type: "bytes32" },
-      { name: "maxValuePerCall", type: "uint256" },
-      { name: "targets", type: "address[]" },
-      { name: "selectors", type: "bytes4[]" },
+      {
+        name: "p",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "skillHash", type: "bytes32" },
+          { name: "maxValuePerBatch", type: "uint256" },
+          { name: "targets", type: "address[]" },
+          { name: "selectors", type: "bytes4[]" },
+        ],
+      },
     ],
     outputs: [{ name: "pinId", type: "bytes32" }],
+  },
+  {
+    type: "function",
+    name: "computeVersionId",
+    stateMutability: "pure",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    // Lets the CLI refuse a name before spending gas, using the registry's own rule rather
+    // than a second copy of it.
+    type: "function",
+    name: "isValidLabel",
+    stateMutability: "pure",
+    inputs: [{ name: "label", type: "string" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "MAX_LABEL_BYTES",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
   },
   {
     type: "function",
@@ -140,7 +180,7 @@ export const pinRegistryAbi = [
           { name: "publisher", type: "address" },
           { name: "skillHash", type: "bytes32" },
           { name: "versionId", type: "bytes32" },
-          { name: "maxValuePerCall", type: "uint256" },
+          { name: "maxValuePerBatch", type: "uint256" },
           { name: "requiredBond", type: "uint256" },
           { name: "capabilityCount", type: "uint32" },
           { name: "highRiskCount", type: "uint32" },
@@ -155,11 +195,21 @@ export const pinRegistryAbi = [
   {
     type: "event",
     name: "Published",
+    // `versionId`, `name` and `version` are new. The chain used to record no human label at
+    // all, so a consumer reading this registry could only ever render a pin as a hash, and
+    // equivocation -- a claim about a *name and version* -- was illegible to the people it is
+    // evidence for.
+    //
+    // These names are load-bearing beyond the ABI check: viem keys the decoded `args` object
+    // by them.
     inputs: [
       { name: "pinId", type: "bytes32", indexed: true },
       { name: "publisher", type: "address", indexed: true },
       { name: "skillHash", type: "bytes32", indexed: true },
-      { name: "maxValuePerCall", type: "uint256", indexed: false },
+      { name: "versionId", type: "bytes32", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "version", type: "string", indexed: false },
+      { name: "maxValuePerBatch", type: "uint256", indexed: false },
       { name: "capabilityCount", type: "uint256", indexed: false },
       { name: "highRiskCount", type: "uint256", indexed: false },
       { name: "requiredBond", type: "uint256", indexed: false },

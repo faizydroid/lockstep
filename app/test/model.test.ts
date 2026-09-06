@@ -30,7 +30,7 @@ const pin = (overrides: Partial<Pin> = {}): Pin => ({
   publisher: TARGET,
   skillHash: `0x${"22".repeat(32)}` as Hex,
   versionId: `0x${"33".repeat(32)}` as Hex,
-  maxValuePerCall: 0n,
+  maxValuePerBatch: 0n,
   requiredBond: 125_000_000n,
   publishedAt: 1_772_000_000n,
   slashed: false,
@@ -104,7 +104,7 @@ describe("bondBreakdown", () => {
   it("sums to the registry's own formula", () => {
     const subject = pin({
       capabilities: [cap("swap(uint256)", false), cap("approve(address,uint256)", true)],
-      maxValuePerCall: 500_000_000_000_000_000n,
+      maxValuePerBatch: 500_000_000_000_000_000n,
     });
 
     const expected =
@@ -117,13 +117,13 @@ describe("bondBreakdown", () => {
   });
 
   it("omits the native-value premium when the ceiling is zero", () => {
-    const breakdown = bondBreakdown(pin({ maxValuePerCall: 0n }), samplePricing);
+    const breakdown = bondBreakdown(pin({ maxValuePerBatch: 0n }), samplePricing);
     expect(breakdown.parts.some((p) => p.label === "native value")).toBe(false);
   });
 
   it("charges the flat native premium once, however high the ceiling", () => {
-    const low = bondBreakdown(pin({ maxValuePerCall: 1n }), samplePricing).total;
-    const high = bondBreakdown(pin({ maxValuePerCall: 10n ** 21n }), samplePricing).total;
+    const low = bondBreakdown(pin({ maxValuePerBatch: 1n }), samplePricing).total;
+    const high = bondBreakdown(pin({ maxValuePerBatch: 10n ** 21n }), samplePricing).total;
 
     // Deliberately not proportional: bonds are six-decimal and ceilings eighteen-decimal, so
     // scaling one by the other has no meaning without a price oracle.

@@ -27,8 +27,13 @@ abstract contract Fixtures is Test {
 
     address internal slashRecipient;
 
-    /// Version id used by tests that do not care about equivocation.
-    bytes32 internal constant DEFAULT_VERSION = keccak256("test@1.0.0");
+    /// Label used by tests that do not care about equivocation.
+    ///
+    /// @dev This replaced a `bytes32 DEFAULT_VERSION` constant when `publish` stopped accepting a
+    ///      version id and started deriving one. The suite can no longer hold an opinion about what
+    ///      a version id is; it can only state a name and a version and let the registry hash them.
+    string internal constant DEFAULT_NAME = "test";
+    string internal constant DEFAULT_SEMVER = "1.0.0";
 
     MockERC20 internal ausd;
     PinRegistry internal registry;
@@ -69,5 +74,47 @@ abstract contract Fixtures is Test {
         selectors = new bytes4[](1);
         targets[0] = target;
         selectors[0] = selector;
+    }
+
+    // --- publish arguments ---
+    //
+    // `publish` takes a struct rather than six positional parameters, so building one inline at
+    // every call site would bury what each test is about under six lines of field assignment. These
+    // two helpers name the shapes the suite needs, and nothing else.
+
+    /// @dev The version id the registry derives for the default label. Asked of the registry rather
+    ///      than recomputed here, so a test cannot assert against a stale copy of the derivation.
+    function defaultVersionId() internal view returns (bytes32) {
+        return registry.computeVersionId(DEFAULT_NAME, DEFAULT_SEMVER);
+    }
+
+    function publishParams(
+        string memory name,
+        string memory version,
+        bytes32 skillHash,
+        uint256 maxValuePerBatch,
+        address[] memory targets,
+        bytes4[] memory selectors
+    ) internal pure returns (PinRegistry.PublishParams memory) {
+        return PinRegistry.PublishParams({
+            name: name,
+            version: version,
+            skillHash: skillHash,
+            maxValuePerBatch: maxValuePerBatch,
+            targets: targets,
+            selectors: selectors
+        });
+    }
+
+    /// @dev For tests where the label carries no meaning and only the pin's existence matters.
+    function defaultParams(
+        bytes32 skillHash,
+        uint256 maxValuePerBatch,
+        address[] memory targets,
+        bytes4[] memory selectors
+    ) internal pure returns (PinRegistry.PublishParams memory) {
+        return publishParams(
+            DEFAULT_NAME, DEFAULT_SEMVER, skillHash, maxValuePerBatch, targets, selectors
+        );
     }
 }

@@ -10,7 +10,7 @@
           "selector": "swap(uint256)"
         }
       ],
-      "maxValuePerCall": "0"
+      "maxValuePerBatch": "0"
     }
   }
 }

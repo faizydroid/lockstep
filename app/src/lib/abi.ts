@@ -47,7 +47,7 @@ export const pinRegistryAbi = [
           { name: "publisher", type: "address" },
           { name: "skillHash", type: "bytes32" },
           { name: "versionId", type: "bytes32" },
-          { name: "maxValuePerCall", type: "uint256" },
+          { name: "maxValuePerBatch", type: "uint256" },
           { name: "requiredBond", type: "uint256" },
           { name: "capabilityCount", type: "uint32" },
           { name: "highRiskCount", type: "uint32" },
@@ -94,7 +94,10 @@ export const pinRegistryAbi = [
       { name: "pinId", type: "bytes32", indexed: true },
       { name: "publisher", type: "address", indexed: true },
       { name: "skillHash", type: "bytes32", indexed: true },
-      { name: "maxValuePerCall", type: "uint256", indexed: false },
+      { name: "versionId", type: "bytes32", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "version", type: "string", indexed: false },
+      { name: "maxValuePerBatch", type: "uint256", indexed: false },
       { name: "capabilityCount", type: "uint256", indexed: false },
       { name: "highRiskCount", type: "uint256", indexed: false },
       { name: "requiredBond", type: "uint256", indexed: false },
@@ -225,7 +228,11 @@ export const guardErrorsAbi = [
   { type: "error", name: "SkillHashMismatch", inputs: [{ name: "attested", type: "bytes32" }, { name: "pinned", type: "bytes32" }] },
   { type: "error", name: "CapabilityNotDeclared", inputs: [{ name: "target", type: "address" }, { name: "selector", type: "bytes4" }] },
   { type: "error", name: "PinNotApproved", inputs: [{ name: "pinId", type: "bytes32" }] },
-  { type: "error", name: "ValueExceedsCeiling", inputs: [{ name: "value", type: "uint256" }, { name: "ceiling", type: "uint256" }] },
+  // Renamed from `ValueExceedsCeiling(value, ceiling)` when the guard's ceiling became a budget
+  // for the whole batch instead of a limit on each call. The selector changed with the name, so a
+  // stale fragment would silently stop decoding the refusals this list exists to render.
+  { type: "error", name: "BatchValueExceedsCeiling", inputs: [{ name: "total", type: "uint256" }, { name: "ceiling", type: "uint256" }] },
+  { type: "error", name: "TooManyCalls", inputs: [{ name: "count", type: "uint256" }, { name: "max", type: "uint256" }] },
   { type: "error", name: "NotAuthorizedExecutor", inputs: [{ name: "caller", type: "address" }] },
   { type: "error", name: "EmptyBatch", inputs: [] },
   { type: "error", name: "NotSelf", inputs: [] },

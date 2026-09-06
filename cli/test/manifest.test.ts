@@ -14,7 +14,7 @@ const valid = {
   capabilities: {
     onchain: {
       calls: [{ target: ROUTER, selector: "swap(uint256)" }],
-      maxValuePerCall: "0",
+      maxValuePerBatch: "0",
     },
   },
 };
@@ -46,13 +46,13 @@ describe("parseManifest", () => {
     expect(m.capabilities[0]!.target).toMatch(/^0x[0-9a-fA-F]{40}$/);
   });
 
-  it("defaults maxValuePerCall to zero", () => {
+  it("defaults maxValuePerBatch to zero", () => {
     const m = parseManifest({
       ...valid,
       capabilities: { onchain: { calls: [{ target: ROUTER, selector: "swap(uint256)" }] } },
     });
 
-    expect(m.maxValuePerCall).toBe(0n);
+    expect(m.maxValuePerBatch).toBe(0n);
   });
 
   it("parses a wei string without precision loss", () => {
@@ -61,12 +61,12 @@ describe("parseManifest", () => {
       capabilities: {
         onchain: {
           calls: [{ target: ROUTER, selector: "swap(uint256)" }],
-          maxValuePerCall: "1234567890123456789",
+          maxValuePerBatch: "1234567890123456789",
         },
       },
     });
 
-    expect(m.maxValuePerCall).toBe(1234567890123456789n);
+    expect(m.maxValuePerBatch).toBe(1234567890123456789n);
   });
 
   /** A float would silently truncate. Refusing is better than guessing. */
@@ -75,10 +75,63 @@ describe("parseManifest", () => {
       parseManifest({
         ...valid,
         capabilities: {
-          onchain: { calls: [{ target: ROUTER, selector: "swap(uint256)" }], maxValuePerCall: 1.5 },
+          onchain: { calls: [{ target: ROUTER, selector: "swap(uint256)" }], maxValuePerBatch: 1.5 },
         },
       }),
-    ).toThrow(/maxValuePerCall/);
+    ).toThrow(/maxValuePerBatch/);
+  });
+
+  /**
+   * The old key must fail loudly rather than being ignored.
+   *
+   * An unknown key would fall through to the default of zero, so a manifest still saying
+   * `maxValuePerCall` would publish a pin that can move no native value at all -- fail-closed, but
+   * silently, leaving the publisher debugging a skill whose manifest looks like it should work.
+   */
+  it("refuses the pre-rename maxValuePerCall key by name", () => {
+    expect(() =>
+      parseManifest({
+        ...valid,
+        capabilities: {
+          onchain: {
+            calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+            maxValuePerCall: "500000000000000000",
+          },
+        },
+      }),
+    ).toThrow(/maxValuePerCall was renamed to maxValuePerBatch/);
+  });
+
+  /*
+   * Label rules, mirroring `PinRegistry._requireLabel`.
+   *
+   * The registry derives the on-chain version id from the name and version, which stops a publisher
+   * choosing an arbitrary id but not an arbitrary *label*. `"kuru-quote "` and a Cyrillic `о` both
+   * render as the skill users already trust while hashing to an unrelated version, so the chain
+   * refuses them -- and the CLI refuses them first, because learning this from a reverted
+   * transaction costs gas to discover what a string comparison knows for free.
+   */
+  it.each([
+    ["kuru-quote ", "trailing space"],
+    [" kuru-quote", "leading space"],
+    ["kuru quote", "inner space"],
+    ["kuru\tquote", "tab"],
+    ["kuru-qu\u043Ete", "Cyrillic lookalike"],
+    ["café", "non-ASCII"],
+  ])("rejects %o as a name (%s)", (name) => {
+    expect(() => parseManifest({ ...valid, name })).toThrow(/printable ASCII/);
+  });
+
+  it("rejects a confusable version string too", () => {
+    expect(() => parseManifest({ ...valid, version: "1.0.0 " })).toThrow(/printable ASCII/);
+  });
+
+  it("rejects a label longer than the registry accepts", () => {
+    expect(() => parseManifest({ ...valid, name: "a".repeat(65) })).toThrow(/at most 64/);
+  });
+
+  it("accepts a label exactly at the limit", () => {
+    expect(parseManifest({ ...valid, name: "a".repeat(64) }).name).toBe("a".repeat(64));
   });
 
   it.each([

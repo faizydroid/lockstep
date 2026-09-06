@@ -4,6 +4,9 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 
 import {DeployLens} from "../script/DeployLens.s.sol";
+import {IERC20} from "../src/interfaces/IERC20.sol";
+import {LockstepGuard} from "../src/LockstepGuard.sol";
+import {PinRegistry} from "../src/PinRegistry.sol";
 
 /// @notice Exposes `DeployLens`'s internal identification helpers.
 ///
@@ -33,6 +36,10 @@ contract DeployLensHarness is DeployLens {
 
     function base64Value(bytes1 c) external pure returns (uint256) {
         return _base64Value(c);
+    }
+
+    function identifyGuard(address guard, address registryAddress) external view {
+        _identifyGuard(guard, registryAddress);
     }
 }
 
@@ -191,6 +198,48 @@ contract DeployLensChecksTest is Test {
         string memory uri =
             string(abi.encodePacked("data:application/json;base64,", _encode(json)));
         assertTrue(script.referencesEip8004(uri), "found regardless of byte alignment");
+    }
+
+    /* ----------------------------------------------------------------------- the guard */
+
+    /// The guard address decides every eligibility answer the lens will ever give, and it is
+    /// `immutable`. Getting it wrong does not revert anything at runtime — it produces a lens where
+    /// no account matches the expected designator, so every publisher reads as having zero eligible
+    /// reviewers, which is indistinguishable from a publisher nobody has reviewed.
+    ///
+    /// So this check is the only thing standing between a fat-fingered env var and a permanently
+    /// mute reputation surface.
+    function test_acceptsTheGuardBelongingToTheRegistry() public {
+        (PinRegistry registry, LockstepGuard guard) = _deployPair();
+        script.identifyGuard(address(guard), address(registry));
+    }
+
+    function test_rejectsAGuardBuiltForADifferentRegistry() public {
+        (PinRegistry registry,) = _deployPair();
+        (, LockstepGuard strayGuard) = _deployPair();
+
+        vm.expectRevert(
+            "LOCKSTEP_GUARD.registry() is not PIN_REGISTRY: wrong guard for this deployment"
+        );
+        script.identifyGuard(address(strayGuard), address(registry));
+    }
+
+    /// An address with code that is not a guard at all. The call has no `registry()` to answer, so
+    /// the revert comes from the decode rather than from the comparison — either way it does not
+    /// deploy.
+    function test_rejectsAnAddressThatIsNotAGuard() public {
+        (PinRegistry registry,) = _deployPair();
+
+        vm.expectRevert();
+        script.identifyGuard(address(registry), address(registry));
+    }
+
+    function _deployPair() internal returns (PinRegistry registry, LockstepGuard guard) {
+        bytes4[] memory none = new bytes4[](0);
+        registry = new PinRegistry(
+            IERC20(address(0xBEEF)), 0, 0, 0, 0, 0, 0, address(0xCAFE), none
+        );
+        guard = new LockstepGuard(registry);
     }
 
     /* --------------------------------------------------------------------- utilities */

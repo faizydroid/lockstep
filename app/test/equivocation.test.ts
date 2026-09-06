@@ -30,7 +30,7 @@ function pin(over: Partial<Pin> = {}): Pin {
     publisher: PUB_A,
     skillHash: `0x${seq.toString(16).padStart(64, "a")}` as Hex,
     versionId: VERSION_1,
-    maxValuePerCall: 0n,
+    maxValuePerBatch: 0n,
     requiredBond: 125_000_000n,
     publishedAt: 1_772_000_000n + BigInt(seq),
     slashed: false,

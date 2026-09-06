@@ -41,7 +41,7 @@ chains:
           - "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b"
         handler: src/EventHandlers.ts
         events:
-          - event: Published(bytes32 indexed pinId, address indexed publisher, bytes32 indexed skillHash, uint256 maxValuePerCall, uint256 capabilityCount, uint256 highRiskCount, uint256 requiredBond)
+          - event: Published(bytes32 indexed pinId, address indexed publisher, bytes32 indexed skillHash, bytes32 versionId, string name, string version, uint256 maxValuePerBatch, uint256 capabilityCount, uint256 highRiskCount, uint256 requiredBond)
           - event: CapabilityDeclared(bytes32 indexed pinId, address indexed target, bytes4 indexed selector, bool highRisk)
           - event: Revoked(bytes32 indexed pinId, address indexed publisher)
           - event: Slashed(bytes32 indexed pinId, address indexed publisher, address indexed challenger, uint256 amount, uint256 challengerReward)

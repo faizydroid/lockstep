@@ -53,9 +53,9 @@ export async function statusCommand(options: StatusOptions): Promise<number> {
     process.stdout.write(`    publisher   ${pin.publisher}\n`);
     process.stdout.write(`    skillHash   ${pin.skillHash}\n`);
     process.stdout.write(`    revoked     ${pin.revoked ? "YES - guard will reject" : "no"}\n`);
-    if (pin.maxValuePerCall > 0n) {
+    if (pin.maxValuePerBatch > 0n) {
       process.stdout.write(
-        `    value cap   ${formatUnits(pin.maxValuePerCall, 18)} MON per call\n`,
+        `    value cap   ${formatUnits(pin.maxValuePerBatch, 18)} MON per batch (total, not per call)\n`,
       );
     }
     for (const capability of pin.capabilities) {

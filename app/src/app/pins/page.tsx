@@ -364,7 +364,7 @@ function PinDetail({ pin }: { pin: Pin }) {
           <div className="grid gap-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)] sm:items-center">
             <CapabilityConstellation
               capabilities={pin.capabilities}
-              movesNativeValue={pin.maxValuePerCall > 0n}
+              movesNativeValue={pin.maxValuePerBatch > 0n}
             />
 
             <ul className="space-y-2">
@@ -387,8 +387,8 @@ function PinDetail({ pin }: { pin: Pin }) {
           </div>
 
           <p className="text-xs text-muted">
-            Native value ceiling: <span className="text-text">{formatNative(pin.maxValuePerCall)}</span>
-            {pin.maxValuePerCall === 0n ? (
+            Native value ceiling: <span className="text-text">{formatNative(pin.maxValuePerBatch)}</span>
+            {pin.maxValuePerBatch === 0n ? (
               <span className="text-faint"> &mdash; this skill cannot move native value at all</span>
             ) : null}
           </p>

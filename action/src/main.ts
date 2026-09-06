@@ -108,7 +108,11 @@ export async function main(): Promise<void> {
     address: registryAddress as Address,
     abi: registryAbi,
     functionName: "quoteBond",
-    args: [BigInt(manifest.capabilities.length), BigInt(highRisk.length), manifest.maxValuePerCall > 0n],
+    args: [
+      BigInt(manifest.capabilities.length),
+      BigInt(highRisk.length),
+      manifest.maxValuePerBatch > 0n,
+    ],
   })) as bigint;
 
   await setOutput("skill-hash", hashed.skillHash);
@@ -223,12 +227,17 @@ export async function main(): Promise<void> {
     address: registryAddress as Address,
     abi: registryAbi,
     functionName: "publish",
+    // The registry derives the version id from these two strings, so `manifest.versionId` is not
+    // passed. It is still computed locally, for the equivocation pre-flight check above.
     args: [
-      hashed.skillHash,
-      manifest.versionId,
-      manifest.maxValuePerCall,
-      manifest.capabilities.map((c) => c.target),
-      manifest.capabilities.map((c) => c.selector),
+      {
+        name: manifest.name,
+        version: manifest.version,
+        skillHash: hashed.skillHash,
+        maxValuePerBatch: manifest.maxValuePerBatch,
+        targets: manifest.capabilities.map((c) => c.target),
+        selectors: manifest.capabilities.map((c) => c.selector),
+      },
     ],
     chain,
     account,

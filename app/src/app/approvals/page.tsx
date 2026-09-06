@@ -150,7 +150,7 @@ export default function ApprovalsPage() {
                               {pin.capabilities.some((c) => c.highRisk)
                                 ? ` \u00b7 ${pin.capabilities.filter((c) => c.highRisk).length} high risk`
                                 : ""}{" "}
-                              &middot; ceiling {formatNative(pin.maxValuePerCall)}
+                              &middot; ceiling {formatNative(pin.maxValuePerBatch)}
                             </p>
                           )}
                         </div>

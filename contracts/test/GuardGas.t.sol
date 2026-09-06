@@ -39,7 +39,7 @@ contract GuardGasTest is Fixtures {
         fundPublisher(address(this), 100_000 * ONE_AUSD);
         (address[] memory targets, bytes4[] memory selectors) =
             singleCapability(address(router), GasRouter.swap.selector);
-        registry.publish(skillHash, DEFAULT_VERSION, 1 ether, targets, selectors);
+        registry.publish(defaultParams(skillHash, 1 ether, targets, selectors));
         pinId = registry.computePinId(address(this), skillHash);
 
         Vm.SignedDelegation memory d = vm.signDelegation(address(guardImpl), ACCOUNT_PK);

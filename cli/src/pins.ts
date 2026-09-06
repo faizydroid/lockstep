@@ -25,7 +25,7 @@ export interface PinSummary {
   readonly skillHash: Hex;
   /** keccak256 of the declared name and version. Two pins sharing one is equivocation. */
   readonly versionId: Hex;
-  readonly maxValuePerCall: bigint;
+  readonly maxValuePerBatch: bigint;
   /** Bond locked against this pin at publish time, in bond-asset units. */
   readonly requiredBond: bigint;
   readonly publishedAt: bigint;
@@ -75,7 +75,7 @@ export async function loadPin(
     publisher: Address;
     skillHash: Hex;
     versionId: Hex;
-    maxValuePerCall: bigint;
+    maxValuePerBatch: bigint;
     requiredBond: bigint;
     capabilityCount: number;
     highRiskCount: number;
@@ -114,7 +114,7 @@ export async function loadPin(
     publisher: pin.publisher,
     skillHash: pin.skillHash,
     versionId: pin.versionId,
-    maxValuePerCall: pin.maxValuePerCall,
+    maxValuePerBatch: pin.maxValuePerBatch,
     requiredBond: pin.requiredBond,
     publishedAt: pin.publishedAt,
     revoked: pin.revokedAt !== 0n,
@@ -183,14 +183,14 @@ export function diffCapabilities(before: PinSummary, after: PinSummary): Capabil
 
   // Widening is any new capability, or a higher native-value ceiling. Removing a
   // capability is a narrowing and does not require a fresh approval.
-  const widened = added.length > 0 || after.maxValuePerCall > before.maxValuePerCall;
+  const widened = added.length > 0 || after.maxValuePerBatch > before.maxValuePerBatch;
 
   return {
     added,
     removed,
     unchanged,
-    valueCeilingBefore: before.maxValuePerCall,
-    valueCeilingAfter: after.maxValuePerCall,
+    valueCeilingBefore: before.maxValuePerBatch,
+    valueCeilingAfter: after.maxValuePerBatch,
     widened,
   };
 }

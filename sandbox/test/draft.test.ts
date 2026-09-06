@@ -61,7 +61,7 @@ describe("draftFromObservations", () => {
       call(ROUTER, SWAP, 20n),
     ]);
 
-    expect(draft.maxValuePerCall).toBe(500n);
+    expect(draft.maxValuePerBatch).toBe(500n);
   });
 
   /**
@@ -137,7 +137,7 @@ describe("renderManifest", () => {
     const draft = draftFromObservations([call(ROUTER, SWAP, 1234567890123456789n)]);
     const parsed = JSON.parse(renderManifest("s", "1", draft));
 
-    expect(parsed.capabilities.onchain.maxValuePerCall).toBe("1234567890123456789");
+    expect(parsed.capabilities.onchain.maxValuePerBatch).toBe("1234567890123456789");
   });
 
   /** The output is a starting point, and must say so where a publisher will read it. */

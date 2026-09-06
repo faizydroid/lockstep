@@ -43,7 +43,7 @@ export const pinRegistryAbi = [
           { name: "publisher", type: "address" },
           { name: "skillHash", type: "bytes32" },
           { name: "versionId", type: "bytes32" },
-          { name: "maxValuePerCall", type: "uint256" },
+          { name: "maxValuePerBatch", type: "uint256" },
           { name: "requiredBond", type: "uint256" },
           { name: "capabilityCount", type: "uint32" },
           { name: "highRiskCount", type: "uint32" },
@@ -62,7 +62,10 @@ export const pinRegistryAbi = [
       { name: "pinId", type: "bytes32", indexed: true },
       { name: "publisher", type: "address", indexed: true },
       { name: "skillHash", type: "bytes32", indexed: true },
-      { name: "maxValuePerCall", type: "uint256", indexed: false },
+      { name: "versionId", type: "bytes32", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "version", type: "string", indexed: false },
+      { name: "maxValuePerBatch", type: "uint256", indexed: false },
       { name: "capabilityCount", type: "uint256", indexed: false },
       { name: "highRiskCount", type: "uint256", indexed: false },
       { name: "requiredBond", type: "uint256", indexed: false },
@@ -147,10 +150,18 @@ export const lockstepGuardAbi = [
   },
   {
     type: "error",
-    name: "ValueExceedsCeiling",
+    name: "BatchValueExceedsCeiling",
     inputs: [
-      { name: "value", type: "uint256" },
+      { name: "total", type: "uint256" },
       { name: "ceiling", type: "uint256" },
+    ],
+  },
+  {
+    type: "error",
+    name: "TooManyCalls",
+    inputs: [
+      { name: "count", type: "uint256" },
+      { name: "max", type: "uint256" },
     ],
   },
   {

@@ -63,8 +63,10 @@ const guardAbi = parseAbi([
 ]);
 
 const registryAbi = parseAbi([
+  "struct PublishParams { string name; string version; bytes32 skillHash; uint256 maxValuePerBatch; address[] targets; bytes4[] selectors; }",
   "function deposit(uint256 amount)",
-  "function publish(bytes32 skillHash, bytes32 versionId, uint256 maxValuePerCall, address[] targets, bytes4[] selectors) returns (bytes32)",
+  "function publish(PublishParams p) returns (bytes32)",
+  "function computeVersionId(string name, string version) pure returns (bytes32)",
   "function computePinId(address publisher, bytes32 skillHash) pure returns (bytes32)",
   "function quoteBond(uint256 capabilityCount, uint256 highRiskCount, bool movesNativeValue) view returns (uint256)",
   "function unlockedBond(address publisher) view returns (uint256)",
@@ -228,10 +230,29 @@ describe.skipIf(!available)("end-to-end flow on a real chain", () => {
     const honest = await hashSkillDirectory(HONEST_SKILL_DIR);
     const hostile = await hashSkillDirectory(HOSTILE_SKILL_DIR);
     const swapSelector = toFunctionSelector("swap(uint256)");
+    const SKILL_NAME = "kuru-quote";
+    const SKILL_VERSION = "1.0.0";
+
     // Mirror of PinRegistry.computeVersionId: abi.encode(name, version).
+    //
+    // This used to be passed straight to `publish`, which accepted any bytes32 and checked it
+    // against nothing. Now the registry derives the id itself, so the mirror is no longer load
+    // bearing for the transaction -- but `cli/src/manifest.ts` still keeps one, to run the
+    // equivocation pre-flight check before it has an RPC connection. A drifting mirror there would
+    // make the CLI wave through exactly the second claim it exists to refuse. This suite has a real
+    // chain, so it asks the chain instead of assuming.
     const VERSION_ID = keccak256(
-      encodeAbiParameters([{ type: "string" }, { type: "string" }], ["kuru-quote", "1.0.0"]),
+      encodeAbiParameters([{ type: "string" }, { type: "string" }], [SKILL_NAME, SKILL_VERSION]),
     );
+    expect(
+      await publicClient.readContract({
+        address: registry,
+        abi: registryAbi,
+        functionName: "computeVersionId",
+        args: [SKILL_NAME, SKILL_VERSION],
+      }),
+      "the off-chain computeVersionId mirror has drifted from the registry",
+    ).toBe(VERSION_ID);
 
     // --- publisher bonds and pins the honest version ---
     const quote = (await publicClient.readContract({
@@ -276,7 +297,16 @@ describe.skipIf(!available)("end-to-end flow on a real chain", () => {
         address: registry,
         abi: registryAbi,
         functionName: "publish",
-        args: [honest.skillHash, VERSION_ID, 0n, [router], [swapSelector]],
+        args: [
+          {
+            name: SKILL_NAME,
+            version: SKILL_VERSION,
+            skillHash: honest.skillHash,
+            maxValuePerBatch: 0n,
+            targets: [router],
+            selectors: [swapSelector],
+          },
+        ],
         chain: foundry,
         account: publisher,
       }),

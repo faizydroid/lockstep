@@ -54,6 +54,20 @@ contract RegistryHandler {
     bytes4 internal constant SWAP = bytes4(keccak256("swap(uint256)"));
     bytes4 internal constant APPROVE = bytes4(0x095ea7b3);
 
+    /// The label space this handler publishes into.
+    ///
+    /// @dev Public and read back by the invariants rather than duplicated there. An invariant that
+    ///      keeps its own copy of the handler's version labels silently stops checking anything the
+    ///      moment the handler's labels change.
+    string public constant FUZZ_NAME = "fuzz";
+    uint256 public constant VERSION_BUCKETS = 3;
+
+    function versionLabel(uint256 bucket) public pure returns (string memory) {
+        if (bucket % VERSION_BUCKETS == 1) return "2.0.0";
+        if (bucket % VERSION_BUCKETS == 2) return "3.0.0";
+        return "1.0.0";
+    }
+
     constructor(PinRegistry registry_, MockERC20 bondAsset_) {
         registry = registry_;
         bondAsset = bondAsset_;
@@ -99,11 +113,23 @@ contract RegistryHandler {
         bytes32 skillHash = keccak256(abi.encode(pinIds.length, capCount, highRisk, nativeValue));
         // A small version space so equivocation is reachable: two pins sharing a
         // bucket are two claims about one version.
-        bytes32 versionId = keccak256(abi.encode("v", uint256(versionBucket) % 3));
+        //
+        // Labels, not ids. The handler cannot choose a version id any more than a real publisher
+        // can — `publish` derives it — so the fuzzer's reachable state space has to be expressed in
+        // the strings a publisher actually controls.
+        string memory version = versionLabel(versionBucket);
 
         publishAttempts += 1;
-        try registry.publish(skillHash, versionId, nativeValue ? 1 ether : 0, targets, selectors)
-        returns (bytes32 pinId) {
+        try registry.publish(
+            PinRegistry.PublishParams({
+                name: FUZZ_NAME,
+                version: version,
+                skillHash: skillHash,
+                maxValuePerBatch: nativeValue ? 1 ether : 0,
+                targets: targets,
+                selectors: selectors
+            })
+        ) returns (bytes32 pinId) {
             pinIds.push(pinId);
         } catch (bytes memory reason) {
             publishFailures += 1;
@@ -242,8 +268,42 @@ contract InvariantsTest is Test {
 
             assertEq(
                 pin.requiredBond,
-                registry.quoteBond(pin.capabilityCount, pin.highRiskCount, pin.maxValuePerCall > 0),
+                registry.quoteBond(pin.capabilityCount, pin.highRiskCount, pin.maxValuePerBatch > 0),
                 "pin bond does not match its quote"
+            );
+        }
+    }
+
+    /// `versionPinCount` must equal the number of unslashed claims for a version. That is the
+    /// meaning it acquired when the equivocation freeze stopped being permanent, and the freeze in
+    /// `reclaimBond` is only as correct as this number.
+    ///
+    /// Both directions fail, and they fail differently. Too high strands an honest publisher's
+    /// collateral forever with no beneficiary — the bug this replaced. Too low is worse: it releases
+    /// a bond while a contradiction is still provable against it, which is revoke-and-run, the exact
+    /// attack the freeze was added for.
+    function invariant_versionPinCountTracksUnslashedClaims() public view {
+        uint256 buckets = handler.VERSION_BUCKETS();
+        bytes32[] memory ids = new bytes32[](buckets);
+        uint256[] memory unslashed = new uint256[](buckets);
+        for (uint256 k = 0; k < buckets; ++k) {
+            ids[k] = registry.computeVersionId(handler.FUZZ_NAME(), handler.versionLabel(k));
+        }
+
+        uint256 count = handler.pinCount();
+        for (uint256 i = 0; i < count; ++i) {
+            PinRegistry.Pin memory pin = registry.getPin(handler.pinIds(i));
+            if (pin.slashed) continue;
+            for (uint256 k = 0; k < buckets; ++k) {
+                if (pin.versionId == ids[k]) unslashed[k] += 1;
+            }
+        }
+
+        for (uint256 k = 0; k < buckets; ++k) {
+            assertEq(
+                registry.versionPinCount(address(handler), ids[k]),
+                unslashed[k],
+                "versionPinCount drifted from the number of unslashed claims"
             );
         }
     }

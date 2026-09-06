@@ -30,7 +30,24 @@ type Pin {
   id: ID! # pinId
   publisher: Publisher!
   skillHash: String!
-  maxValuePerCall: BigInt!
+  """
+  keccak256 of the declared name and version, as the registry derives it.
+
+  Newly available: the `Published` event carried no version identity at all, so a pin could only
+  ever be rendered as a hash and equivocation -- two claims about one name and version -- was
+  invisible to anything reading logs. Group by (publisher, versionId) to find it.
+  """
+  versionId: String!
+  """
+  The human label the publisher committed to on chain.
+
+  Not decoration. Two publishers may use the same name, since the registry has no name ownership,
+  so any surface showing this MUST show the publisher beside it.
+  """
+  name: String!
+  version: String!
+  "Ceiling on the total native value one guarded batch may move. Was maxValuePerCall, enforced per call."
+  maxValuePerBatch: BigInt!
   requiredBond: BigInt!
   capabilityCount: Int!
   highRiskCount: Int!

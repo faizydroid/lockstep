@@ -79,7 +79,7 @@ export default function DriftPage() {
             <span className="mt-1.5 block text-sm leading-relaxed font-semibold opacity-90">
               {widened === 0
                 ? "Every change here removes a capability or lowers a ceiling, which cannot let the skill do anything the version you approved could not. These are safe to re-approve without reading the diff."
-                : "A widened release can call something the version you approved could not, or move more native value per call. Those are the ones worth reading. The rest only narrow what the skill can do."}
+                : "A widened release can call something the version you approved could not, or move more native value in one transaction. Those are the ones worth reading. The rest only narrow what the skill can do."}
             </span>
           </Notice>
         </Pop>

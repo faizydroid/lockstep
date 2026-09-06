@@ -106,7 +106,8 @@ contract AllowlistComparisonTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) =
             singleCapability(address(router), SWAP_TO);
         vm.prank(publisher);
-        honestPin = registry.publish(HONEST, keccak256("kuru-quote@1.0.0"), 0, targets, selectors);
+        honestPin =
+            registry.publish(publishParams("kuru-quote", "1.0.0", HONEST, 0, targets, selectors));
 
         account = payable(vm.addr(ACCOUNT_PK));
         vm.signAndAttachDelegation(address(guardImpl), ACCOUNT_PK);
@@ -177,7 +178,7 @@ contract AllowlistComparisonTest is Fixtures {
         vm.deal(account, 10 ether);
         vm.prank(executor);
         vm.expectRevert(
-            abi.encodeWithSelector(LockstepGuard.ValueExceedsCeiling.selector, 1 ether, 0)
+            abi.encodeWithSelector(LockstepGuard.BatchValueExceedsCeiling.selector, 1 ether, 0)
         );
         LockstepGuard(account).execute(honestPin, HONEST, calls);
     }

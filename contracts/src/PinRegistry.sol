@@ -14,7 +14,7 @@ import {IERC20} from "./interfaces/IERC20.sol";
 ///
 /// ## Why bonds are priced by breadth, not by value
 ///
-/// An early design sized bonds against `maxValuePerCall`. That is close to
+/// An early design sized bonds against the pin's native-value ceiling. That is close to
 /// useless, and the reason is worth stating plainly: almost nothing interesting
 /// moves native value. A swap skill calls `router.swap(...)` with `value == 0` and
 /// moves tokens through an allowance the account granted earlier. A native-value
@@ -49,7 +49,20 @@ contract PinRegistry {
         /// two different byte sets under one version string and the chain has no
         /// way to see the contradiction.
         bytes32 versionId;
-        uint256 maxValuePerCall;
+        /// Most native value one guarded batch may move in total.
+        ///
+        /// This was `maxValuePerCall` and it was enforced per call, with nothing bounding how many
+        /// calls a batch could hold. A per-call ceiling over an unbounded batch is not a ceiling:
+        /// the guard's own documentation offered "the native value is within the pin's per-call
+        /// ceiling" as a trustless guarantee, while a compromised executor could move any amount in
+        /// one transaction by splitting it. The number a user read on an approval screen was an
+        /// upper bound on nothing they could observe.
+        ///
+        /// One number, per batch, because that is the only shape a user can reason about. Splitting
+        /// this into a per-call limit and a per-batch limit was considered and rejected: two numbers
+        /// constrain the *shape* of spending rather than the amount, and blast radius — the thing
+        /// this system exists to bound — depends only on the total.
+        uint256 maxValuePerBatch;
         /// Bond locked against this pin at publish time. Immutable thereafter, so
         /// a later change to pricing parameters cannot retroactively under- or
         /// over-collateralise an existing pin.
@@ -62,6 +75,40 @@ contract PinRegistry {
         bool exists;
         /// Set when this pin's bond has been taken by a successful challenge.
         bool slashed;
+    }
+
+    /// @notice Arguments to `publish`.
+    ///
+    /// @dev Grouped for a mechanical reason rather than an aesthetic one, and the reason is worth
+    ///      recording so nobody flattens it back.
+    ///
+    ///      The flat six-parameter form kept ten stack slots live for the entire function body —
+    ///      two each for `name`, `version`, `targets` and `selectors`, since a calldata string or
+    ///      array is an offset plus a length, and one each for `skillHash` and `maxValuePerBatch`.
+    ///      That left six slots for everything else, and the legacy code generator then could not
+    ///      reach far enough down to assemble the `Published` payload: "stack too deep". A calldata
+    ///      struct is a single slot, and each field is loaded from its calldata offset where it is
+    ///      used.
+    ///
+    ///      The alternatives were both worse. `viaIR` dissolves this class of problem but changes
+    ///      every gas figure recorded in this repository and multiplies compile time, for a
+    ///      one-function limitation. Splitting `Published` into a numeric event plus a label event
+    ///      keeps the flat signature, but then no consumer can read one release without joining two
+    ///      logs, which is a permanent tax on every indexer to save a one-off change to six
+    ///      callers.
+    struct PublishParams {
+        /// Skill name. Printable ASCII, no spaces, 1 to `MAX_LABEL_BYTES`.
+        string name;
+        /// Version string. Same rule. Semver by convention, unenforced.
+        string version;
+        /// Canonical hash from `lockstep-skill-hash/v2`.
+        bytes32 skillHash;
+        /// Native-value ceiling applied to a whole batch, not to each call in it.
+        uint256 maxValuePerBatch;
+        /// Allowed call targets, positionally paired with `selectors`.
+        address[] targets;
+        /// Allowed selectors. `0x00000000` permits empty calldata.
+        bytes4[] selectors;
     }
 
     /// Asset bonds are denominated in. AUSD in production.
@@ -104,11 +151,36 @@ contract PinRegistry {
     mapping(address => uint256) public lockedBond;
     /// @dev selector => counts as high risk
     mapping(bytes4 => bool) public isHighRiskSelector;
-    /// @dev publisher => versionId => number of pins published for that version.
+    /// @dev publisher => versionId => number of *unresolved* claims about that version.
     ///
-    /// More than one means the publisher has made conflicting claims about a single
-    /// version, which is provable equivocation. Tracked on chain so `reclaimBond`
-    /// can refuse to release collateral while a contradiction stands.
+    /// Incremented on publish, decremented when a claim is slashed. More than one means the
+    /// publisher has made conflicting claims that nobody has yet adjudicated, which is provable
+    /// equivocation. Tracked on chain so `reclaimBond` can refuse to release collateral while a
+    /// contradiction stands.
+    ///
+    /// ## Why this counts unresolved claims rather than publishes
+    ///
+    /// It used to count publishes and never decrement, and that quietly destroyed money.
+    ///
+    /// Two effects. A publisher whose build is not reproducible — a different compiler, a timestamp
+    /// baked into a bundle, a lockfile that resolved differently — publishes `1.0.0` twice with
+    /// different bytes by accident, and *both* bonds freeze with no way out. And after a genuine
+    /// challenge succeeded, the surviving honest pin stayed frozen too, because the count still read
+    /// two. Its bond was then locked forever: not paid to a challenger, not returned, not burned.
+    /// Simply stranded, with no beneficiary at all.
+    ///
+    /// A frozen-with-no-beneficiary bond is strictly worse than a slashed one. Slashing at least
+    /// pays someone and deters something. This paid nobody and deterred nothing; it was pure loss
+    /// applied to whichever claim happened to be honest.
+    ///
+    /// Decrementing on slash fixes both. Once a contradiction has been priced, there is nothing left
+    /// for the freeze to protect, so the survivor unfreezes — and because `slashEquivocation` is
+    /// permissionless, a publisher who equivocated by accident can prove it against themselves,
+    /// forfeit the offending bond, and recover the rest. That is the escape hatch, and it costs the
+    /// publisher exactly what the mistake was worth.
+    ///
+    /// Three claims under one version leave two unresolved after one slash, so the freeze correctly
+    /// holds until every contradiction has been answered.
     mapping(address => mapping(bytes32 => uint256)) public versionPinCount;
     /// @dev pinId => bond already reclaimed, so it cannot be reclaimed twice
     mapping(bytes32 => bool) public bondReclaimed;
@@ -118,11 +190,25 @@ contract PinRegistry {
     event BondLocked(bytes32 indexed pinId, address indexed publisher, uint256 amount);
     event BondReclaimed(bytes32 indexed pinId, address indexed publisher, uint256 amount);
 
+    /// @notice A publisher committed to an exact byte set for a named version.
+    ///
+    /// @dev `name` and `version` are recorded, not just the `versionId` derived from them.
+    ///
+    ///      Two reasons, and the second is the one that changed the design. An indexer or a UI
+    ///      reading this registry previously had no way to render a pin as anything but a hash,
+    ///      because the human label lived only in an off-chain manifest. And equivocation is a
+    ///      claim about a *name and version* — "they said kuru-quote 1.0.0 was these bytes, then
+    ///      said it was those" — which is unreadable if the chain only holds the digest of the
+    ///      pair. Recording the preimage makes the offence legible to the people it is evidence
+    ///      for, at a cost of roughly a kilogas on a path that runs once per release.
     event Published(
         bytes32 indexed pinId,
         address indexed publisher,
         bytes32 indexed skillHash,
-        uint256 maxValuePerCall,
+        bytes32 versionId,
+        string name,
+        string version,
+        uint256 maxValuePerBatch,
         uint256 capabilityCount,
         uint256 highRiskCount,
         uint256 requiredBond
@@ -164,18 +250,27 @@ contract PinRegistry {
     error SamePin();
     error SameSkillHash(bytes32 skillHash);
     error ZeroSlashRecipient();
-    error ZeroVersionId();
     error TooManyCapabilities(uint256 count, uint256 max);
     error UnbondingNotElapsed(uint64 readyAt);
     error ZeroAmount();
     error ZeroSkillHash();
     error ZeroTarget();
+    error LabelEmpty();
+    error LabelTooLong(uint256 length, uint256 max);
+    error LabelNotPrintableAscii();
 
     /// @dev A pin is read in full by UIs and iterated at publish time. Cap the
     ///      count so publishing cannot be made to run out of gas, and so a pin
     ///      stays humanly reviewable — a 500-capability pin is not a boundary
     ///      anyone can meaningfully approve.
     uint256 public constant MAX_CAPABILITIES = 64;
+
+    /// @dev Longest accepted skill name or version string, in bytes.
+    ///
+    ///      Bounds the calldata and the event payload. 64 bytes is longer than any real package
+    ///      name and far longer than any semver, and the cap exists so a publisher cannot write a
+    ///      novel into an event that indexers must store.
+    uint256 public constant MAX_LABEL_BYTES = 64;
 
     constructor(
         IERC20 bondAsset_,
@@ -214,14 +309,60 @@ contract PinRegistry {
     }
 
     /// @notice Canonical version identifier for a skill name and version string.
-    /// @dev Length-prefixed via `abi.encode` rather than concatenated, so
-    ///      ("ab", "c") and ("a", "bc") cannot collide into one version.
+    ///
+    /// @dev Length-prefixed via `abi.encode` rather than concatenated, so ("ab", "c") and
+    ///      ("a", "bc") cannot collide into one version.
+    ///
+    ///      **This is no longer merely a helper.** `publish` derives the version id by calling
+    ///      this, and the id can no longer be supplied by the caller. See the note there.
     function computeVersionId(string calldata name, string calldata version)
         public
         pure
         returns (bytes32)
     {
         return keccak256(abi.encode(name, version));
+    }
+
+    /// @notice Whether a label would be accepted by `publish`.
+    ///
+    /// @dev Exposed so a publisher's tooling can reject a name before spending gas, and so the
+    ///      rule is checkable rather than only documented.
+    function isValidLabel(string calldata label) public pure returns (bool) {
+        bytes calldata raw = bytes(label);
+        if (raw.length == 0 || raw.length > MAX_LABEL_BYTES) return false;
+        for (uint256 i = 0; i < raw.length; ++i) {
+            uint8 c = uint8(raw[i]);
+            if (c < 0x21 || c > 0x7e) return false;
+        }
+        return true;
+    }
+
+    /// @dev Reverts unless the label is non-empty, within `MAX_LABEL_BYTES`, and printable ASCII
+    ///      with no spaces.
+    ///
+    ///      The character rule is the load-bearing part and it is deliberately blunt. Deriving the
+    ///      version id on chain stops a publisher choosing an arbitrary id, but it does not by
+    ///      itself stop them choosing an arbitrary *name*: `"kuru-quote "` with a trailing space,
+    ///      or a Cyrillic `о` in place of a Latin `o`, both render as the skill users already
+    ///      trust while hashing to an unrelated version id — which reopens the same evasion one
+    ///      layer up. Restricting labels to printable ASCII with no whitespace removes the entire
+    ///      class in one comparison, at the cost of refusing non-Latin skill names.
+    ///
+    ///      That cost is real and is accepted rather than hidden: a registry whose identifiers are
+    ///      confusable is worse than one whose identifiers are narrow, because the confusable
+    ///      version is *silently* broken and the narrow one fails loudly at publish time.
+    ///      Normalising instead — case folding, NFKC — is the alternative, and it is not available:
+    ///      Unicode normalisation is thousands of gas and a table this contract cannot carry.
+    function _requireLabel(string calldata label) private pure {
+        bytes calldata raw = bytes(label);
+        if (raw.length == 0) revert LabelEmpty();
+        if (raw.length > MAX_LABEL_BYTES) revert LabelTooLong(raw.length, MAX_LABEL_BYTES);
+        for (uint256 i = 0; i < raw.length; ++i) {
+            uint8 c = uint8(raw[i]);
+            // 0x21 '!' through 0x7e '~'. Excludes 0x20 space, every control character, and
+            // everything above ASCII.
+            if (c < 0x21 || c > 0x7e) revert LabelNotPrintableAscii();
+        }
     }
 
     function capabilityKey(address target, bytes4 selector) public pure returns (bytes32) {
@@ -269,29 +410,90 @@ contract PinRegistry {
     // --- publishing ---
 
     /// @notice Publish a pin for an exact skill hash and lock its bond.
-    /// @param skillHash Canonical hash from `lockstep-skill-hash/v2`.
-    /// @param maxValuePerCall Native-value ceiling applied to every call.
-    /// @param targets Allowed call targets, positionally paired with `selectors`.
-    /// @param selectors Allowed selectors. `0x00000000` permits empty calldata.
-    function publish(
-        bytes32 skillHash,
-        bytes32 versionId,
-        uint256 maxValuePerCall,
-        address[] calldata targets,
-        bytes4[] calldata selectors
-    ) external returns (bytes32 pinId) {
-        if (skillHash == bytes32(0)) revert ZeroSkillHash();
-        if (versionId == bytes32(0)) revert ZeroVersionId();
-        if (targets.length != selectors.length) revert LengthMismatch();
-        if (targets.length == 0) revert EmptyCapabilities();
-        if (targets.length > MAX_CAPABILITIES) {
-            revert TooManyCapabilities(targets.length, MAX_CAPABILITIES);
+    ///
+    /// ## The version id is derived here, not accepted
+    ///
+    /// This function used to take `bytes32 versionId` as a parameter and never check it against
+    /// anything. `computeVersionId` existed and nothing forced a caller to use it.
+    ///
+    /// That defeated the only slashing condition in the system, and it did so for free. Publish
+    /// 1.0.0 honestly, collect approvals, then republish different bytes under
+    /// `versionId = keccak256(<anything>)`. Users still see "1.0.0" because the version string
+    /// they read lives in a manifest, not on chain. Two contradictory claims about one release
+    /// exist, and `slashEquivocation` cannot see a contradiction because the two pins report
+    /// unrelated version ids. The rug pull this registry is built to price became unpriced, and the
+    /// bond became decorative. The honest CLI and the Action both derived the id correctly, which
+    /// is precisely why nothing caught it: the attack needs one `cast send`.
+    ///
+    /// So the strings come in and the id goes out. `versionId` is now a function of data the caller
+    /// must state in public, and `_requireLabel` bounds what that data can be. An attacker who
+    /// wants a different version id has to publish under a visibly different name or version, which
+    /// is the whole point — that is a new release, not a silent replacement of an old one.
+    ///
+    /// @param p See `PublishParams`.
+    function publish(PublishParams calldata p) external returns (bytes32 pinId) {
+        if (p.skillHash == bytes32(0)) revert ZeroSkillHash();
+        _requireLabel(p.name);
+        _requireLabel(p.version);
+        // Derived, never supplied. A non-empty label pair cannot hash to zero in practice, so the
+        // old `ZeroVersionId` check has no remaining input to guard and is gone with the parameter.
+        bytes32 versionId = computeVersionId(p.name, p.version);
+        if (p.targets.length != p.selectors.length) revert LengthMismatch();
+        if (p.targets.length == 0) revert EmptyCapabilities();
+        if (p.targets.length > MAX_CAPABILITIES) {
+            revert TooManyCapabilities(p.targets.length, MAX_CAPABILITIES);
         }
 
-        pinId = computePinId(msg.sender, skillHash);
+        pinId = computePinId(msg.sender, p.skillHash);
         if (_pins[pinId].exists) revert AlreadyPublished();
 
-        uint32 highRiskCount = 0;
+        uint32 highRiskCount = _declareCapabilities(pinId, p.targets, p.selectors);
+
+        uint256 required = quoteBond(p.targets.length, highRiskCount, p.maxValuePerBatch > 0);
+        uint256 available = unlockedBond(msg.sender);
+        if (required > available) revert InsufficientUnlockedBond(required, available);
+
+        lockedBond[msg.sender] += required;
+        versionPinCount[msg.sender][versionId] += 1;
+
+        _pins[pinId] = Pin({
+            publisher: msg.sender,
+            skillHash: p.skillHash,
+            versionId: versionId,
+            maxValuePerBatch: p.maxValuePerBatch,
+            requiredBond: required,
+            capabilityCount: uint32(p.targets.length),
+            highRiskCount: highRiskCount,
+            publishedAt: uint64(block.timestamp),
+            revokedAt: 0,
+            exists: true,
+            slashed: false
+        });
+
+        emit BondLocked(pinId, msg.sender, required);
+        emit Published(
+            pinId,
+            msg.sender,
+            p.skillHash,
+            versionId,
+            p.name,
+            p.version,
+            p.maxValuePerBatch,
+            p.targets.length,
+            highRiskCount,
+            required
+        );
+    }
+
+    /// @dev Records the declared capability set and returns how many of them are high risk.
+    ///
+    ///      Split out of `publish` to keep the loop's locals off `publish`'s frame; the shape is
+    ///      otherwise unchanged.
+    function _declareCapabilities(
+        bytes32 pinId,
+        address[] calldata targets,
+        bytes4[] calldata selectors
+    ) private returns (uint32 highRiskCount) {
         for (uint256 i = 0; i < targets.length; ++i) {
             address target = targets[i];
             bytes4 selector = selectors[i];
@@ -308,32 +510,6 @@ contract PinRegistry {
             if (highRisk) highRiskCount += 1;
             emit CapabilityDeclared(pinId, target, selector, highRisk);
         }
-
-        uint256 required = quoteBond(targets.length, highRiskCount, maxValuePerCall > 0);
-        uint256 available = unlockedBond(msg.sender);
-        if (required > available) revert InsufficientUnlockedBond(required, available);
-
-        lockedBond[msg.sender] += required;
-        versionPinCount[msg.sender][versionId] += 1;
-
-        _pins[pinId] = Pin({
-            publisher: msg.sender,
-            skillHash: skillHash,
-            versionId: versionId,
-            maxValuePerCall: maxValuePerCall,
-            requiredBond: required,
-            capabilityCount: uint32(targets.length),
-            highRiskCount: highRiskCount,
-            publishedAt: uint64(block.timestamp),
-            revokedAt: 0,
-            exists: true,
-            slashed: false
-        });
-
-        emit BondLocked(pinId, msg.sender, required);
-        emit Published(
-            pinId, msg.sender, skillHash, maxValuePerCall, targets.length, highRiskCount, required
-        );
     }
 
     /// @notice Mark a published version as compromised.
@@ -367,6 +543,29 @@ contract PinRegistry {
     /// Permissionless: anyone can submit the proof and collect the reward. There is
     /// no privileged challenger and no committee.
     ///
+    /// ## The real penalty is the non-reward share, not the whole bond
+    ///
+    /// Stated because the arithmetic is easy to get wrong in a publisher's favour and this
+    /// contract should not be read as claiming more than it does.
+    ///
+    /// Challenging is permissionless, so the offender is also a potential challenger. Nothing
+    /// stops them submitting the proof themselves from an unrelated address and collecting
+    /// `challengerRewardBps` of their own forfeited bond. At the configured 5,000 bps that
+    /// halves the cost of equivocating: the effective penalty is the `slashRecipient` share,
+    /// not the full bond.
+    ///
+    /// This is not fixable by checking `msg.sender != publisher`. A fresh EOA defeats that in
+    /// one transaction, and a check which looks like a protection but is not is worse than no
+    /// check — it invites people to price the risk wrong. The alternatives are all worse:
+    /// a privileged challenger set reintroduces a committee, and dropping the reward removes
+    /// the only funding a watcher has.
+    ///
+    /// So the honest figure is: equivocation costs a publisher
+    /// `requiredBond * (10_000 - challengerRewardBps) / 10_000`, and the reward exists to make
+    /// sure *somebody* is watching, not to make the offence maximally expensive. The same
+    /// permissionlessness is what gives an honest publisher a way out of an accidental
+    /// contradiction — see `reclaimBond`.
+    ///
     /// @param pinIdA one published pin
     /// @param pinIdB another pin from the same publisher, same version, other bytes
     function slashEquivocation(bytes32 pinIdA, bytes32 pinIdB) external returns (uint256 reward) {
@@ -398,6 +597,11 @@ contract PinRegistry {
         address publisher = guilty.publisher;
 
         guilty.slashed = true;
+        // This contradiction is now answered, so it no longer freezes collateral. Without this
+        // decrement the surviving honest pin's bond stayed locked forever with no beneficiary — see
+        // the note on `versionPinCount`. Cannot underflow: a pin is slashed at most once, so
+        // decrements can never outnumber the publishes that incremented it.
+        versionPinCount[guilty.publisher][guilty.versionId] -= 1;
         // Revoke both so neither version can be used or approved while the
         // contradiction stands. Preserve an existing revocation timestamp.
         if (a.revokedAt == 0) a.revokedAt = uint64(block.timestamp);
@@ -433,9 +637,30 @@ contract PinRegistry {
     ///      subsequent slash released the same locked bond a second time and broke
     ///      the accounting identity outright.
     ///
-    ///      So collateral is frozen while a contradiction stands: if a publisher has
-    ///      more than one pin for a version, no pin of that version can be
-    ///      reclaimed. The freeze is permanent, because the evidence is.
+    ///      So collateral is frozen while a contradiction stands: if a publisher has more than one
+    ///      unresolved claim for a version, no pin of that version can be reclaimed.
+    ///
+    ///      ## The freeze lifts on adjudication, not on time
+    ///
+    ///      It used to be permanent, on the reasoning that the evidence is permanent. That was
+    ///      wrong, and the way it was wrong is worth keeping written down.
+    ///
+    ///      Permanent meant two things nobody intended. An honest publisher with a
+    ///      non-reproducible build could equivocate by accident and lose both bonds with no path
+    ///      out. And after a challenge succeeded, the *surviving* pin — the honest, earlier claim
+    ///      users had actually approved against — stayed frozen too, so its collateral was
+    ///      confiscated and handed to nobody.
+    ///
+    ///      The evidence being permanent argues for freezing until the contradiction is
+    ///      **answered**, not forever. Once a claim has been slashed, the bond behind it has been
+    ///      paid out and there is nothing further a challenger could take; continuing to hold the
+    ///      survivor's collateral protects no one.
+    ///
+    ///      A publisher stuck here is not stuck: `slashEquivocation` takes no permissions, so they
+    ///      can prove their own contradiction, forfeit the later claim's bond, and reclaim the rest.
+    ///      Deliberately not a separate "withdraw my mistake" entry point — that would be a second
+    ///      code path to the same state transition, reachable only by the party with the most
+    ///      incentive to find an edge in it.
     function reclaimBond(bytes32 pinId) external {
         Pin storage p = _pins[pinId];
         if (!p.exists) revert PinUnknown();
@@ -446,7 +671,7 @@ contract PinRegistry {
         // commitment that was paid out to a challenger, driving `lockedBond` below
         // the true committed amount and letting them over-publish.
         if (p.slashed) revert PinAlreadySlashed();
-        // Frozen while conflicting claims about this version remain provable.
+        // Frozen while unanswered conflicting claims about this version remain provable.
         if (versionPinCount[msg.sender][p.versionId] > 1) {
             revert EquivocationUnresolved(p.versionId);
         }
@@ -485,12 +710,12 @@ contract PinRegistry {
     function verify(bytes32 pinId, address target, bytes4 selector)
         external
         view
-        returns (bytes32 liveHash, uint256 maxValuePerCall, bool allowed)
+        returns (bytes32 liveHash, uint256 maxValuePerBatch, bool allowed)
     {
         Pin storage p = _pins[pinId];
         if (p.exists && p.revokedAt == 0) {
             liveHash = p.skillHash;
-            maxValuePerCall = p.maxValuePerCall;
+            maxValuePerBatch = p.maxValuePerBatch;
         }
         allowed = _allowed[pinId][capabilityKey(target, selector)];
     }

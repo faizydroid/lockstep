@@ -180,7 +180,7 @@ describe("hand-written ABIs match the compiled contracts", () => {
    */
   it("declares the full Pin struct wherever getPin appears", () => {
     const expected = [
-      "publisher", "skillHash", "versionId", "maxValuePerCall", "requiredBond",
+      "publisher", "skillHash", "versionId", "maxValuePerBatch", "requiredBond",
       "capabilityCount", "highRiskCount", "publishedAt", "revokedAt", "exists", "slashed",
     ];
 

@@ -31,16 +31,54 @@ interface IGuardedAccount {
 ///
 /// ## What makes a reviewer eligible
 ///
-/// A candidate is eligible for a publisher's score only if it currently approves at
-/// least one live pin from that publisher. That is checkable on chain and it means
-/// something concrete: the reviewer has that publisher's exact code authorised
-/// against its own funds. Rating a publisher you never trusted with money costs
-/// nothing and says nothing; this filter removes exactly that class of signal.
+/// Two things, and the first one used to be missing.
 ///
-/// Sybil resistance is therefore economic rather than absolute. Manufacturing a
-/// reviewer requires standing up an account, delegating it to the guard, and
-/// approving the publisher's pin — a real on-chain commitment rather than a free
-/// write.
+///   1. The candidate's code is an EIP-7702 delegation designator pointing at the
+///      canonical `LockstepGuard`.
+///   2. Through that guard, the candidate currently approves at least one live pin
+///      belonging to the publisher under review.
+///
+/// ## Why the first check exists: this filter did not filter
+///
+/// Eligibility was decided by staticcalling `isPinApproved(pinId)` on the candidate
+/// and believing the answer. Nothing established that the answer came from a guard.
+///
+/// `isPinApproved` is a one-line view. Any address can implement it, and returning
+/// `true` unconditionally is a contract small enough to deploy for pocket change and
+/// clone to as many addresses as an attacker wants. So the entire Sybil defence —
+/// the contract's stated reason to exist, the thing the demo puts on screen next to
+/// `unfilteredScore` — could be defeated by a stub with one function in it. Worse
+/// than a missing feature: a *claimed* one, which invites people to rely on it.
+///
+/// The test suite did not catch this because every Sybil in it was a bare EOA. An
+/// EOA has no code, so the staticcall fails and the candidate is rejected — which
+/// looks like the filter working, and proves only that an address which does not
+/// answer is not counted. It never asked what happens when an address answers and
+/// lies.
+///
+/// `LockstepGuard.guardStorageSlot` already stated the rule that closes this: a
+/// consumer must check the account's code equals `0xef0100 || guard` before treating
+/// an approval as live. That note was written for accounts silently re-delegated
+/// away from the guard, but it is the same check, and this contract — the one
+/// consumer where it decides a trust score — did not do it.
+///
+/// `isGuardedAccount` now does, via `EXTCODEHASH`, before any staticcall. A stub
+/// cannot pass it: the only 23-byte code that hashes to the expected value is a
+/// designator naming this exact guard, and an account can only acquire one by having
+/// its own key sign an EIP-7702 authorisation.
+///
+/// ## What that leaves, stated exactly
+///
+/// Sybil resistance is economic, not absolute, and the honest bound is narrower than
+/// the one this file used to claim. A forged reviewer now costs: a distinct EOA, a
+/// signed 7702 authorisation delegating it to the guard, and one `approvePin` write.
+/// That is real and it is per-reviewer, but it is a few tens of thousands of gas —
+/// not a bond. A funded attacker can still manufacture reviewers; they can no longer
+/// do it with one contract and a loop.
+///
+/// What the check does buy is that every counted reviewer is an account that put the
+/// publisher's exact code in its own signing path. Closing the remaining gap needs
+/// weighting by value actually exposed, which is the deferred work described below.
 ///
 /// ## Known limitation, stated rather than implied
 ///
@@ -80,6 +118,26 @@ contract LockstepLens {
     IIdentityRegistry public immutable identity;
     IReputationRegistry public immutable reputation;
 
+    /// @notice The guard implementation an eligible reviewer must be delegated to.
+    ///
+    /// @dev Immutable and singular on purpose. If this were a set, or settable, the question "is
+    ///      this account guarded" would have an answer that depends on who last changed the answer.
+    ///      A new guard implementation means a new lens.
+    address public immutable guard;
+
+    /// @dev `keccak256(0xef0100 || guard)` — the EXTCODEHASH an account carries when, and only
+    ///      when, it is delegated to `guard` under EIP-7702.
+    ///
+    ///      Precomputed because it is compared once per candidate and the candidate list can hold
+    ///      `MAX_CANDIDATES` entries.
+    bytes32 private immutable _guardDesignatorHash;
+
+    /// @dev Length of an EIP-7702 delegation designator: the three-byte `0xef0100` prefix plus one
+    ///      twenty-byte address. Not used for the comparison itself, which is a hash, but recorded
+    ///      because the number is the reason a stub cannot impersonate a delegation: there is no
+    ///      room in twenty-three bytes for code that does anything.
+    uint256 public constant DESIGNATOR_LENGTH = 23;
+
     /// @dev Bounds the candidate loop so a caller cannot force an unbounded
     ///      external-call fan-out through a view that UIs call on every render.
     uint256 public constant MAX_CANDIDATES = 256;
@@ -87,15 +145,43 @@ contract LockstepLens {
     error TooManyCandidates(uint256 count, uint256 max);
     error NoEligibleClients();
     error EmptyPinSet();
+    error ZeroGuard();
 
     constructor(
         PinRegistry pins_,
         IIdentityRegistry identity_,
-        IReputationRegistry reputation_
+        IReputationRegistry reputation_,
+        address guard_
     ) {
+        // Fails closed rather than loudly if left unset — no account would ever match a designator
+        // naming the zero address — and failing closed silently is worse than not deploying. Every
+        // score would read as zero eligible reviewers and look like an absence of reviewers.
+        if (guard_ == address(0)) revert ZeroGuard();
         pins = pins_;
         identity = identity_;
         reputation = reputation_;
+        guard = guard_;
+        _guardDesignatorHash = keccak256(abi.encodePacked(hex"ef0100", guard_));
+    }
+
+    /// @notice Whether `account` is currently delegated to `guard` under EIP-7702.
+    ///
+    /// @dev This is the check that makes an `isPinApproved` answer worth reading. EIP-7702 sets a
+    ///      delegated account's *code* to `0xef0100 || implementation`, and specifies that the
+    ///      code-inspection opcodes see that designator rather than the implementation's code — so
+    ///      `EXTCODEHASH` is a complete, single-opcode test of which implementation an account
+    ///      answers as.
+    ///
+    ///      Uses `codehash` rather than reading `account.code` and comparing bytes, for two
+    ///      reasons. It is one opcode instead of a memory copy. And a candidate list is untrusted
+    ///      input: comparing bytes would copy each candidate's code into memory, so a caller could
+    ///      point all 256 slots at 24 kB contracts and make a view that UIs call on every render
+    ///      pay for 6 MB of memory expansion. `EXTCODEHASH` costs the same whatever the code is.
+    ///
+    ///      An account with no code hashes to zero here, so undelegated EOAs are rejected without a
+    ///      special case.
+    function isGuardedAccount(address account) public view returns (bool) {
+        return account.codehash == _guardDesignatorHash;
     }
 
     /// @notice Whether `account` currently approves any of `pinIds` that is still live.
@@ -108,6 +194,9 @@ contract LockstepLens {
         returns (bool)
     {
         if (pinIds.length == 0) revert EmptyPinSet();
+        // Before the loop, and before any staticcall. An account that is not delegated to the guard
+        // cannot have a meaningful answer to `isPinApproved`, only a convenient one.
+        if (!isGuardedAccount(account)) return false;
 
         for (uint256 i = 0; i < pinIds.length; ++i) {
             bytes32 pinId = pinIds[i];

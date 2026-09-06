@@ -31,7 +31,16 @@ export interface Manifest {
   readonly name: string;
   readonly version: string;
   readonly capabilities: readonly Capability[];
-  readonly maxValuePerCall: bigint;
+  /**
+   * Ceiling on the total native value one guarded batch may move.
+   *
+   * Was `maxValuePerCall`, and the rename is the honest part of a fix rather than tidying. The
+   * guard checked that ceiling against each call and nothing bounded how many calls a batch could
+   * hold, so a pin declaring 1 MON authorised 1 MON or a hundred depending only on how the
+   * executor chose to split it. The number a publisher writes here is now a budget for the whole
+   * transaction.
+   */
+  readonly maxValuePerBatch: bigint;
   /**
    * Canonical version identifier, committed on chain so equivocation is provable.
    *
@@ -77,12 +86,57 @@ function parseValue(raw: unknown): bigint {
   if (typeof raw === "number") {
     // A float here would silently truncate. Refuse rather than guess.
     if (!Number.isSafeInteger(raw) || raw < 0) {
-      throw new Error("maxValuePerCall must be a non-negative integer, given as a string in wei");
+      throw new Error("maxValuePerBatch must be a non-negative integer, given as a string in wei");
     }
     return BigInt(raw);
   }
   if (typeof raw === "string" && /^[0-9]+$/.test(raw)) return BigInt(raw);
-  throw new Error("maxValuePerCall must be a decimal string in wei, for example '500000000000000000'");
+  throw new Error(
+    "maxValuePerBatch must be a decimal string in wei, for example '500000000000000000'",
+  );
+}
+
+/**
+ * Longest label the registry accepts, mirroring `PinRegistry.MAX_LABEL_BYTES`.
+ *
+ * Bytes, not characters. The contract counts bytes and so does this.
+ */
+export const MAX_LABEL_BYTES = 64;
+
+/**
+ * Mirror of `PinRegistry.isValidLabel`: printable ASCII, no spaces, 1 to 64 bytes.
+ *
+ * Checked here as well as on chain because the registry now reverts on a bad label, and a revert
+ * costs a transaction to learn something a string comparison knows for free.
+ *
+ * Worth understanding why the rule is this blunt before relaxing it. `publish` derives the version
+ * id from the label, which stops a publisher choosing an arbitrary id — but not an arbitrary
+ * *name*. `"kuru-quote "` with a trailing space, or a Cyrillic `о` in place of a Latin `o`, both
+ * render as the skill users already trust while hashing to an unrelated version id, which reopens
+ * the same evasion one layer up. The cost is real and accepted: non-Latin skill names are refused.
+ */
+export function isValidLabel(label: string): boolean {
+  const bytes = new TextEncoder().encode(label);
+  if (bytes.length === 0 || bytes.length > MAX_LABEL_BYTES) return false;
+  // 0x21 '!' through 0x7e '~'. Excludes space, every control character, and everything above ASCII.
+  return bytes.every((b) => b >= 0x21 && b <= 0x7e);
+}
+
+function requireLabel(value: string, field: string): void {
+  if (isValidLabel(value)) return;
+  const bytes = new TextEncoder().encode(value);
+  if (bytes.length === 0) throw new Error(`manifest.${field} must not be empty`);
+  if (bytes.length > MAX_LABEL_BYTES) {
+    throw new Error(
+      `manifest.${field} is ${bytes.length} bytes; the registry accepts at most ${MAX_LABEL_BYTES}`,
+    );
+  }
+  throw new Error(
+    `manifest.${field} must be printable ASCII with no spaces, got ${JSON.stringify(value)}. ` +
+      `The registry derives the on-chain version id from the name and version, so a label ` +
+      `containing whitespace or a non-ASCII lookalike could impersonate a trusted skill while ` +
+      `hashing to an unrelated version.`,
+  );
 }
 
 export function parseManifest(json: unknown): Manifest {
@@ -97,6 +151,8 @@ export function parseManifest(json: unknown): Manifest {
   if (typeof version !== "string" || version.length === 0) {
     throw new Error("manifest.version is required");
   }
+  requireLabel(name, "name");
+  requireLabel(version, "version");
 
   const onchain = (m.capabilities as Record<string, unknown> | undefined)?.onchain;
   if (typeof onchain !== "object" || onchain === null) {
@@ -132,12 +188,26 @@ export function parseManifest(json: unknown): Manifest {
     return { target, selector, label };
   });
 
+  // Refuse the old key by name rather than ignoring it.
+  //
+  // `parseValue(undefined)` returns zero, so a manifest still saying `maxValuePerCall` would
+  // publish with a ceiling of nothing — fail-closed, but silently, and the publisher would be left
+  // debugging a skill that cannot move value with a manifest that looks like it can.
+  if (oc.maxValuePerCall !== undefined) {
+    throw new Error(
+      "manifest.capabilities.onchain.maxValuePerCall was renamed to maxValuePerBatch. " +
+        "The guard now applies the ceiling to a batch's total rather than to each call in it, " +
+        "because a per-call limit over an unbounded batch bounded nothing. Rename the key; the " +
+        "value means the same thing for a single-call batch.",
+    );
+  }
+
   return {
     schema: typeof m.schema === "string" ? m.schema : "lockstep/1",
     name,
     version,
     capabilities,
-    maxValuePerCall: parseValue(oc.maxValuePerCall),
+    maxValuePerBatch: parseValue(oc.maxValuePerBatch),
     versionId: computeVersionId(name, version),
   };
 }

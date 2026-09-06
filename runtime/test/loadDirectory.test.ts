@@ -44,6 +44,20 @@ describe("hashSkillDirectory", () => {
    * If this test fails and the fixture has not changed, the canonicalisation
    * policy changed - which invalidates every pin already published. That is a
    * breaking change and requires bumping SCHEME_ID, not updating this constant.
+   *
+   * ## Why the fixture still says `maxValuePerCall`
+   *
+   * It is deliberate, and it will look like an oversight to anyone grepping for that name after it
+   * was renamed to `maxValuePerBatch` everywhere a manifest is actually read.
+   *
+   * The fixture's bytes are the input to this digest, so editing a single character rotates the
+   * golden vector and every constant pinned to it: this test, `HONEST_SKILL` in
+   * `contracts/test/LockstepGuard.t.sol`, and two entries in `FINDINGS.md`. Nothing parses this
+   * file -- it declares `schema: owasp-usf/1.0` with `targets`/`selectors` arrays, a shape
+   * `cli/src/manifest.ts` rejects outright -- so it is opaque content that happens to resemble a
+   * manifest. Rotating a scheme vector to fix a name in a string nobody interprets is the wrong
+   * trade. The manifests that are read live in `demo/skills` and `demo/attack`, and those were
+   * renamed.
    */
   it("matches the published golden vector for lockstep-skill-hash/v2", async () => {
     const result = await hashSkillDirectory(FIXTURE);

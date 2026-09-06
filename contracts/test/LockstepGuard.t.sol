@@ -71,7 +71,7 @@ contract LockstepGuardTest is Fixtures {
             singleCapability(address(router), SWAP_SELECTOR);
 
         vm.prank(publisher);
-        honestPin = registry.publish(HONEST_SKILL, DEFAULT_VERSION, 1 ether, targets, selectors);
+        honestPin = registry.publish(defaultParams(HONEST_SKILL, 1 ether, targets, selectors));
 
         // Real EIP-7702: the account delegates its code to the guard.
         Vm.SignedDelegation memory delegation = vm.signDelegation(address(guardImpl), ACCOUNT_PK);
@@ -92,6 +92,23 @@ contract LockstepGuardTest is Fixtures {
             value: value,
             data: abi.encodeCall(MockRouter.swap, (100))
         });
+    }
+
+    /// @dev `count` identical declared calls, each carrying `each` wei. Every one is individually
+    ///      legal, which is the point: the batch is what has to be judged.
+    function _swapCalls(uint256 count, uint256 each)
+        internal
+        view
+        returns (LockstepGuard.Call[] memory calls)
+    {
+        calls = new LockstepGuard.Call[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            calls[i] = LockstepGuard.Call({
+                target: address(router),
+                value: each,
+                data: abi.encodeCall(MockRouter.swap, (100))
+            });
+        }
     }
 
     // --- delegation sanity ---
@@ -149,7 +166,8 @@ contract LockstepGuardTest is Fixtures {
         selectors[0] = DRAIN_SELECTOR;
 
         vm.prank(publisher);
-        bytes32 hostilePin = registry.publish(HOSTILE_SKILL, DEFAULT_VERSION, 10 ether, targets, selectors);
+        bytes32 hostilePin =
+            registry.publish(defaultParams(HOSTILE_SKILL, 10 ether, targets, selectors));
 
         LockstepGuard.Call[] memory calls = new LockstepGuard.Call[](1);
         calls[0] = LockstepGuard.Call({
@@ -313,9 +331,135 @@ contract LockstepGuardTest is Fixtures {
     function test_valueCeilingIsEnforced() public {
         vm.prank(executor);
         vm.expectRevert(
-            abi.encodeWithSelector(LockstepGuard.ValueExceedsCeiling.selector, 2 ether, 1 ether)
+            abi.encodeWithSelector(
+                LockstepGuard.BatchValueExceedsCeiling.selector, 2 ether, 1 ether
+            )
         );
         LockstepGuard(account).execute(honestPin, HONEST_SKILL, _swapCall(2 ether));
+    }
+
+    // --- the batch budget ---
+    //
+    // The ceiling used to be checked per call with nothing bounding call count, so a pin with a
+    // 1 ether ceiling authorised 1 ether or a hundred, depending only on how the executor chose to
+    // split it. `honestPin` has a 1 ether ceiling throughout this suite.
+
+    /// The attack. Two calls, each individually legal under the old per-call check, together twice
+    /// the ceiling.
+    function test_splittingAcrossCallsCannotExceedTheCeiling() public {
+        LockstepGuard.Call[] memory calls = _swapCalls(2, 1 ether);
+
+        vm.prank(executor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LockstepGuard.BatchValueExceedsCeiling.selector, 2 ether, 1 ether
+            )
+        );
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+
+        assertEq(address(router).balance, 0, "nothing moved");
+    }
+
+    /// The general form: as many calls as `MAX_CALLS` allows, each at the ceiling.
+    function test_aFullBatchAtTheCeilingIsRefused() public {
+        uint256 n = LockstepGuard(account).MAX_CALLS();
+        LockstepGuard.Call[] memory calls = _swapCalls(n, 1 ether);
+
+        vm.prank(executor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LockstepGuard.BatchValueExceedsCeiling.selector, n * 1 ether, 1 ether
+            )
+        );
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+
+        assertEq(address(router).balance, 0, "nothing moved");
+    }
+
+    /// The budget is a total, so a batch that splits it is fine. Otherwise this fix would have
+    /// broken every legitimate multi-call batch that moves value.
+    function test_aBatchSummingToTheCeilingIsAllowed() public {
+        LockstepGuard.Call[] memory calls = _swapCalls(4, 0.25 ether);
+
+        vm.prank(executor);
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+
+        assertEq(address(router).balance, 1 ether, "the whole budget, spread over four calls");
+    }
+
+    /// Exactly at the ceiling is allowed; one wei over is not. Checked because an off-by-one here
+    /// either rejects honest batches or lets the budget be exceeded.
+    function test_theCeilingIsInclusive() public {
+        LockstepGuard.Call[] memory calls = _swapCalls(2, 0.5 ether);
+        vm.prank(executor);
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+        assertEq(address(router).balance, 1 ether);
+
+        LockstepGuard.Call[] memory over = _swapCalls(2, 0.5 ether);
+        over[1].value = 0.5 ether + 1;
+
+        vm.prank(executor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LockstepGuard.BatchValueExceedsCeiling.selector, 1 ether + 1, 1 ether
+            )
+        );
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, over);
+    }
+
+    /// The budget is checked before anything runs, so an over-budget batch must not have executed
+    /// its early calls even though they were individually affordable.
+    function test_nothingExecutesWhenTheBatchIsOverBudget() public {
+        LockstepGuard.Call[] memory calls = _swapCalls(3, 0.5 ether);
+
+        vm.prank(executor);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LockstepGuard.BatchValueExceedsCeiling.selector, 1.5 ether, 1 ether
+            )
+        );
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+
+        assertEq(router.swaps(), 0, "no call in the batch ran");
+        assertEq(address(router).balance, 0);
+    }
+
+    function test_batchSizeIsBounded() public {
+        uint256 max = LockstepGuard(account).MAX_CALLS();
+        LockstepGuard.Call[] memory calls = _swapCalls(max + 1, 0);
+
+        vm.prank(executor);
+        vm.expectRevert(
+            abi.encodeWithSelector(LockstepGuard.TooManyCalls.selector, max + 1, max)
+        );
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+    }
+
+    function test_aBatchExactlyAtMaxCallsIsAllowed() public {
+        uint256 max = LockstepGuard(account).MAX_CALLS();
+        LockstepGuard.Call[] memory calls = _swapCalls(max, 0);
+
+        vm.prank(executor);
+        LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls);
+
+        assertEq(router.swaps(), max);
+    }
+
+    /// No split of any size can exceed the budget. The property, rather than the three cases above.
+    function testFuzz_noSplitEverExceedsTheCeiling(uint8 rawCount, uint96 rawValue) public {
+        uint256 n = (uint256(rawCount) % LockstepGuard(account).MAX_CALLS()) + 1;
+        uint256 each = uint256(rawValue);
+        vm.deal(account, 100_000 ether);
+
+        LockstepGuard.Call[] memory calls = _swapCalls(n, each);
+
+        vm.prank(executor);
+        try LockstepGuard(account).execute(honestPin, HONEST_SKILL, calls) {
+            assertLe(n * each, 1 ether, "a batch over the ceiling was allowed to execute");
+        } catch {
+            // Either over budget, or the account could not fund it. Both are refusals.
+        }
+        assertLe(address(router).balance, 1 ether, "the router never received more than the budget");
     }
 
     function test_emptyBatchIsRefused() public {
@@ -331,7 +475,8 @@ contract LockstepGuardTest is Fixtures {
         selectors[0] = MockRouter.boom.selector;
 
         vm.prank(publisher);
-        bytes32 pin = registry.publish(keccak256("boomskill"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pin =
+            registry.publish(defaultParams(keccak256("boomskill"), 0, targets, selectors));
 
         vm.prank(account);
         LockstepGuard(account).approvePin(pin);

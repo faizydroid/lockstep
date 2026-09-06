@@ -57,9 +57,9 @@ export function printDiff(approved: PinSummary | undefined, candidate: PinSummar
     process.stdout.write("no prior approval from this publisher: this is a first approval\n\n");
     process.stdout.write(`capabilities requested (${candidate.capabilities.length})\n`);
     for (const c of candidate.capabilities) process.stdout.write(`  + ${formatCapability(c)}\n`);
-    if (candidate.maxValuePerCall > 0n) {
+    if (candidate.maxValuePerBatch > 0n) {
       process.stdout.write(
-        `  + native value up to ${formatUnits(candidate.maxValuePerCall, 18)} MON per call\n`,
+        `  + native value up to ${formatUnits(candidate.maxValuePerBatch, 18)} MON per batch\n`,
       );
     }
     return true;

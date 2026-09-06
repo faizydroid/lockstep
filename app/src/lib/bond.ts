@@ -41,7 +41,7 @@ export interface BondBreakdown {
 export function bondBreakdown(pin: Pin, pricing: BondPricing): BondBreakdown {
   const capabilityCount = pin.capabilities.length;
   const highRiskCount = pin.capabilities.filter((c) => c.highRisk).length;
-  const movesNative = pin.maxValuePerCall > 0n;
+  const movesNative = pin.maxValuePerBatch > 0n;
 
   const parts: BondPart[] = [
     { label: "base", amount: pricing.baseBond, detail: "charged on any publish" },

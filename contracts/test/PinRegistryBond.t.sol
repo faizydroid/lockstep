@@ -132,7 +132,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.prank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
 
         uint256 expected = registry.quoteBond(1, 0, false);
         assertEq(registry.lockedBond(publisher), expected);
@@ -154,7 +154,7 @@ contract PinRegistryBondTest is Fixtures {
                 PinRegistry.InsufficientUnlockedBond.selector, needed, 50 * ONE_AUSD
             )
         );
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
     }
 
     /// The hole this closes: without per-pin locking, one deposit backs unlimited
@@ -166,15 +166,15 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
-        registry.publish(keccak256("v2"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
+        registry.publish(defaultParams(keccak256("v2"), 0, targets, selectors));
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 PinRegistry.InsufficientUnlockedBond.selector, oneCapability, 0
             )
         );
-        registry.publish(keccak256("v3"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v3"), 0, targets, selectors));
         vm.stopPrank();
 
         assertEq(registry.lockedBond(publisher), oneCapability * 2);
@@ -185,7 +185,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         uint256 locked = registry.lockedBond(publisher);
         uint256 available = registry.unlockedBond(publisher);
 
@@ -215,7 +215,7 @@ contract PinRegistryBondTest is Fixtures {
         vm.expectRevert(
             abi.encodeWithSelector(PinRegistry.DuplicateCapability.selector, router, SWAP)
         );
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
     }
 
     function test_capabilityCountIsCapped() public {
@@ -234,7 +234,7 @@ contract PinRegistryBondTest is Fixtures {
                 PinRegistry.TooManyCapabilities.selector, n, registry.MAX_CAPABILITIES()
             )
         );
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
     }
 
     function test_highRiskCapabilityRequiresTheLargerBond() public {
@@ -249,7 +249,7 @@ contract PinRegistryBondTest is Fixtures {
                 PinRegistry.InsufficientUnlockedBond.selector, needed, needed - 1
             )
         );
-        registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
     }
 
     // --- revocation and unbonding ---
@@ -258,7 +258,7 @@ contract PinRegistryBondTest is Fixtures {
         fundPublisher(publisher, 10_000 * ONE_AUSD);
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         registry.revoke(pinId);
         vm.stopPrank();
 
@@ -269,7 +269,7 @@ contract PinRegistryBondTest is Fixtures {
         fundPublisher(publisher, 10_000 * ONE_AUSD);
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         registry.revoke(pinId);
 
         vm.expectRevert(PinRegistry.AlreadyRevoked.selector);
@@ -281,7 +281,7 @@ contract PinRegistryBondTest is Fixtures {
         fundPublisher(publisher, 10_000 * ONE_AUSD);
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
         vm.prank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
 
         vm.prank(other);
         vm.expectRevert(PinRegistry.NotPublisher.selector);
@@ -295,7 +295,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         registry.revoke(pinId);
 
         vm.expectRevert(
@@ -312,7 +312,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         uint256 locked = registry.lockedBond(publisher);
         registry.revoke(pinId);
 
@@ -330,7 +330,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
         registry.revoke(pinId);
         vm.warp(block.timestamp + UNBONDING_DELAY);
         registry.reclaimBond(pinId);
@@ -345,7 +345,7 @@ contract PinRegistryBondTest is Fixtures {
         (address[] memory targets, bytes4[] memory selectors) = singleCapability(router, SWAP);
 
         vm.startPrank(publisher);
-        bytes32 pinId = registry.publish(keccak256("v1"), DEFAULT_VERSION, 0, targets, selectors);
+        bytes32 pinId = registry.publish(defaultParams(keccak256("v1"), 0, targets, selectors));
 
         vm.expectRevert(PinRegistry.PinNotRevoked.selector);
         registry.reclaimBond(pinId);
@@ -364,7 +364,8 @@ contract PinRegistryBondTest is Fixtures {
 
         for (uint256 i = 0; i < n; ++i) {
             vm.prank(publisher);
-            try registry.publish(keccak256(abi.encode(i)), DEFAULT_VERSION, 0, targets, selectors) {} catch {}
+            try registry.publish(defaultParams(keccak256(abi.encode(i)), 0, targets, selectors)) {}
+            catch {}
         }
 
         assertLe(registry.lockedBond(publisher), registry.bondBalance(publisher));

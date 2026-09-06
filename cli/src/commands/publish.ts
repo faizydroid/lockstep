@@ -47,7 +47,11 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
     address: env.registry,
     abi: pinRegistryAbi,
     functionName: "quoteBond",
-    args: [BigInt(manifest.capabilities.length), BigInt(highRisk.length), manifest.maxValuePerCall > 0n],
+    args: [
+      BigInt(manifest.capabilities.length),
+      BigInt(highRisk.length),
+      manifest.maxValuePerBatch > 0n,
+    ],
   })) as bigint;
 
   process.stdout.write(`skill        ${manifest.name} ${manifest.version}\n`);
@@ -62,9 +66,11 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
       : "";
     process.stdout.write(`  ${capability.target}  ${capability.label}${risk}\n`);
   }
-  if (manifest.maxValuePerCall > 0n) {
+  if (manifest.maxValuePerBatch > 0n) {
     process.stdout.write(
-      `\nnative value ceiling  ${formatUnits(manifest.maxValuePerCall, 18)} MON per call\n`,
+      `\nnative value ceiling  ${formatUnits(manifest.maxValuePerBatch, 18)} MON per batch\n` +
+        `                      a batch is one guarded transaction, of at most 32 calls, and this is\n` +
+        `                      the total across them -- not a limit on each one.\n`,
     );
   }
   // Bond is denominated in the registry's bond asset, which is AUSD (6 decimals)
@@ -152,12 +158,22 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
     address: env.registry,
     abi: pinRegistryAbi,
     functionName: "publish",
+    // One struct, and `versionId` is deliberately not in it.
+    //
+    // The registry derives the version id from `name` and `version` now. It used to accept one and
+    // never check it, which meant an honest publisher's CLI computed it correctly while a hostile
+    // one could pass `keccak256(<anything>)` and republish different bytes under a version id no
+    // challenger could match — defeating the only slashing condition in the system for the price of
+    // one `cast send`. The strings go in and the id comes out.
     args: [
-      hashed.skillHash,
-      manifest.versionId,
-      manifest.maxValuePerCall,
-      manifest.capabilities.map((c) => c.target),
-      manifest.capabilities.map((c) => c.selector),
+      {
+        name: manifest.name,
+        version: manifest.version,
+        skillHash: hashed.skillHash,
+        maxValuePerBatch: manifest.maxValuePerBatch,
+        targets: manifest.capabilities.map((c) => c.target),
+        selectors: manifest.capabilities.map((c) => c.selector),
+      },
     ],
     chain: chainFor(env.chainId),
     account,

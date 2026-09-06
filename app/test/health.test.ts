@@ -27,7 +27,7 @@ const pin = (overrides: Partial<Pin> = {}): Pin => ({
   publisher: ADDR,
   skillHash: H("22"),
   versionId: H("33"),
-  maxValuePerCall: 0n,
+  maxValuePerBatch: 0n,
   requiredBond: 125_000_000n,
   publishedAt: 1_772_000_000n,
   slashed: false,

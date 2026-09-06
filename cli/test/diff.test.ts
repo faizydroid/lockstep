@@ -21,7 +21,7 @@ const cap = (target: Address, selector: Hex): PinCapability => ({
 const pin = (
   skillHash: string,
   capabilities: readonly PinCapability[],
-  maxValuePerCall = 0n,
+  maxValuePerBatch = 0n,
 ): PinSummary => ({
   pinId: `0x${skillHash.repeat(32).slice(0, 64)}` as Hex,
   publisher: PUBLISHER,
@@ -34,7 +34,7 @@ const pin = (
   requiredBond: 1_500_000_000n,
   publishedAt: 1_760_000_000n,
   slashed: false,
-  maxValuePerCall,
+  maxValuePerBatch,
   revoked: false,
   capabilities,
 });

@@ -75,8 +75,13 @@ contract Deploy is Script {
         guard = new LockstepGuard(registry);
 
         if (identity != address(0) && reputation != address(0)) {
+            // The guard address is not incidental here: the lens decides reviewer eligibility by
+            // checking that a candidate's EIP-7702 designator names this exact implementation.
             lens = new LockstepLens(
-                registry, IIdentityRegistry(identity), IReputationRegistry(reputation)
+                registry,
+                IIdentityRegistry(identity),
+                IReputationRegistry(reputation),
+                address(guard)
             );
         } else {
             console.log("ERC-8004 registries not supplied: skipping LockstepLens");

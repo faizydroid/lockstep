@@ -89,7 +89,7 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
           schema: "lockstep/1",
           name: options.name,
           version: options.version,
-          capabilities: { onchain: { calls: options.calls, maxValuePerCall: "0" } },
+          capabilities: { onchain: { calls: options.calls, maxValuePerBatch: "0" } },
         },
         null,
         2,

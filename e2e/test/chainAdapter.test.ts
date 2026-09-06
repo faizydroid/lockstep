@@ -17,7 +17,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createPublicClient,
   createWalletClient,
-  encodeAbiParameters,
   encodeFunctionData,
   getAddress,
   http,
@@ -56,8 +55,9 @@ const guardAbi = parseAbi([
 ]);
 
 const registryAbi = parseAbi([
+  "struct PublishParams { string name; string version; bytes32 skillHash; uint256 maxValuePerBatch; address[] targets; bytes4[] selectors; }",
   "function deposit(uint256 amount)",
-  "function publish(bytes32 skillHash, bytes32 versionId, uint256 maxValuePerCall, address[] targets, bytes4[] selectors) returns (bytes32)",
+  "function publish(PublishParams p) returns (bytes32)",
   "function revoke(bytes32 pinId)",
   "function computePinId(address publisher, bytes32 skillHash) pure returns (bytes32)",
   "function quoteBond(uint256 capabilityCount, uint256 highRiskCount, bool movesNativeValue) view returns (uint256)",
@@ -74,9 +74,6 @@ const routerAbi = parseAbi([
   "function swaps() view returns (uint256)",
   "function drain(address to)",
 ]);
-
-const versionId = (name: string, version: string): Hex =>
-  keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], [name, version]));
 
 const available = existsSync(ANVIL) && existsSync(FORGE);
 
@@ -225,7 +222,16 @@ describe.skipIf(!available)("ChainAdapter against a live chain", () => {
           address: registry,
           abi: registryAbi,
           functionName: "publish",
-          args: [hash, versionId("demo", version), 0n, [router], [swapSelector]],
+          args: [
+            {
+              name: "demo",
+              version,
+              skillHash: hash,
+              maxValuePerBatch: 0n,
+              targets: [router],
+              selectors: [swapSelector],
+            },
+          ],
           chain: foundry,
           account: publisher,
         }),
