@@ -117,6 +117,30 @@ const GROUPS: readonly NavGroup[] = [
 /** Flattened, for the mobile sheet and for anything that wants the set rather than the structure. */
 const LINKS: readonly NavLink[] = GROUPS.flatMap((group) => group.links);
 
+/**
+ * The rail's foot: things about the reader rather than about the registry.
+ *
+ * Separate from `GROUPS` rather than a fifth group, because they are pinned to the bottom of the rail and a
+ * group is something that scrolls with the list above it. `highlight` exists because `/account#settings` is a
+ * tab inside `/account` and `usePathname` cannot see a hash, so a prefix test would mark both rows current.
+ */
+const SECONDARY: readonly (NavLink & { readonly highlight: boolean })[] = [
+  {
+    href: "/account",
+    label: "Account",
+    icon: IconKey,
+    outcome: "Whether anything is enforcing it",
+    highlight: true,
+  },
+  {
+    href: "/account#settings",
+    label: "Settings",
+    icon: IconSliders,
+    outcome: "RPC endpoint, account, motion",
+    highlight: false,
+  },
+];
+
 /*
  * The three that get a tab of their own on a phone, in order.
  *
@@ -225,57 +249,11 @@ export function Rail() {
             <ul className="grid gap-0.5 px-2">
               {group.links.map((link) => {
                 const active = isActive(link.href);
-                const Icon = link.icon;
                 const count = link.href === "/drift" ? needsDecision : 0;
 
                 return (
                   <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      // The tooltip is the only label when the rail is collapsed, so it carries both halves.
-                      title={expanded ? link.outcome : `${link.label} — ${link.outcome}`}
-                      aria-current={active ? "page" : undefined}
-                      className={cx(
-                        "relative flex items-center gap-2 rounded-md transition-colors",
-                        expanded ? "px-2.5 py-2" : "justify-center px-0 py-2",
-                        active ? "text-text" : "text-muted hover:text-text",
-                      )}
-                    >
-                      {active ? (
-                        <motion.span
-                          layoutId="nav-active"
-                          transition={SPRING_SOFT}
-                          className="absolute inset-0 rounded-md bg-raise"
-                        />
-                      ) : null}
-
-                      <span className="relative grid shrink-0 place-items-center">
-                        <Icon heavy={active} />
-                      </span>
-
-                      {expanded ? (
-                        <span className="relative min-w-0 flex-1">
-                          <span className="block truncate text-note leading-tight">{link.label}</span>
-                          {/*
-                            The outcome line, and the reason the rail is worth its width.
-
-                            Six of the seven labels are words this project invented. A permanent second line
-                            costs 14px per item in a column that has hundreds to spare, and it is the
-                            difference between a menu a first-time reader can use and one they have to
-                            click through to decode.
-                          */}
-                          <span className="mt-0.5 block truncate text-label leading-tight text-faint">
-                            {link.outcome}
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="sr-only">
-                          {link.label}. {link.outcome}
-                        </span>
-                      )}
-
-                      {count > 0 ? <Badge count={count} compact={!expanded} /> : null}
-                    </Link>
+                    <RailItem link={link} expanded={expanded} active={active} count={count} />
                   </li>
                 );
               })}
@@ -283,7 +261,120 @@ export function Rail() {
           </div>
         ))}
       </nav>
+
+      {/*
+        The foot of the rail: the account, its settings, and the theme.
+
+        ## Why these three and why down here
+        
+        All three are things a reader touches rarely and then wants to find without hunting. Every product in
+        this category puts them at the bottom of the sidebar for that reason, and the position carries meaning
+        on its own: separated from the primary nav by a rule and pinned below it, they read as being about the
+        reader rather than about the registry.
+
+        Account was briefly not in the navigation at all -- its facts had moved into the wallet menu, and a nav
+        item pointing at the same information looked like two front doors to one room. That was half right. The
+        menu is the right place for the *facts* of the connected wallet, which is what a chevron next to an
+        address promises. It is the wrong place to keep a page, because a page reached only through a dropdown
+        is a page a keyboard reader has to know exists. Both now point at `/account`, and that is not a
+        duplicate: one is a summary in the chrome, the other is a route in the navigation.
+
+        The theme control lives here rather than in the top bar because it is appearance, not context. The bar
+        carries what decides whether the figures on screen mean anything -- the network and the wallet -- and a
+        light/dark switch beside those was three icons of nothing competing with them.
+      */}
+      <div className={cx("shrink-0 border-t border-line py-2", expanded ? "px-2" : "px-2")}>
+        <ul className="grid gap-0.5">
+          {SECONDARY.map((link) => (
+            <li key={link.label}>
+              <RailItem
+                link={link}
+                expanded={expanded}
+                /*
+                  Only Account highlights. `/account#settings` is a tab inside the same route, and
+                  `usePathname` cannot see a hash -- so a `startsWith` test would light both rows at once and
+                  claim the reader is in two places.
+                */
+                active={link.highlight && isActive("/account")}
+                count={0}
+              />
+            </li>
+          ))}
+        </ul>
+
+        <div className={cx("mt-2 flex border-t border-line pt-2", expanded ? "px-2.5" : "justify-center")}>
+          {/* Stacked when collapsed: three 24px targets in a row do not fit inside 56px. */}
+          <ThemeToggle stack={!expanded} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+/**
+ * One row of the rail, used by the primary groups and by the foot.
+ *
+ * Extracted when the foot was added, rather than the foot growing its own markup. Two nearly-identical
+ * forty-line blocks is how a rail ends up with rows that are two pixels apart and a selected state that
+ * only animates in one of them.
+ */
+function RailItem({
+  link,
+  expanded,
+  active,
+  count,
+}: {
+  link: NavLink;
+  expanded: boolean;
+  active: boolean;
+  count: number;
+}) {
+  const Icon = link.icon;
+
+  return (
+    <Link
+      href={link.href}
+      // The tooltip is the only label when the rail is collapsed, so it carries both halves.
+      title={expanded ? link.outcome : `${link.label} — ${link.outcome}`}
+      aria-current={active ? "page" : undefined}
+      className={cx(
+        "relative flex items-center gap-2 rounded-md transition-colors",
+        expanded ? "px-2.5 py-2" : "justify-center px-0 py-2",
+        active ? "text-text" : "text-muted hover:text-text",
+      )}
+    >
+      {active ? (
+        <motion.span
+          layoutId="nav-active"
+          transition={SPRING_SOFT}
+          className="absolute inset-0 rounded-md bg-raise"
+        />
+      ) : null}
+
+      <span className="relative grid shrink-0 place-items-center">
+        <Icon heavy={active} />
+      </span>
+
+      {expanded ? (
+        <span className="relative min-w-0 flex-1">
+          <span className="block truncate text-note leading-tight">{link.label}</span>
+          {/*
+            The outcome line, and the reason the rail is worth its width.
+
+            Six of the seven primary labels are words this project invented. A permanent second line costs
+            14px per item in a column that has hundreds to spare, and it is the difference between a menu a
+            first-time reader can use and one they have to click through to decode.
+          */}
+          <span className="mt-0.5 block truncate text-label leading-tight text-faint">{link.outcome}</span>
+        </span>
+      ) : (
+        <span className="sr-only">
+          {link.label}. {link.outcome}
+        </span>
+      )}
+
+      {count > 0 ? <Badge count={count} compact={!expanded} /> : null}
+    </Link>
   );
 }
 
@@ -364,7 +455,15 @@ export function NavBar() {
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <NetworkChip />
           <WalletMenu />
-          <span className="hidden sm:block">
+          {/*
+            The theme control, only where there is no rail to put it in.
+
+            It moved to the foot of the rail, which is where this category puts appearance settings and where it
+            stops competing with the two things in this bar that decide whether the figures on screen mean
+            anything. Below `lg` there is no rail, so the bar keeps it; below `sm` the bar is too narrow and the
+            overflow sheet keeps it instead.
+          */}
+          <span className="hidden sm:block lg:hidden">
             <ThemeToggle />
           </span>
         </div>
@@ -555,6 +654,44 @@ export function MobileTabs() {
                 </div>
               ))}
 
+              {/*
+                Account and Settings, which have no tab of their own.
+
+                They are the rail's foot on a wide screen. Here they are the last group in the sheet, which is
+                the same position for the same reason -- and without them a phone reader could reach neither,
+                since four tabs is the ceiling and both of these lost that competition to Drift and Pins.
+              */}
+              <div className="mt-3 border-t border-line pt-3">
+                <ul className="grid gap-0.5">
+                  {SECONDARY.map((link) => {
+                    const Icon = link.icon;
+                    const active = link.highlight && isActive("/account");
+
+                    return (
+                      <li key={link.label}>
+                        <Link
+                          href={link.href}
+                          onClick={() => setOpen(false)}
+                          aria-current={active ? "page" : undefined}
+                          className={cx(
+                            "flex items-center gap-3 rounded-md px-2 py-2.5 transition-colors",
+                            active ? "bg-raise text-text" : "text-muted hover:text-text",
+                          )}
+                        >
+                          <span className="grid shrink-0 place-items-center">
+                            <Icon heavy={active} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-note">{link.label}</span>
+                            <span className="block truncate text-label text-faint">{link.outcome}</span>
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
               <div className="mt-3 border-t border-line pt-3 sm:hidden">
                 <ThemeToggle />
               </div>
@@ -731,15 +868,42 @@ function IconShield({ heavy = false }: { heavy?: boolean }) {
   );
 }
 
-/*
- * `IconAccount` was deleted with the Account nav item.
+/**
+ * A key, for the account. Deleted with the old Account nav item and back with the new one.
  *
- * It was a key rather than the usual head-and-shoulders silhouette, on the grounds that an account is a
- * keypair and not a person. That reasoning was right and is why it is not being kept "just in case": the
- * wallet menu identifies the account with a fingerprint derived from the address itself, which is a
- * stronger version of the same idea, and a spare glyph nobody renders is what gets rediscovered and
- * reinstated next to the one that replaced it.
+ * Not the usual head-and-shoulders silhouette, which would be wrong here in a way worth naming: the account
+ * is not a person, it is a keypair. `IconPublisher` already uses the person glyph for the thing that genuinely
+ * is an actor with a reputation, and reusing it would collapse a distinction the rest of the app is careful
+ * about.
  */
+function IconKey({ heavy = false }: { heavy?: boolean }) {
+  return (
+    <Glyph heavy={heavy}>
+      <circle cx="8.5" cy="8.5" r="4" />
+      <path d="M11.4 11.6 20 20.5" />
+      <path d="M16.5 17 14.5 19" />
+    </Glyph>
+  );
+}
+
+/**
+ * Three sliders, for settings.
+ *
+ * Not a cog. Every cog in every interface means "settings", which is the problem: this route's settings are
+ * four specific values a reader adjusts -- an RPC endpoint, an account to read, a start block, a motion
+ * preference -- and sliders say "things you tune" where a cog says "the machinery". At 19px a cog also loses
+ * its teeth and reads as a smudged circle, which the shield glyph is already close to.
+ */
+function IconSliders({ heavy = false }: { heavy?: boolean }) {
+  return (
+    <Glyph heavy={heavy}>
+      <path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2" />
+      <circle cx="16" cy="7" r="0.1" />
+      <circle cx="10" cy="12" r="0.1" />
+      <circle cx="16" cy="17" r="0.1" />
+    </Glyph>
+  );
+}
 
 /**
  * A panel with its edge marked: the rail's collapse toggle.

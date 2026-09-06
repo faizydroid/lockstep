@@ -54,12 +54,19 @@ const OPTIONS: readonly {
  * Still radio inputs, so arrow keys move between the options and a screen reader announces the group and
  * the selection. That was the reason for the original design and it survives the shrink.
  */
-export function ThemeToggle() {
+/**
+ * @param stack Lay the three targets out vertically instead of in a row.
+ *
+ * Exists for one caller and one reason: the collapsed navigation rail is 56px wide, and three 24px targets
+ * plus their gaps do not fit inside it. A row that overflows would either clip the third option or force the
+ * rail wider than the token says it is, and both are worse than turning the corner.
+ */
+export function ThemeToggle({ stack = false }: { stack?: boolean }) {
   const { choice, setChoice } = useTheme();
   const group = useId();
 
   return (
-    <fieldset className="flex items-center" aria-label="Colour theme">
+    <fieldset className={cx("flex items-center", stack && "flex-col")} aria-label="Colour theme">
       {OPTIONS.map((option) => {
         const active = choice === option.value;
         const id = `${group}-${option.value}`;

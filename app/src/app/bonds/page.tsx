@@ -100,58 +100,75 @@ export default function BondsPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-8">
         <Reveal>
           <Card>
-            <div className="space-y-6">
-              <p className="shout text-label text-faint">
-                Price a manifest
-              </p>
+            {/*
+              The controls, then the diagram, and the whole card sized to fit above the fold.
 
-              <Counter
-                label="Declared capabilities"
-                hint="Each distinct target and selector pair. Capped at 64 on chain, so a pin stays reviewable by a human."
-                value={capabilities}
-                min={1}
-                max={12}
-                onChange={(next) => {
-                  setCapabilities(next);
-                  if (highRisk > next) setHighRisk(next);
-                }}
-              />
+              ## Why this got shorter
 
-              <Counter
-                label="Of which high risk"
-                hint="approve, transfer, setApprovalForAll, permit, delegate, upgradeTo and the rest of the twelve."
-                value={effectiveHighRisk}
-                min={0}
-                max={capabilities}
-                onChange={setHighRisk}
-              />
+              It did not fit. The two steppers each carried a two-line hint and the native-value row carried a
+              four-line paragraph about dimensional analysis, which put roughly 420px of prose between the top
+              of the card and the drawing. So a reader would change a count and see nothing happen, because the
+              thing that responds was below the fold -- on the one page in the app whose entire argument is
+              watching the shape and the figure move together.
+
+              What went is the length, not the reasoning. The hints are one line each now, and the paragraph
+              moved into the "Why these numbers" disclosure in the card beside this one, which is exactly what
+              that disclosure is for.
+            */}
+            <div className="space-y-4">
+              <p className="shout text-label text-faint">Price a manifest</p>
+
+              {/*
+                One divided list rather than two steppers and a separately-boxed switch.
+
+                The switch used to sit in its own tinted panel, which made it look like a different kind of
+                thing from the counters above it. All three are the same kind of thing: an input to the price.
+              */}
+              <div className="divide-y divide-line">
+                <Control
+                  label="Declared capabilities"
+                  hint="Distinct target and selector pairs, 64 max"
+                >
+                  <Stepper
+                    label="Declared capabilities"
+                    value={capabilities}
+                    min={1}
+                    max={12}
+                    onChange={(next) => {
+                      setCapabilities(next);
+                      if (highRisk > next) setHighRisk(next);
+                    }}
+                  />
+                </Control>
+
+                <Control
+                  label="Of which high risk"
+                  hint="approve, transfer, permit, delegate and eight more"
+                >
+                  <Stepper
+                    label="Of which high risk"
+                    value={effectiveHighRisk}
+                    min={0}
+                    max={capabilities}
+                    onChange={setHighRisk}
+                  />
+                </Control>
+
+                <Control label="Can move native value" hint="A flat premium, not a share of the ceiling">
+                  <Toggle checked={movesNative} onChange={setMovesNative} label="Can move native value" />
+                </Control>
+              </div>
 
               {/*
                 The shape the price is charged for, drawn from the same counters.
-                
-                This page's whole claim is that the bond tracks blast radius rather than value moved.
-                Two number inputs and a total do not show that; watching the constellation sprawl as
-                you add powers, and the figure climb with it, is the argument itself. Same component
-                as the pin detail view, so what a publisher previews here is what a reviewer will see.
+
+                This page's whole claim is that the bond tracks blast radius rather than value moved. Two number
+                inputs and a total do not show that; watching the constellation sprawl as you add powers, and the
+                figure climb with it, is the argument itself. Same component as the pin detail view, so what a
+                publisher previews here is what a reviewer will see.
               */}
               <div className="rounded-xl bg-sunken p-4 chunk">
-                <CapabilityConstellation
-                  capabilities={preview}
-                  movesNativeValue={movesNative}
-                />
-              </div>
-
-              <div className="flex items-start justify-between gap-4 rounded-xl bg-raise p-4 chunk">
-                <div className="space-y-1">
-                  <p className="text-sm text-text">Can move native value</p>
-                  <p className="max-w-sm text-xs leading-relaxed text-faint">
-                    A flat charge rather than a share of the ceiling. Bonds are denominated in a
-                    six-decimal asset and ceilings in eighteen-decimal wei; scaling one by the
-                    other without a price oracle is dimensionally meaningless, and an earlier
-                    version that tried demanded about 1e19 units to pin a 10 MON ceiling.
-                  </p>
-                </div>
-                <Toggle checked={movesNative} onChange={setMovesNative} label="Can move native value" />
+                <CapabilityConstellation capabilities={preview} movesNativeValue={movesNative} />
               </div>
             </div>
           </Card>
@@ -234,6 +251,20 @@ export default function BondsPage() {
                     Bond becomes reclaimable {formatDuration(pricing.unbondingDelay)} after a pin is
                     revoked, and never while a contradiction about that version stands.
                   </p>
+                  {/*
+                    Moved here from beside the switch that controls it.
+
+                    It is four lines about dimensional analysis, and it was sitting between the counters and the
+                    diagram they drive -- pushing the thing that responds to those counters below the fold. It is
+                    worth keeping and this is the panel for it: the question it answers is literally "why these
+                    numbers".
+                  */}
+                  <p>
+                    The native-value premium is flat rather than a share of the ceiling because bonds are
+                    denominated in a six-decimal asset and ceilings in eighteen-decimal wei. Scaling one by the
+                    other without a price oracle is dimensionally meaningless &mdash; an earlier version that
+                    tried demanded about 1e19 units to pin a 10 MON ceiling.
+                  </p>
                 </div>
               </Collapse>
             </div>
@@ -289,59 +320,83 @@ export default function BondsPage() {
   );
 }
 
-/** A stepper. Chosen over a slider because these are small integers and exactness matters. */
-function Counter({
+/**
+ * One row of the pricing form: a name, a one-line reason, and whatever control sets it.
+ *
+ * Split out of `Counter`, which used to own both the row and the stepper inside it. The split is what let the
+ * native-value switch join the same list instead of sitting in its own tinted box looking like a different
+ * kind of thing -- and it is what keeps all three rows exactly the same height, which is most of why the card
+ * now fits on one screen.
+ *
+ * The name is a `<span>`, not a `<label>`. It was a `<label>` with no `htmlFor` and no wrapped control,
+ * because a stepper is two buttons and a readout rather than an input. A label that labels nothing is worse
+ * than a span: it is announced as a form label, and clicking it does nothing when a reader reasonably expects
+ * focus to move. The control names itself instead -- `role="group"` on the stepper, `aria-label` on the
+ * switch -- and each button already carries its own "Decrease …" / "Increase …" name.
+ */
+function Control({
   label,
   hint,
+  children,
+}: {
+  label: string;
+  hint: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <span className="block text-note text-text">{label}</span>
+        {/*
+          One line each, kept short enough that it fits rather than relying on the clip.
+
+          These were two- and four-line paragraphs. The longer of the two explanations moved into the "Why these
+          numbers" panel beside this card; what is left here is the phrase a reader needs while their hand is on
+          the control. `truncate` is the safety net for a narrow viewport, not the mechanism -- a hint that
+          routinely ends in an ellipsis is information deleted quietly, so the copy is written to fit.
+        */}
+        <span className="mt-0.5 block truncate text-label leading-tight text-faint">{hint}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** A stepper. Chosen over a slider because these are small integers and exactness matters. */
+function Stepper({
+  label,
   value,
   min,
   max,
   onChange,
 }: {
   label: string;
-  hint: string;
   value: number;
   min: number;
   max: number;
   onChange: (next: number) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-4">
-        {/*
-          A `<span>`, not a `<label>`.
-
-          It was a `<label>` with no `htmlFor` and no wrapped control, because the stepper is two buttons and
-          a readout rather than an input. A label that labels nothing is worse than a span: it is announced as
-          a form label, and clicking it does nothing when a reader reasonably expects focus to move.
-
-          The group gets the name instead, via `role="group"` and `aria-label`, and each button already
-          carries its own "Decrease …" / "Increase …" name.
-        */}
-        <span className="text-note text-text">{label}</span>
-        <div
-          role="group"
-          aria-label={label}
-          className="flex items-center gap-1 rounded-pill bg-raise p-1 chunk"
-        >
-          <Step label={`Decrease ${label}`} disabled={value <= min} onClick={() => onChange(value - 1)}>
-            &minus;
-          </Step>
-          <motion.span
-            key={value}
-            initial={{ opacity: 0.4, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={SPRING_FIRM}
-            className="hash w-8 text-center text-sm text-text"
-          >
-            {value}
-          </motion.span>
-          <Step label={`Increase ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}>
-            +
-          </Step>
-        </div>
-      </div>
-      <p className="max-w-md text-xs leading-relaxed text-faint">{hint}</p>
+    <div
+      role="group"
+      aria-label={label}
+      className="flex shrink-0 items-center gap-1 rounded-pill bg-raise p-1 chunk"
+    >
+      <Step label={`Decrease ${label}`} disabled={value <= min} onClick={() => onChange(value - 1)}>
+        &minus;
+      </Step>
+      <motion.span
+        key={value}
+        initial={{ opacity: 0.4, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={SPRING_FIRM}
+        className="hash w-8 text-center text-sm text-text"
+      >
+        {value}
+      </motion.span>
+      <Step label={`Increase ${label}`} disabled={value >= max} onClick={() => onChange(value + 1)}>
+        +
+      </Step>
     </div>
   );
 }

@@ -340,8 +340,13 @@ describe("copy that is load-bearing", () => {
      * a second line. A rail has the room, so they are back on screen, which is where they were always the
      * fix for the actual problem rather than a consolation for it.
      */
+    /*
+     * Nine: seven primary destinations plus Account and Settings in the rail's foot. The count is asserted
+     * rather than the individual strings so that adding a destination without a word to explain it fails here
+     * -- which is the whole point, since these labels are project coinages.
+     */
     const items = navSrc.match(/outcome: "/g) ?? [];
-    expect(items).toHaveLength(7);
+    expect(items).toHaveLength(9);
     expect(navSrc, "the outcome text is hidden again").toMatch(/\{link\.outcome\}\n\s*<\/span>/);
   });
 

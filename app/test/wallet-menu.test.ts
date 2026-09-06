@@ -129,13 +129,50 @@ describe("the navigation is a rail beside a slim bar", () => {
     expect(rail, "the wallet menu is in the rail as well").not.toMatch(/WalletMenu/);
   });
 
-  it("has no Account item duplicating the wallet menu", () => {
+  it("keeps the account reachable from the navigation, not only from the menu", () => {
     /*
-     * Address, network and whether anything is enforcing all moved into the menu. Leaving the nav item
-     * pointed at the same facts would be two front doors to one room, and the rail is the one that cannot
-     * show them without a page load.
+     * This assertion used to say the opposite, and the reversal is worth recording.
+     *
+     * Account was taken out of the rail when its facts moved into the wallet menu, on the argument that a nav
+     * item pointing at the same information is two front doors to one room. That was half right. The menu is
+     * the right home for the *facts* of the connected wallet -- address, network, whether anything is
+     * enforcing -- which is what a chevron next to an address promises. It is the wrong home for a route,
+     * because a page reachable only through a dropdown is a page a keyboard reader has to already know exists.
+     *
+     * So both point at `/account`, and the rail's foot also carries `#settings`, which nothing else did.
      */
-    expect(stripComments(nav), "Account is back in the navigation").not.toMatch(/href: "\/account"/);
+    expect(stripComments(nav), "the account left the navigation again").toMatch(/href: "\/account"/);
+    expect(stripComments(nav), "settings is unreachable from the navigation").toMatch(
+      /href: "\/account#settings"/,
+    );
+    expect(menu, "the menu stopped linking through to the page").toMatch(/href="\/account"/);
+  });
+
+  it("puts the account, settings and theme at the foot of the rail", () => {
+    /*
+     * Position carries the meaning here. Separated from the primary nav by a rule and pinned below it, they
+     * read as being about the reader rather than about the registry -- which is where this category puts them
+     * and therefore where a reader looks without being told.
+     *
+     * The theme control moved out of the top bar for a related reason: that bar carries the two things which
+     * decide whether the figures on screen mean anything, the network and the wallet, and three icons of
+     * appearance beside those were competing with them for nothing.
+     */
+    const rail = /export function Rail\(\)[\s\S]*?\n}/.exec(nav)?.[0] ?? "";
+    expect(rail, "Rail was not found").not.toBe("");
+    expect(rail).toMatch(/SECONDARY\.map/);
+    expect(rail).toMatch(/<ThemeToggle stack=\{!expanded\} \/>/);
+
+    const bar = /export function NavBar\(\)[\s\S]*?\n}/.exec(nav)?.[0] ?? "";
+    expect(bar, "the theme control is still in the bar at every width").toMatch(/hidden sm:block lg:hidden/);
+  });
+
+  it("marks only one of the two account rows as current", () => {
+    /*
+     * `/account#settings` is a tab inside `/account`, and `usePathname` cannot see a hash. A `startsWith` test
+     * would light both rows at once and tell the reader they are in two places.
+     */
+    expect(nav).toMatch(/active=\{link\.highlight && isActive\("\/account"\)\}/);
   });
 
   it("keeps the icons, which the rail was the right layout for all along", () => {
