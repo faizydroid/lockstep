@@ -75,6 +75,7 @@ jobs:
       #
       # These change when the registry is redeployed. Both places must move together, and
       # `check-export.mjs` fails if the Lens address stops matching, which is the tripwire.
+      #
       # `npm run verify:dashboard` is build, then generate `app/out/_headers`, then check the
       # export — the same one command CI runs and the same one a developer runs locally. It was
       # three steps here, and splitting the sequence across workflows is exactly how CI ended up
@@ -103,6 +104,14 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Pinned to match the `deploy:dashboard` npm script, which runs `wrangler@4`.
+          #
+          # Left unset, this action installs its own default, and the first run of it here
+          # installed 3.90.0 — a major version behind the manual path, and one that arrived with
+          # four advisories of its own. Two ways to publish the same artifact using two different
+          # major versions of the publishing tool is the same defect as the build sequence this
+          # commit's parent fixed, just further down the pipe.
+          wranglerVersion: "4"
           # `--branch=main` is explicit so this is always a production deployment rather than
           # depending on which branch the runner happens to be on.
           command: pages deploy app/out --project-name=lockstep --branch=main
