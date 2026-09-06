@@ -37,7 +37,7 @@ import { FingerprintMark } from "@/components/fingerprint";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Quickstart } from "@/components/quickstart";
 import { Position, Verdict } from "@/components/verdict";
-import { Button, Card, Empty, Section, StatePill, cx } from "@/components/ui";
+import { Button, Card, Empty, Section, Skeleton, StatePill, cx } from "@/components/ui";
 import { formatBond, formatCount, timeAgo } from "@/lib/format";
 import type { BondPricing, DataSource, Totals } from "@/lib/model";
 import { displayName } from "@/lib/untrusted";
@@ -69,6 +69,14 @@ export default function DashboardPage() {
 
       {/* Activity carries more weight than the pin list beside it, so it gets the wider column. */}
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] 2xl:gap-8">
+        {/*
+          `Activity` owns the "new since you last looked" count as well as the list.
+
+          Deliberately not lifted into this section's eyebrow, which would read better: the count comes from a
+          hook that also *records* the visit, and calling it twice would mean the second caller captured a
+          baseline the first had already overwritten. One hook, one component, no delta that silently reads
+          zero.
+        */}
         <Section
           eyebrow="Newest first"
           title="Activity"
@@ -238,7 +246,10 @@ function Registry({
       }
     >
       <Reveal>
-        <div className="pop grid rounded-xl bg-panel sm:grid-cols-2 xl:grid-cols-4">
+        <div
+          className="pop grid rounded-xl bg-panel sm:grid-cols-2 xl:grid-cols-4"
+          aria-busy={reading ? "true" : undefined}
+        >
           {cells.map((cell, index) => (
             <div
               key={cell.label}
@@ -259,15 +270,26 @@ function Registry({
             >
               <p className="shout text-label text-faint">
                 {cell.label}
-                {live ? null : reading ? (
-                  <span className="text-muted"> &middot; reading</span>
-                ) : (
-                  <span className="text-attention-ink"> &middot; sample</span>
-                )}
+                {live || reading ? null : <span className="text-attention-ink"> &middot; sample</span>}
               </p>
-              <p className={cx("font-display mt-1.5 text-2xl leading-none font-extrabold tabular-nums", cell.tone)}>
-                {cell.value}
-              </p>
+              {/*
+                While reading, the figure waits instead of showing the fixture's with a "reading" caption
+                beside it.
+
+                The caption was the earlier fix and it was half of one: a cell labelled "· reading" was still
+                printing a sample number, and a reader has no way to tell a placeholder number from a real one.
+                The label above is a static truth about what this cell counts, so it stays; only the value is
+                not yet a fact.
+
+                Tabular figures are inherited from `html`, so restating them per cell would be noise.
+              */}
+              {reading ? (
+                <Skeleton className="mt-1.5 h-6 w-20" />
+              ) : (
+                <p className={cx("font-display mt-1.5 text-2xl leading-none font-extrabold", cell.tone)}>
+                  {cell.value}
+                </p>
+              )}
               <p className="mt-1.5 text-xs leading-snug font-semibold text-muted">{cell.hint}</p>
             </div>
           ))}

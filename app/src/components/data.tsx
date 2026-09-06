@@ -157,6 +157,22 @@ export function useCertainty(): Certainty {
   const { status, snapshot } = useSnapshot();
 
   /*
+   * A build with no registry configured is never "reading", not even before the effect runs.
+   *
+   * The registry address is inlined at build time and cannot be changed by a setting -- that is enforced by
+   * check-export.mjs, because a control that repointed it would turn this dashboard into a way to produce
+   * authoritative-looking screenshots of some other registry. So when it is absent, the outcome of the read is
+   * already decided before anyone looks: there is nothing to read and there never will be.
+   *
+   * Reporting "reading" in that case was wrong in the same direction as the bug this whole function exists to
+   * fix, just quieter. Callers that replace their figures with placeholders while reading would hold those
+   * placeholders forever on a build with no deployment -- and the sample figures such a build shows are
+   * correct, complete, and already labelled as worked examples. It also means the prerendered HTML of a
+   * sample build contains its data rather than a page of empty boxes.
+   */
+  if (readConfig().registry === undefined) return "sample";
+
+  /*
    * `status` is checked before the snapshot's own source.
    *
    * The seeded snapshot is a real fixture with `kind: "sample"`, so asking it first would report "sample"

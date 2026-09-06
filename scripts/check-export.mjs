@@ -118,25 +118,32 @@ const PAGES = {
     "Publisher ships a version",
   ],
   /*
-   * The dashboard: what the landing page used to carry below its own pitch.
+   * The dashboard, and this list is smaller than it was for a reason worth reading before restoring it.
    *
-   * "Integrity" and "Bond coverage" prove the ratio tiles rendered their derived figures rather than just
-   * their frame, and "approved skills still match" proves a denominator reached the page -- a ring showing a
-   * percentage with no denominator is the failure mode that check exists for.
+   * It used to assert "Live pins", "Integrity", "Bond coverage" *and* "approved skills still match" -- the
+   * derived figures and their denominators. Those strings reached the exported HTML only because of a defect:
+   * the page rendered the seeded fixture's numbers while the chain read was still in flight, captioned
+   * "reading". At prerender time nothing has been read, so those were sample figures presented as provisional
+   * readings of the reader's own account, and the check was passing *because* of the bug.
    *
-   * "your decision" is the verdict sentence, which is the route's h1 and the reason the page is ordered the
-   * way it is. If it stops appearing, the page has gone back to leading with a registry-wide count.
+   * On a build with a registry configured -- which is every real build, including CI -- the honest prerender
+   * is placeholders. So what is asserted here is the structure that genuinely survives: the labels, which are
+   * static truths about what each figure will be, and the sentence that says a read is happening.
    *
-   * "Activity" replaced "Blocked calls". Refusals used to be a column of their own while executions were a
-   * table on another route, so no surface answered "what has this account been doing"; they are one record
-   * now, and the assertion follows the record rather than the old column heading.
+   * The "does the data reach the HTML" property is not lost, only moved. It is still proven on `pins` and
+   * `publishers`, which do not gate on certainty because their content is the registry rather than a claim
+   * about the reader.
+   *
+   * NOT_HERE below is the regression guard, and it is the assertion with teeth now.
    */
   dashboard: [
-    "your decision",
-    "Live pins",
+    "Reading the registry",
+    "Your position",
     "Integrity",
     "Bond coverage",
-    "approved skills still match",
+    "Guarded executions",
+    "Live pins",
+    "Bond locked",
     "Activity",
   ],
   /*
@@ -195,6 +202,36 @@ const PAGES = {
    * are asserted against the bundle in `checkSettingsBoundary` below.
    */
   account: ["Account", "identity, not authority"],
+};
+
+/**
+ * Phrases that must NOT reach the exported HTML, per page.
+ *
+ * The inverse of the list above, and for the dashboard it is now the assertion with teeth.
+ *
+ * At prerender time no chain read has happened, so any figure the dashboard emits is the seeded fixture's.
+ * That was not a hypothetical: the page's `h1` is a count of how many things need the account owner's
+ * decision, and the fixture contains a widening drift, so the exported HTML asserted "2 things need your
+ * decision" about somebody else's sample data on the reader's own account page. It shipped, and the old
+ * check passed because it was asking whether those figures were present rather than whether they were true.
+ *
+ * A false positive on a security tool is worse than a slow one, so these strings failing the build is
+ * correct. Each one can only appear if a certainty guard has been removed:
+ *
+ *   "your decision"              the verdict headline, which only renders once a read has landed
+ *   "still match"                the integrity denominator, same
+ *   "new since you last looked"  a delta against the last read, which cannot exist before the first one
+ *
+ * Deliberately not "&middot; reading". That was the first draft of this list and it was wrong: the phrase
+ * also appears in the network chip, where it is the honest label for exactly this state. A guard that fires
+ * on the correct behaviour teaches the next person to delete the guard.
+ *
+ * The registry strip's *figures* are not guarded here because its labels are shared between both branches,
+ * so there is no string unique to the wrong one. That case is pinned at source instead, in
+ * test/loading.test.ts, which asserts the value is a `Skeleton` while reading.
+ */
+const NOT_HERE = {
+  dashboard: ["your decision", "still match", "new since you last looked"],
 };
 
 /*
@@ -620,6 +657,13 @@ function main() {
       process.stdout.write(`thin  ${page.padEnd(11)} ${String(kb).padStart(4)}KB\n`);
     } else {
       process.stdout.write(`ok    ${page.padEnd(11)} ${String(kb).padStart(4)}KB\n`);
+    }
+
+    const forbidden = (NOT_HERE[page] ?? []).filter(
+      (needle) => text.includes(needle) || raw.includes(needle),
+    );
+    if (forbidden.length > 0) {
+      problems.push(`${page}.html asserts something it has not read: ${forbidden.join(", ")}`);
     }
   }
 

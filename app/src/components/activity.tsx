@@ -38,8 +38,12 @@ import { shortAddress, shortHash, timeAgo } from "@/lib/format";
 import type { Snapshot } from "@/lib/model";
 import { displayName } from "@/lib/untrusted";
 
+import { useCertainty } from "./data";
+import { useEffect, useRef, useState } from "react";
+
 import { RevealGroup, RevealItem } from "./motion";
-import { Empty, Pill, cx } from "./ui";
+import { useSettings } from "./settings";
+import { Empty, Pill, Skeleton, cx } from "./ui";
 
 interface Event {
   readonly id: string;
@@ -50,6 +54,53 @@ interface Event {
   readonly actor?: string;
   readonly action: string;
   readonly object: string;
+}
+
+/**
+ * How many of these arrived since a given moment.
+ *
+ * `undefined` means no baseline, and returns 0 rather than the length. A reader on their first visit has not
+ * failed to notice anything, so marking every row as new would be a notification about nothing -- and it is
+ * the version of this feature that trains people to ignore the marker.
+ *
+ * Exported because it is the arithmetic behind a claim on screen, and the degenerate cases are exactly the
+ * ones worth pinning: no baseline, a baseline in the future, and a baseline older than everything.
+ */
+export function countNewSince(events: readonly { readonly at: bigint }[], since: number | undefined): number {
+  if (since === undefined) return 0;
+  return events.filter((event) => event.at > BigInt(since)).length;
+}
+
+/**
+ * Reads the stored baseline once, then records this visit.
+ *
+ * The order matters and is the whole trick. The baseline is captured into state on the first render after
+ * settings load, *before* the write, so what the reader is shown is the moment before they arrived rather than
+ * the moment they arrived -- which would always be zero.
+ *
+ * The write happens only on `chain`. Recording a visit off a fixture, or mid-read, would set the baseline from
+ * data that is not the registry, and every genuinely new event after it would be marked as already seen. That
+ * is a silent failure with no symptom, which is the worst kind to ship on an audit surface.
+ */
+function useLastSeen(): number | undefined {
+  const { settings, loaded, update } = useSettings();
+  const certainty = useCertainty();
+
+  const [baseline, setBaseline] = useState<number | undefined>(undefined);
+  const captured = useRef(false);
+
+  useEffect(() => {
+    if (!loaded || captured.current) return;
+    captured.current = true;
+    setBaseline(settings.lastSeenAt);
+  }, [loaded, settings.lastSeenAt]);
+
+  useEffect(() => {
+    if (!loaded || certainty !== "chain") return;
+    update({ lastSeenAt: Math.floor(Date.now() / 1000) });
+  }, [loaded, certainty, update]);
+
+  return baseline;
 }
 
 /**
@@ -94,7 +145,31 @@ export function eventsOf(snapshot: Snapshot, limit = 8): readonly Event[] {
 }
 
 export function Activity({ snapshot }: { snapshot: Snapshot }) {
+  const certainty = useCertainty();
   const events = eventsOf(snapshot);
+  const since = useLastSeen();
+
+  /*
+   * While the read is in flight, rows rather than the fixture's rows.
+   *
+   * The same false-data problem the verdict had, and arguably a worse shape of it: an audit feed is the surface
+   * a reader trusts to be a record. Showing four sample executions attributed to a sample executor, for a
+   * second, on the page that claims to say what this account has done, teaches exactly the wrong lesson about
+   * how much of this page is real.
+   */
+  if (certainty === "reading") {
+    return (
+      <div className="pop divide-y divide-line overflow-hidden rounded-xl bg-panel" aria-busy="true">
+        {[0, 1, 2, 3].map((row) => (
+          <div key={row} className="flex items-center gap-3 px-5 py-4">
+            <Skeleton className="h-5 w-16 rounded-pill" />
+            <Skeleton className="h-3 flex-1" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (events.length === 0) {
     return (
@@ -106,7 +181,23 @@ export function Activity({ snapshot }: { snapshot: Snapshot }) {
     );
   }
 
+  const fresh = countNewSince(events, since);
+
   return (
+    <div className="space-y-2">
+      {/*
+        The delta, and only when there is a baseline to measure against.
+
+        A total on its own is nearly useless -- "14 events" says nothing a reader can act on, "3 new since you
+        last looked" says whether to read the list. On a first visit there is no baseline, so nothing is
+        claimed rather than everything being called new.
+      */}
+      {fresh === 0 ? null : (
+        <p className="shout text-label text-pinned-ink">
+          {fresh} new since you last looked
+        </p>
+      )}
+
     <RevealGroup className="pop divide-y divide-line overflow-hidden rounded-xl bg-panel">
       {events.map((event) => (
         <RevealItem key={event.id}>
@@ -114,6 +205,15 @@ export function Activity({ snapshot }: { snapshot: Snapshot }) {
             <Pill tone={event.kind === "refused" ? "revoked" : "bonded"}>
               {event.kind === "refused" ? "refused" : "settled"}
             </Pill>
+
+            {/*
+              "new" against the last time this browser actually read the chain.
+
+              A word rather than a dot or a tinted row, for the same reason severity is a word in the queue:
+              a marker carried by colour alone is invisible to a reader who cannot see the colour, and this
+              one is the difference between an event they have already reviewed and one they have not.
+            */}
+            {since !== undefined && event.at > BigInt(since) ? <Pill tone="pinned">new</Pill> : null}
 
             <p className="min-w-0 flex-1 text-sm leading-relaxed font-semibold text-muted">
               {/*
@@ -159,6 +259,7 @@ export function Activity({ snapshot }: { snapshot: Snapshot }) {
         </RevealItem>
       ))}
     </RevealGroup>
+    </div>
   );
 }
 

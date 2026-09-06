@@ -596,7 +596,23 @@ function NetworkChip() {
           certainty === "chain" ? "bg-bonded" : certainty === "reading" ? "bg-pinned" : "bg-attention",
         )}
       />
-      <span className="shout text-label text-muted">Monad testnet</span>
+      <span className="shout text-label text-muted">
+        Monad testnet
+        {/*
+          The state as a word, not only as the colour of the dot beside it.
+
+          The dot was doing the whole job: green read, blue reading, amber sample. A reader who cannot
+          distinguish those hues got one chip that never changed, and this is not decoration -- it is whether
+          the figures on the page are a reading of a deployment or a worked example. The title carried it,
+          which is a hover, which is not an answer on a phone.
+        */}
+        {certainty === "chain" ? null : (
+          <span className={certainty === "reading" ? "text-faint" : "text-attention-ink"}>
+            {" \u00b7 "}
+            {certainty === "reading" ? "reading" : "sample"}
+          </span>
+        )}
+      </span>
     </span>
   );
 }

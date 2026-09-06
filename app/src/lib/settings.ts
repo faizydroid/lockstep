@@ -125,6 +125,18 @@ export interface Settings {
    * before this field existed keeps the default instead of silently collapsing.
    */
   readonly navExpanded: boolean;
+  /**
+   * When this browser last read the registry from chain, in unix seconds.
+   *
+   * Written only on a genuine chain read, never during one and never off a fixture, because its whole job is
+   * to be the baseline for "new since you last looked". A baseline set from sample data would mark real
+   * events as already seen.
+   *
+   * Absent on a first visit, and that has to stay distinguishable from zero. With no baseline the honest
+   * answer is to mark nothing as new, not to mark everything as new -- a reader who has never been here has
+   * not failed to notice anything.
+   */
+  readonly lastSeenAt?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -281,6 +293,14 @@ export function parse(raw: string | null): Settings {
      * after deploy, for no reason they could connect to anything they did.
      */
     navExpanded: record.navExpanded !== false,
+    /*
+     * A finite, non-negative number or nothing. `Number.isFinite` rejects NaN and both infinities, which a
+     * hand-edited or half-written entry can produce, and a negative or absurd value would silently mark every
+     * event on the page as new for one visit.
+     */
+    ...(typeof record.lastSeenAt === "number" && Number.isFinite(record.lastSeenAt) && record.lastSeenAt >= 0
+      ? { lastSeenAt: Math.floor(record.lastSeenAt) }
+      : {}),
     ...(rpcUrl === undefined ? {} : { rpcUrl }),
     ...(account === undefined ? {} : { account }),
     ...(deployBlock === undefined ? {} : { deployBlock }),
@@ -297,6 +317,7 @@ export function serialise(settings: Settings): string {
     onboardingAcknowledged: settings.onboardingAcknowledged,
     skippedSetup: settings.skippedSetup,
     navExpanded: settings.navExpanded,
+    ...(settings.lastSeenAt === undefined ? {} : { lastSeenAt: settings.lastSeenAt }),
     ...(settings.rpcUrl === undefined ? {} : { rpcUrl: settings.rpcUrl }),
     ...(settings.account === undefined ? {} : { account: settings.account }),
     ...(settings.deployBlock === undefined ? {} : { deployBlock: settings.deployBlock.toString() }),

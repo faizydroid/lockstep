@@ -34,9 +34,10 @@ import { decisionsFor, queueHeadline } from "@/lib/queue";
 import type { Decision } from "@/lib/queue";
 import { formatCount } from "@/lib/format";
 
+import { useCertainty } from "./data";
 import { GuardSays } from "./guard";
 import { Pop, RevealGroup, RevealItem } from "./motion";
-import { Button, Empty, Pill, Ring, Section, cx } from "./ui";
+import { Button, Empty, Pill, Ring, Section, Skeleton, cx } from "./ui";
 
 /**
  * The fold: is anything wrong, and what do I do about it.
@@ -46,9 +47,25 @@ import { Button, Empty, Pill, Ring, Section, cx } from "./ui";
  * said.
  */
 export function Verdict({ snapshot }: { snapshot: Snapshot }) {
+  const certainty = useCertainty();
   const health = healthOf(snapshot);
   const decisions = decisionsFor(snapshot);
   const lead = decisions[0];
+
+  /*
+   * While the read is in flight, this section says nothing rather than saying the fixture's answer.
+   *
+   * The bug it closes was real and it was mine. `decisionsFor` runs against whatever snapshot is mounted, and
+   * the provider seeds a fixture so the page has a shape -- a fixture which contains a widening drift. So for
+   * the duration of every read, the h1 on the dashboard read "2 things need your decision", about somebody
+   * else's sample data, on the account owner's own account page. A false positive on a security tool is worse
+   * than a slow one.
+   *
+   * Note this narrows on `certainty` and not on `source.kind`, which is exactly why `useCertainty` exists:
+   * `source.kind` is still `sample` during the read, so keying off it would make this branch permanent on a
+   * build with no registry configured -- where the sample figures are correct and labelled as such.
+   */
+  if (certainty === "reading") return <VerdictReading />;
 
   /*
    * Guard's mood follows the queue, not the health verdict, in the one case they disagree.
@@ -96,6 +113,51 @@ export function Verdict({ snapshot }: { snapshot: Snapshot }) {
       </Pop>
 
       <Queue decisions={decisions} />
+    </div>
+  );
+}
+
+/**
+ * The same section, while the registry is still being read.
+ *
+ * Guard is `watching` rather than `settled`, because "everything matches" is a claim and this state has not
+ * checked anything yet. The h1 stays an h1 so the document outline does not change shape halfway through a
+ * load, which would move a screen-reader user's landmark out from under them.
+ *
+ * `aria-busy` on the region and a live sentence, rather than a spinner. A screen reader gets told the page is
+ * working and gets told again when it is not; a spinning glyph tells it nothing at all.
+ */
+function VerdictReading() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <Pop>
+        <GuardSays mood="watching" size={128} label="Guard is watching.">
+          <p className="shout text-label opacity-70">Your agent</p>
+          <h1 className="font-display mt-1 text-2xl leading-tight font-extrabold sm:text-3xl">
+            Reading the registry.
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed font-semibold opacity-90">
+            Checking every approved skill against the bytes on chain. Nothing on this page is a claim about your
+            account until that read lands.
+          </p>
+        </GuardSays>
+      </Pop>
+
+      {/*
+        Two rows, matching the height of a queue row rather than an arbitrary bar.
+
+        Two and not one because a single placeholder reads as "there is one thing", which is a number, and this
+        state does not have one yet.
+      */}
+      <div className="space-y-3">
+        {[0, 1].map((row) => (
+          <div key={row} className="pop rounded-xl bg-panel p-5">
+            <Skeleton className="h-5 w-2/5" />
+            <Skeleton className="mt-3 h-3 w-4/5" />
+            <Skeleton className="mt-2 h-3 w-3/5" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -198,8 +260,17 @@ const GUARD_LABEL: Record<ReturnType<typeof healthOf>["verdict"], string> = {
  * first one.
  */
 export function Position({ snapshot }: { snapshot: Snapshot }) {
+  const certainty = useCertainty();
   const health = healthOf(snapshot);
   const drifting = health.driftedCount > 0;
+
+  /*
+   * Same rule as the verdict above: the labels are static truths, the figures are not yet facts.
+   *
+   * An 80% integrity ring drawn from a fixture is a specific, memorable, wrong number about the reader's own
+   * account. The label "Integrity" is true whatever the reading turns out to be, so it stays.
+   */
+  if (certainty === "reading") return <PositionReading />;
 
   return (
     <Section
@@ -255,12 +326,42 @@ export function Position({ snapshot }: { snapshot: Snapshot }) {
             not, and drawing one at 0 of 0 looks broken.
           */}
           <Gauge label="Guarded executions" hint="Calls that checked a pin before they settled" tone="bonded">
-            <p className="font-display text-4xl leading-none font-extrabold tabular-nums text-text">
+            {/* No `tabular-nums` here: globals.css sets it on `html`, so every figure inherits it already. */}
+            <p className="font-display text-4xl leading-none font-extrabold text-text">
               {formatCount(snapshot.totals.executions)}
             </p>
           </Gauge>
         </RevealItem>
       </RevealGroup>
+    </Section>
+  );
+}
+
+/** The three tiles with their labels and none of their numbers, while the read is in flight. */
+function PositionReading() {
+  return (
+    <Section
+      eyebrow="Your position"
+      title="What is holding"
+      description="Reading the registry now. These fill in from the chain rather than from a cached copy, so they arrive together or not at all."
+    >
+      <div className="grid gap-4 sm:grid-cols-3" aria-busy="true">
+        {["Integrity", "Bond coverage", "Guarded executions"].map((label) => (
+          <div
+            key={label}
+            className="pop flex h-full flex-col items-center justify-center gap-3 rounded-xl bg-panel p-5 text-center"
+          >
+            <p className="shout text-label text-faint">{label}</p>
+            {/*
+              104px square, because that is the diameter the `Ring` draws. A smaller placeholder would let the
+              tile grow when the read lands, and a tile that changes height is the jump a skeleton exists to
+              prevent.
+            */}
+            <Skeleton className="size-[104px] rounded-pill" />
+            <Skeleton className="h-3 w-4/5" />
+          </div>
+        ))}
+      </div>
     </Section>
   );
 }

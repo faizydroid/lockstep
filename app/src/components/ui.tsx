@@ -834,6 +834,44 @@ export function Empty({
   );
 }
 
+/* ----------------------------------------------------------------- skeletons */
+
+/**
+ * A block standing in for a figure that has not been read yet.
+ *
+ * ## Why this is not cosmetic
+ *
+ * The snapshot provider seeds a fixture so every page has a shape to render, and `useCertainty` reports
+ * `reading` while the chain read is in flight. The three-state design was added because a two-state one made
+ * the landing page print "NO REGISTRY CONFIGURED" during every read. But the labels were only half the fix:
+ * a section captioned "reading" was still showing the fixture's *numbers*, so a reader watched sample figures
+ * for a second and had no way to know they were sample. On a page whose h1 says whether anything needs their
+ * decision, that is a false claim about their account.
+ *
+ * So while a read is in flight the values are replaced rather than annotated. The labels stay, because a label
+ * is a static truth about what the figure will be; only the figure waits.
+ *
+ * ## Why it does not shimmer
+ *
+ * The reason skeletons beat spinners is that they communicate structure before content, not that they move —
+ * a static block at the right size does the whole job. This app also renders a static dot grid and refuses
+ * decorative motion elsewhere, and a row of pulsing bars under a table of hashes would be the loudest thing
+ * on the page while saying nothing.
+ */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cx("block rounded bg-raise-strong", className)}
+      /*
+        `inline-block` would collapse to the line box and render as a hairline. An explicit height is
+        required on every use, which is deliberate: a skeleton whose size does not match what replaces it
+        makes the page jump when the read lands, which is worse than no skeleton at all.
+      */
+    />
+  );
+}
+
 /* ------------------------------------------------------------------- inputs */
 
 /**
