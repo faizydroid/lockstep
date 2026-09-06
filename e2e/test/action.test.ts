@@ -108,8 +108,20 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
 
     process.env.GITHUB_OUTPUT = outputFile;
     process.env.GITHUB_STEP_SUMMARY = summaryFile;
+    /*
+     * Exactly the runner's convention: uppercase, spaces to underscores, `INPUT_` prefix, and
+     * **hyphens left alone**. So `skill-dir` becomes `INPUT_SKILL-DIR`.
+     *
+     * This line used to replace hyphens with underscores, which is what `main.ts` also did, so the
+     * two agreed and all thirteen tests passed against an environment the runner never produces.
+     * The action failed on its first real invocation with "skill-dir is required" while being
+     * passed `skill-dir`. A fixture derived from the code's own assumption cannot falsify it.
+     *
+     * `INPUT_SKILL-DIR` is not a name a shell can export, which is why this is easy to get wrong
+     * and why the mistake survives local testing. Node sets it without complaint.
+     */
     for (const [key, value] of Object.entries(inputs)) {
-      process.env[`INPUT_${key.toUpperCase().replace(/-/g, "_")}`] = value;
+      process.env[`INPUT_${key.toUpperCase().replace(/ /g, "_")}`] = value;
     }
 
     await main();

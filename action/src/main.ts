@@ -37,8 +37,36 @@ import { loadManifest, isHighRiskSelector, HIGH_RISK_LABELS, registryAbi } from 
  */
 const DASHBOARD_URL = "https://lockstep.dev";
 
+/**
+ * Reads a workflow input the way the runner actually publishes it.
+ *
+ * The runner uppercases the input name, replaces **spaces** with underscores, and prefixes
+ * `INPUT_`. It does *not* touch hyphens. So `skill-dir` arrives as `INPUT_SKILL-DIR`, which is not
+ * a POSIX-valid variable name and is the reason `actions/runner#2283` exists asking for it to be
+ * changed. `@actions/core.getInput` matches that behaviour exactly, and so must this.
+ *
+ * This function used to replace hyphens with underscores and therefore looked for
+ * `INPUT_SKILL_DIR`, which the runner never sets. **Every hyphenated input was unreachable**, so
+ * the action failed with "skill-dir is required" on an invocation that passed `skill-dir`.
+ *
+ * Thirteen tests passed alongside it because `e2e/test/action.test.ts` populated the environment
+ * with the same wrong transform. A test that builds its fixture from the code's own assumption
+ * cannot discover that the assumption is wrong, and the fixture here claimed to be "the runner's
+ * environment simulated". It has been corrected to the runner's real convention, which is what
+ * makes it a simulation rather than a mirror.
+ *
+ * Nothing caught it earlier because `pin-skill.yml` had never run: it triggers on changes under
+ * `demo/skills/**` and nothing had changed there since it was written.
+ *
+ * The underscore form is still accepted as a fallback. Not for compatibility with the runner --
+ * it never emits that -- but because local harnesses and `act` sometimes set it, and a shell
+ * cannot export a name containing a hyphen at all.
+ */
 function input(name: string, fallback = ""): string {
-  return process.env[`INPUT_${name.toUpperCase().replace(/-/g, "_")}`] ?? fallback;
+  const upper = name.toUpperCase();
+  const asRunnerSetsIt = process.env[`INPUT_${upper.replace(/ /g, "_")}`];
+  if (asRunnerSetsIt !== undefined) return asRunnerSetsIt;
+  return process.env[`INPUT_${upper.replace(/[ -]/g, "_")}`] ?? fallback;
 }
 
 function bool(name: string, fallback: boolean): boolean {

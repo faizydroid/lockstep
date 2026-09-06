@@ -20240,6 +20240,99 @@ var monadTestnet = /* @__PURE__ */ defineChain({
   testnet: true
 });
 
+// ../badge/src/badge.ts
+function palette(input2) {
+  switch (input2.state) {
+    case "bonded": {
+      const bond = input2.bondWholeUnits ?? 0;
+      const risk = input2.highRiskCount ?? 0;
+      return risk > 0 ? { label: "lockstep", value: `bonded ${bond} \xB7 ${risk} high risk`, colour: "#b45309" } : { label: "lockstep", value: `bonded ${bond}`, colour: "#047857" };
+    }
+    case "pinned":
+      return { label: "lockstep", value: "pinned, no bond", colour: "#0369a1" };
+    case "unpinned":
+      return { label: "lockstep", value: "not pinned", colour: "#6b7280" };
+    case "revoked":
+      return { label: "lockstep", value: "revoked by publisher", colour: "#b91c1c" };
+    case "equivocated":
+      return { label: "lockstep", value: "publisher slashed", colour: "#7f1d1d" };
+  }
+}
+function textWidth(text) {
+  let width = 0;
+  for (const char of text) {
+    if (/[iIl1.,:;'|]/.test(char)) width += 3;
+    else if (/[fjrt ]/.test(char)) width += 4.5;
+    else if (/[A-Z@%]/.test(char)) width += 8;
+    else if (/[mwMW]/.test(char)) width += 9.5;
+    else width += 6.5;
+  }
+  return Math.ceil(width);
+}
+function escapeXml(text) {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function renderBadge(input2) {
+  const { label, value, colour } = palette(input2);
+  const padding = 7;
+  const labelWidth = textWidth(label) + padding * 2;
+  const valueWidth = textWidth(value) + padding * 2;
+  const total = labelWidth + valueWidth;
+  const height = 20;
+  const accessibleName = `Lockstep: ${value}`;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${height}"`,
+    ` role="img" aria-label="${escapeXml(accessibleName)}">`,
+    `<title>${escapeXml(accessibleName)}</title>`,
+    `<linearGradient id="s" x2="0" y2="100%">`,
+    `<stop offset="0" stop-color="#fff" stop-opacity=".7"/>`,
+    `<stop offset=".1" stop-color="#aaa" stop-opacity=".1"/>`,
+    `<stop offset=".9" stop-color="#000" stop-opacity=".3"/>`,
+    `<stop offset="1" stop-color="#000" stop-opacity=".5"/>`,
+    `</linearGradient>`,
+    `<clipPath id="r"><rect width="${total}" height="${height}" rx="3" fill="#fff"/></clipPath>`,
+    `<g clip-path="url(#r)">`,
+    `<rect width="${labelWidth}" height="${height}" fill="#334155"/>`,
+    `<rect x="${labelWidth}" width="${valueWidth}" height="${height}" fill="${colour}"/>`,
+    `<rect width="${total}" height="${height}" fill="url(#s)"/>`,
+    `</g>`,
+    `<g fill="#fff" text-anchor="middle"`,
+    ` font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">`,
+    `<text x="${labelWidth / 2}" y="15" fill="#000" fill-opacity=".3">${escapeXml(label)}</text>`,
+    `<text x="${labelWidth / 2}" y="14">${escapeXml(label)}</text>`,
+    `<text x="${labelWidth + valueWidth / 2}" y="15" fill="#000" fill-opacity=".3">${escapeXml(value)}</text>`,
+    `<text x="${labelWidth + valueWidth / 2}" y="14">${escapeXml(value)}</text>`,
+    `</g>`,
+    `</svg>`
+  ].join("");
+}
+function badgeMarkdown(badgeUrl, linkUrl, alt = "Lockstep pin status") {
+  return `[![${alt}](${badgeUrl})](${linkUrl})`;
+}
+function badgeFileName(skillName) {
+  const slug = skillName.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+  return `lockstep-${slug === "" ? "pin" : slug}.svg`;
+}
+function safeAltText(skillName) {
+  const cleaned = skillName.replace(/[^A-Za-z0-9 ._-]+/g, "").trim();
+  return cleaned === "" ? "pin" : cleaned;
+}
+function pinUrl(dashboard, pinId) {
+  const base = dashboard.replace(/\/+$/, "");
+  return `${base}/pins?pin=${pinId}`;
+}
+function badgeSnippet(options) {
+  const fileName = badgeFileName(options.skillName);
+  const linkUrl = pinUrl(options.dashboard, options.pinId);
+  return {
+    fileName,
+    linkUrl,
+    // Alt text goes through safeAltText, not straight in. See the note there: interpolating the raw
+    // name let a crafted skill name inject a second link into the publisher's own README.
+    markdown: badgeMarkdown(fileName, linkUrl, `Lockstep pin for ${safeAltText(options.skillName)}`)
+  };
+}
+
 // ../node_modules/@noble/hashes/esm/_assert.js
 function anumber4(n) {
   if (!Number.isSafeInteger(n) || n < 0)
@@ -20561,6 +20654,10 @@ var NORMALISED_EXTENSIONS = /* @__PURE__ */ new Set([
 ]);
 var EXCLUDED_TOP_LEVEL = /* @__PURE__ */ new Set([".git"]);
 var SkillHashError = class extends Error {
+  // Declared and assigned explicitly rather than as a constructor parameter property.
+  // Parameter properties emit assignment code, so Node's type stripping refuses the whole
+  // file, and this package has no build step standing between source and runtime.
+  code;
   constructor(message, code) {
     super(message);
     this.code = code;
@@ -20797,12 +20894,33 @@ function parseValue(raw) {
   if (raw === void 0 || raw === null) return 0n;
   if (typeof raw === "number") {
     if (!Number.isSafeInteger(raw) || raw < 0) {
-      throw new Error("maxValuePerCall must be a non-negative integer, given as a string in wei");
+      throw new Error("maxValuePerBatch must be a non-negative integer, given as a string in wei");
     }
     return BigInt(raw);
   }
   if (typeof raw === "string" && /^[0-9]+$/.test(raw)) return BigInt(raw);
-  throw new Error("maxValuePerCall must be a decimal string in wei, for example '500000000000000000'");
+  throw new Error(
+    "maxValuePerBatch must be a decimal string in wei, for example '500000000000000000'"
+  );
+}
+var MAX_LABEL_BYTES = 64;
+function isValidLabel(label) {
+  const bytes = new TextEncoder().encode(label);
+  if (bytes.length === 0 || bytes.length > MAX_LABEL_BYTES) return false;
+  return bytes.every((b) => b >= 33 && b <= 126);
+}
+function requireLabel(value, field) {
+  if (isValidLabel(value)) return;
+  const bytes = new TextEncoder().encode(value);
+  if (bytes.length === 0) throw new Error(`manifest.${field} must not be empty`);
+  if (bytes.length > MAX_LABEL_BYTES) {
+    throw new Error(
+      `manifest.${field} is ${bytes.length} bytes; the registry accepts at most ${MAX_LABEL_BYTES}`
+    );
+  }
+  throw new Error(
+    `manifest.${field} must be printable ASCII with no spaces, got ${JSON.stringify(value)}. The registry derives the on-chain version id from the name and version, so a label containing whitespace or a non-ASCII lookalike could impersonate a trusted skill while hashing to an unrelated version.`
+  );
 }
 function parseManifest(json) {
   if (typeof json !== "object" || json === null) {
@@ -20815,6 +20933,8 @@ function parseManifest(json) {
   if (typeof version4 !== "string" || version4.length === 0) {
     throw new Error("manifest.version is required");
   }
+  requireLabel(name, "name");
+  requireLabel(version4, "version");
   const onchain = m.capabilities?.onchain;
   if (typeof onchain !== "object" || onchain === null) {
     throw new Error("manifest.capabilities.onchain is required");
@@ -20841,12 +20961,17 @@ function parseManifest(json) {
     seen.add(key);
     return { target, selector, label };
   });
+  if (oc.maxValuePerCall !== void 0) {
+    throw new Error(
+      "manifest.capabilities.onchain.maxValuePerCall was renamed to maxValuePerBatch. The guard now applies the ceiling to a batch's total rather than to each call in it, because a per-call limit over an unbounded batch bounded nothing. Rename the key; the value means the same thing for a single-call batch."
+    );
+  }
   return {
     schema: typeof m.schema === "string" ? m.schema : "lockstep/1",
     name,
     version: version4,
     capabilities,
-    maxValuePerCall: parseValue(oc.maxValuePerCall),
+    maxValuePerBatch: parseValue(oc.maxValuePerBatch),
     versionId: computeVersionId(name, version4)
   };
 }
@@ -20899,14 +21024,54 @@ var pinRegistryAbi = [
     type: "function",
     name: "publish",
     stateMutability: "nonpayable",
+    // A single struct rather than six positional arguments, and the two changes inside it are
+    // the point of this signature.
+    //
+    // `versionId` is gone as an input: the registry derives it from `name` and `version`, because
+    // accepting it let a publisher republish different bytes under an unrelated id and escape
+    // the only slashing condition in the system. And the value ceiling is now per *batch*, not
+    // per call, because a per-call limit over an unbounded batch bounded nothing.
     inputs: [
-      { name: "skillHash", type: "bytes32" },
-      { name: "versionId", type: "bytes32" },
-      { name: "maxValuePerCall", type: "uint256" },
-      { name: "targets", type: "address[]" },
-      { name: "selectors", type: "bytes4[]" }
+      {
+        name: "p",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "skillHash", type: "bytes32" },
+          { name: "maxValuePerBatch", type: "uint256" },
+          { name: "targets", type: "address[]" },
+          { name: "selectors", type: "bytes4[]" }
+        ]
+      }
     ],
     outputs: [{ name: "pinId", type: "bytes32" }]
+  },
+  {
+    type: "function",
+    name: "computeVersionId",
+    stateMutability: "pure",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "version", type: "string" }
+    ],
+    outputs: [{ name: "", type: "bytes32" }]
+  },
+  {
+    // Lets the CLI refuse a name before spending gas, using the registry's own rule rather
+    // than a second copy of it.
+    type: "function",
+    name: "isValidLabel",
+    stateMutability: "pure",
+    inputs: [{ name: "label", type: "string" }],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "MAX_LABEL_BYTES",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
   },
   {
     type: "function",
@@ -21015,16 +21180,27 @@ var pinRegistryAbi = [
       {
         name: "",
         type: "tuple",
+        // Every field of the Solidity struct, in declaration order.
+        //
+        // This tuple previously omitted `versionId` and `slashed`. Nothing errored, which is
+        // what made it dangerous: the components are all statically sized, so viem decodes
+        // positionally and each field after the second shifted by one word. `exists` ended up
+        // reading `revokedAt`, so a live pin decoded as `exists: false`, `loadPin` returned
+        // undefined, and `lockstep status` and `lockstep diff` reported "no pin" for pins that
+        // were plainly on chain. A partial tuple is only safe when the fields you keep are a
+        // prefix of the struct.
         components: [
           { name: "publisher", type: "address" },
           { name: "skillHash", type: "bytes32" },
-          { name: "maxValuePerCall", type: "uint256" },
+          { name: "versionId", type: "bytes32" },
+          { name: "maxValuePerBatch", type: "uint256" },
           { name: "requiredBond", type: "uint256" },
           { name: "capabilityCount", type: "uint32" },
           { name: "highRiskCount", type: "uint32" },
           { name: "publishedAt", type: "uint64" },
           { name: "revokedAt", type: "uint64" },
-          { name: "exists", type: "bool" }
+          { name: "exists", type: "bool" },
+          { name: "slashed", type: "bool" }
         ]
       }
     ]
@@ -21032,11 +21208,21 @@ var pinRegistryAbi = [
   {
     type: "event",
     name: "Published",
+    // `versionId`, `name` and `version` are new. The chain used to record no human label at
+    // all, so a consumer reading this registry could only ever render a pin as a hash, and
+    // equivocation -- a claim about a *name and version* -- was illegible to the people it is
+    // evidence for.
+    //
+    // These names are load-bearing beyond the ABI check: viem keys the decoded `args` object
+    // by them.
     inputs: [
       { name: "pinId", type: "bytes32", indexed: true },
       { name: "publisher", type: "address", indexed: true },
       { name: "skillHash", type: "bytes32", indexed: true },
-      { name: "maxValuePerCall", type: "uint256", indexed: false },
+      { name: "versionId", type: "bytes32", indexed: false },
+      { name: "name", type: "string", indexed: false },
+      { name: "version", type: "string", indexed: false },
+      { name: "maxValuePerBatch", type: "uint256", indexed: false },
       { name: "capabilityCount", type: "uint256", indexed: false },
       { name: "highRiskCount", type: "uint256", indexed: false },
       { name: "requiredBond", type: "uint256", indexed: false }
@@ -21055,8 +21241,12 @@ var pinRegistryAbi = [
 ];
 
 // src/main.ts
+var DASHBOARD_URL = "https://lockstep.dev";
 function input(name, fallback = "") {
-  return process.env[`INPUT_${name.toUpperCase().replace(/-/g, "_")}`] ?? fallback;
+  const upper = name.toUpperCase();
+  const asRunnerSetsIt = process.env[`INPUT_${upper.replace(/ /g, "_")}`];
+  if (asRunnerSetsIt !== void 0) return asRunnerSetsIt;
+  return process.env[`INPUT_${upper.replace(/[ -]/g, "_")}`] ?? fallback;
 }
 function bool(name, fallback) {
   const raw = input(name).trim().toLowerCase();
@@ -21113,7 +21303,11 @@ async function main() {
     address: registryAddress,
     abi: pinRegistryAbi,
     functionName: "quoteBond",
-    args: [BigInt(manifest.capabilities.length), BigInt(highRisk.length), manifest.maxValuePerCall > 0n]
+    args: [
+      BigInt(manifest.capabilities.length),
+      BigInt(highRisk.length),
+      manifest.maxValuePerBatch > 0n
+    ]
   });
   await setOutput("skill-hash", hashed.skillHash);
   await setOutput("version-id", manifest.versionId);
@@ -21203,12 +21397,17 @@ async function main() {
     address: registryAddress,
     abi: pinRegistryAbi,
     functionName: "publish",
+    // The registry derives the version id from these two strings, so `manifest.versionId` is not
+    // passed. It is still computed locally, for the equivocation pre-flight check above.
     args: [
-      hashed.skillHash,
-      manifest.versionId,
-      manifest.maxValuePerCall,
-      manifest.capabilities.map((c) => c.target),
-      manifest.capabilities.map((c) => c.selector)
+      {
+        name: manifest.name,
+        version: manifest.version,
+        skillHash: hashed.skillHash,
+        maxValuePerBatch: manifest.maxValuePerBatch,
+        targets: manifest.capabilities.map((c) => c.target),
+        selectors: manifest.capabilities.map((c) => c.selector)
+      }
     ],
     chain,
     account
@@ -21216,9 +21415,47 @@ async function main() {
   const receipt = await client.waitForTransactionReceipt({ hash: hash3 });
   if (receipt.status !== "success") fail(`publish reverted: ${hash3}`);
   await setOutput("pin-id", pinId);
-  await summary(`
-\u2705 Published \`${pinId}\` in \`${hash3}\``);
+  const snippet = badgeSnippet({ skillName: manifest.name, pinId, dashboard: DASHBOARD_URL });
+  const badgeSvg = renderBadge({
+    state: bond > 0n ? "bonded" : "pinned",
+    bondWholeUnits: Number(bond / 1000000n),
+    highRiskCount: highRisk.length
+  });
+  await summary(
+    [
+      ``,
+      `### Published`,
+      ``,
+      `| | |`,
+      `|---|---|`,
+      `| pin | \`${pinId}\` |`,
+      `| tx | \`${hash3}\` |`,
+      `| bond locked | ${formatUnits(bond, 6)} |`,
+      ``,
+      `#### Badge`,
+      ``,
+      `Write this file to \`${snippet.fileName}\` and paste the line below into your README.`,
+      ``,
+      "```markdown",
+      snippet.markdown,
+      "```",
+      ``,
+      `<details><summary>The SVG</summary>`,
+      ``,
+      "```svg",
+      badgeSvg,
+      "```",
+      ``,
+      `</details>`,
+      ``,
+      `The image is a relative path deliberately: the badge cannot phone home, so nobody learns which`,
+      `repositories carry a pin. The link is absolute so a reader can check the claim against the live`,
+      `registry instead of trusting the colour.`
+    ].join("\n")
+  );
   process.stdout.write(`published ${pinId} in ${hash3}
+`);
+  process.stdout.write(`badge markdown: ${snippet.markdown}
 `);
 }
 async function previousCapabilityCount(client, registry, publisher) {

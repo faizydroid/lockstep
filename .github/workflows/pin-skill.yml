@@ -7,14 +7,25 @@ name: Pin skill
 # Note the split: pull requests dry-run, which needs no key and makes a capability
 # change visible in review. Only a push to main publishes.
 
+# Automatic triggers are off until the registry is redeployed. This is a temporary,
+# stated condition rather than an abandoned workflow.
+#
+# Two independent reasons it cannot succeed right now, and both are the system working:
+#
+#   1. `publish` takes a struct since the version id became a derived value. The registry
+#      recorded in `vars.PIN_REGISTRY` was deployed before that, so its selector differs
+#      and the call cannot land.
+#   2. Even against a matching registry, the demo manifest's bytes changed with the
+#      `maxValuePerCall` -> `maxValuePerBatch` rename, so republishing under the same
+#      version is exactly the equivocation this action refuses to help commit. The right
+#      response is a version bump, which belongs with the redeploy rather than before it.
+#
+# The first run of this workflow, triggered by that manifest edit, found a real defect:
+# every hyphenated input was unreachable because the runner sets `INPUT_SKILL-DIR` and the
+# action read `INPUT_SKILL_DIR`. Fixed, and the e2e fixture now uses the runner's real
+# convention instead of the code's assumption. Restore the `pull_request` and `push`
+# triggers below when the redeploy lands.
 on:
-  pull_request:
-    paths:
-      - "demo/skills/**"
-  push:
-    branches: [main]
-    paths:
-      - "demo/skills/**"
   workflow_dispatch:
 
 permissions:
