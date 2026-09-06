@@ -31,8 +31,14 @@ Allowed targets, allowed selectors, a per-call native value ceiling.
 
 If you are also using a provenance layer such as Lockstep, its pin declares the same
 three things — target list, selector list, value ceiling. The two systems agree
-completely about *what* an agent may call. Do not treat them as competing designs for
-that job; they are the same design.
+completely about *which functions* an agent may call. Do not treat them as competing
+designs for that job; they are the same design.
+
+One difference in the third of those, worth knowing because it is easy to assume they match.
+`--valueLte` bounds each call. Lockstep's ceiling bounds the **total across a batch**, after
+finding that a per-call limit over an unbounded batch bounds nothing: an agent authorised for
+1 MON per call can move any amount by splitting it across calls in one transaction. If you are
+relying on `--valueLte` as a spend limit, check what bounds your batch size.
 
 ## The gap
 

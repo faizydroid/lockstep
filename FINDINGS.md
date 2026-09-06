@@ -380,8 +380,13 @@ Bonding, CLI, chain adapter, deployment, and a live end-to-end run.
 
 ## 14. The bond pricing model was wrong, twice
 
+> Naming note, since this section predates a rename: the pin field discussed here was called
+> `maxValuePerCall` throughout, and is now `maxValuePerBatch`, because enforcing it per call over
+> an unbounded batch enforced nothing. See §38. The pricing argument below is unaffected — it is
+> about why the ceiling is the *wrong basis for a bond*, whatever its scope.
+
 **First error: pricing against native value.** The original design sized bonds
-against `maxValuePerCall`. That is close to useless. Almost nothing interesting
+against the pin's native-value ceiling. That is close to useless. Almost nothing interesting
 moves native value — a swap skill calls `router.swap(...)` with `value == 0` and
 moves tokens through an allowance the account granted earlier. A native-value
 ceiling does not constrain it at all.
@@ -400,12 +405,12 @@ capabilities, never violates its own manifest, stays perfectly compliant, and
 drains users anyway. Declaring power costs money proportional to the power.
 
 **Second error: mixing units.** The replacement charged
-`maxValuePerCall * valueCoverageBps / 10_000` and added it to a bond denominated in
+`ceiling * valueCoverageBps / 10_000` and added it to a bond denominated in
 AUSD. Bond is 6 decimals; native value is 18. Multiplying them is dimensionally
 meaningless without a price oracle, and the first test run demanded ~1e19 AUSD
 units to pin a 10 MON ceiling — a bond of roughly 10 trillion dollars.
 
-Fixed by charging a **flat** premium when `maxValuePerCall > 0`. Sound with no
+Fixed by charging a **flat** premium when the ceiling is above zero. Sound with no
 oracle, and it reflects that the dangerous step is having native-value capability
 at all rather than the specific ceiling. A regression test asserts the bond for a
 wide manifest stays inside a plausible AUSD range, so a future unit mismatch shows
@@ -1189,3 +1194,107 @@ against `git add --dry-run` rather than `git check-ignore` — the latter exits 
 pattern and reads like the file is ignored when it is not. The repo had no commits, so nothing
 entered history. The loader now also treats an empty value as unset, so an unfilled template
 stops with "no AWS credentials found" instead of failing deep inside the AWS SDK.
+
+## 38. A first-principles security pass found four exploitable defects
+
+Recorded in full because the alternative — a changelog entry saying "hardening" — is exactly
+the behaviour this project exists to argue against. A registry whose thesis is *verify, do not
+trust the label* does not get to describe its own defects vaguely.
+
+The narrative for each, with the attack and the reasoning behind each fix, is in the README
+under [What the security pass found](README.md#what-the-security-pass-found). What follows is
+the part that belongs in a findings log rather than a product document: what the defects had in
+common, and why the existing tests did not catch them.
+
+### The four
+
+| # | Defect | Cost to exploit | Tests that fail without the fix |
+|---|---|---|---|
+| 1 | `publish` accepted an attacker-chosen `versionId` and never checked it, so equivocation became unprovable and the bond decorative | one `cast send` | 10 new |
+| 2 | `LockstepLens` believed any contract that returned `true` from `isPinApproved`, so the Sybil filter did not filter | one contract deployment, cloneable | **7 existing** |
+| 3 | The value ceiling was checked per call with nothing bounding batch size, so any amount could be moved by splitting it | zero — just a longer array | 5 |
+| 4 | `versionPinCount` was never decremented, so a successful challenge left the *honest* pin's bond frozen forever with no beneficiary | not an attack; ordinary bad luck | 4 + an invariant |
+
+### What they had in common
+
+**Every one was in a mechanism already described as working.** Not gaps, not unfinished work.
+The README documented the version commitment, the Sybil filter, the value ceiling and the
+unbonding freeze as properties of the system, and three of the four were false as implemented.
+That is a worse failure mode than an absent feature, because a documented guarantee invites
+people to rely on it.
+
+**Three of the four were free.** No capital, no timing, no privileged position.
+
+**The tests agreed with the code instead of testing it.** This is the transferable lesson and it
+recurs in three of the four:
+
+- The version id hole survived because the honest CLI and the honest Action both derived the id
+  correctly. Every test exercised the tooling, so every test passed. The attack needs one
+  transaction that does not go through the tooling, and nothing in the suite represented that.
+- The Sybil filter had thirteen passing tests and did nothing, because **every Sybil in them was
+  a bare EOA.** An EOA has no code, the eligibility staticcall fails, the candidate is rejected.
+  That looks like the filter working. It proves only that an address which cannot answer is not
+  counted, and never asks what happens when one answers and lies.
+- The frozen-bond defect was asserted *on purpose*, by a test whose comment read "the innocent
+  pin's bond is still frozen: the contradiction stands." The bug was written down as intent, so
+  no amount of running the suite could have surfaced it.
+
+A test written from the same mental model as the code inherits the model's blind spot. The only
+one of the four that a property-based approach found on its own was the value ceiling, and the
+fuzzer produced it immediately once asked the right question: 24 calls of 0.075 MON through a
+1 MON ceiling.
+
+### The verification rule adopted as a result
+
+**Every fix was checked by disabling it, running the suite, confirming the new tests fail, and
+restoring.** The counts in the table above are that measurement, not an estimate.
+
+This is cheap and it is the only thing that distinguishes a test that constrains behaviour from
+a test that describes it. It caught two cases where a first draft of a test passed with and
+without the fix:
+
+- A re-delegation test initially pointed the account at a *stricter* implementation, so it
+  passed because a different storage slot read empty — nothing to do with the check under test.
+  Rewritten to re-delegate to a maximally permissive implementation, so the account still
+  answers "yes" and the only thing that changed is which implementation is answering.
+- The EIP-3541 test needed a control. `isGuardedAccount` is only sound because contract code
+  cannot begin with `0xEF`, and a test that merely shows the deployment failing would pass just
+  as happily with malformed initcode. The same initcode is now shown to deploy successfully
+  behind a legal `0xEE` prefix first.
+
+### Two load-bearing dependencies that were assumed and are now proved
+
+Both were implicit in code that was already correct. Writing them down means a later change
+cannot quietly remove the thing holding it up.
+
+**EIP-3541 is what makes the Lens check sound.** Eligibility compares `EXTCODEHASH` against
+`keccak256(0xef0100 || guard)`. That is a complete test only because no contract can ever carry
+those bytes: EIP-3541 rejects any creation whose returned code starts with `0xEF`. Without that
+rule an attacker deploys the designator directly and forges unlimited reviewers without ever
+holding a key. Proved by attempting exactly that deployment.
+
+Incidental, and worth knowing before someone copies the technique: a creation rejected by
+EIP-3541 halts exceptionally and consumes **every unit of gas forwarded to it**. Uncapped, that
+one test billed over a billion gas. `CREATE` failing does not revert its caller, so a `{gas: …}`
+cap on the surrounding call bounds the waste without changing what is measured.
+
+**Checked arithmetic is load-bearing in the guard's batch total.** Summing call values in an
+`unchecked` block would let an attacker choose values summing to a small number modulo 2^256 —
+`type(uint256).max` and `2` sum to 1 — so the total sits under the ceiling while each call moves
+a fortune. Verified by removing the check: the budget passed and only the account's balance
+stopped the batch. A comment now records this at the loop, because it looks like an obvious
+optimisation.
+
+### One honesty correction that was not a defect
+
+The effective penalty for equivocation is **half the bond, not the bond.** Challenging is
+permissionless, so the offender is also a potential challenger and can collect
+`challengerRewardBps` of their own forfeited bond from an unrelated address.
+
+Deliberately not "fixed" with a `msg.sender != publisher` check. A fresh EOA defeats that in one
+transaction, and a check that looks like a protection but is not is worse than no check, because
+it invites people to price the risk wrong. The alternatives are worse still: a privileged
+challenger set reintroduces a committee, and dropping the reward removes the only funding a
+watcher has. So the figure is stated instead, and a test pins it.
+
+The same permissionlessness is what gives an honest publisher a way out of defect 4.

@@ -210,12 +210,20 @@ is the ERC-8004 spec URI, which identifies it rather than making it plausible. C
 `[x]` done and evidenced in the repo. `[~]` built but not live, with the reason stated. `[ ]` not done.
 Where reality diverged from what this plan assumed, the line says so instead of being quietly reworded.
 
+> **Every on-chain address, transaction hash and gas figure below predates a security pass that
+> found four exploitable defects.** The evidence is real — those transactions happened and did
+> what the lines say — but the code at those addresses is no longer the code in `contracts/src`.
+> The pass is written up in [README → What the security pass found](README.md#what-the-security-pass-found)
+> and [FINDINGS §38](FINDINGS.md). A redeploy is prepared and simulated but not broadcast, because
+> it rotates every address here and invalidates the hashes cited as proof. Lines are left as they
+> were rather than back-dated, per the note above.
+
 ### Week 1 · Sep 2–8 — **KILL GATE**
 
 The entire thesis rests on one unproven assumption: that you can get a trustworthy hash of the loaded skill out of the agent runtime. You do not own that runtime.
 
 - [x] **Extract `keccak256(skill bytes)` from a running OpenClaw agent and attach it to a transaction.** `runtime/src/canonical.ts` hashes the loaded tree; `plugin/` attaches it. Settled on testnet: `0x0990fdb43e036ad9fdf2bdb8054ab836ef8a3ea391034b35880d262132762cec`.
-- [x] Measure gas for the guard check on testnet. **Settle 115,207** (verify 17,769 / transfer 39,822 / guard logic ~33.6k), **refuse 62,181** — refusing costs less than settling, so the safe path is also the cheap one.
+- [x] Measure gas for the guard check on testnet. **Settle 115,207** (verify 17,769 / transfer 39,822 / guard logic ~33.6k), **refuse 62,181** — refusing costs less than settling, so the safe path is also the cheap one. Scope matters and was not originally stated: that is a *whole transaction* including the 21,000 intrinsic cost and the real token transfer it wraps. Enforcement *overhead* alone is 40,029, measured locally. The README [reconciles the two](README.md#reconciling-the-two-gas-tables); quoting either without its scope is how one document ends up appearing to contradict itself.
 - [x] Confirm ERC-8004 addresses on 10143 — **identified on chain, not read from docs.** This plan's warning was correct: both the Monad guide and the QuickNode explorer render the addresses client-side and a fetch returns an empty shell. Identity `0x8004a818…4bd9e`, Reputation `0x8004b663…88713`, settled by `tokenURI(1)` returning the ERC-8004 spec URI. Both are UUPS proxies behind one EOA; recorded as a dependency in `LockstepLens.sol`. Chain 143 still unchecked.
 - [x] `PinRegistry` with `lockedBond` and blast-radius pricing — `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b`, verified, block 59428872.
 - [ ] **BD starts Monday.** Contact 10 publishers from Monad Agent Hub and ClawHub. Lead time is 4+ weeks; starting this in week 4 is starting it too late.
@@ -230,7 +238,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 - [x] Sandbox replay on forked Monad → draft capability sets — `sandbox/`.
 - [x] `lockstep-action` GitHub Action written and green in CI — `action/action.yml`. **Not yet listed on the Marketplace**, which needs the repo public.
 - [~] Envio indexer — config points at the live registry from block 59428872, 13 events. Codegen cannot run on Windows, so it is verified by the Linux CI job, **not yet running as a hosted deployment**.
-- [x] Invariants — `contracts/test/Invariants.t.sol`, six of them: locked never exceeds balance, locked equals the sum of live pin bonds, the registry holds what it owes, a bond is never paid twice, live pins stay fully bonded, revoked pins are never live.
+- [x] Invariants — `contracts/test/Invariants.t.sol`, seven of them: locked never exceeds balance, locked equals the sum of live pin bonds, the registry holds what it owes, a bond is never paid twice, live pins stay fully bonded, revoked pins are never live, and `versionPinCount` equals the number of unslashed claims per version. The seventh was added with the fix for a bond that stayed frozen after a successful challenge — too high strands honest collateral forever, too low is revoke-and-run.
 - [ ] **Sep 18–19 NYC Metropolis Lounge — go.** Judges and mentors are physically present. SF/London Sep 25, Singapore Oct 6 as alternates.
 
 ### Week 4 · Sep 23–29 — Surfaces

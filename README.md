@@ -314,21 +314,34 @@ in MetaMask's own `domains/<domain>/skills/<name>/skill.md` structure. It is mar
 
 | Property | What it enables |
 |---|---|
-| O(1) hot path, 300ms blocks | Enforcement costs ~40k gas, and batching amortises the fixed check to 2.8k per additional call |
+| O(1) hot path, 300ms blocks | Enforcement costs ~40k gas, and batching amortises the fixed check to 3.1k per additional call |
 | 300ms / 600ms finality | Re-pinning on every release is fast enough not to be painful |
 | EIP-7702 live | The guard is a delegate on a plain EOA. No bundler, no paymaster, no deployment |
 | Cheap state | Pins are per-skill-version, not per-transaction, so state stays flat as usage grows |
 
-Measured, not estimated (local EVM, warm, solc 0.8.28, optimizer 200):
+**Measured, not estimated — and read the scope line before comparing these to any other gas
+number in this document.**
+
+Scope: the `execute` call alone, on a local EVM, warm state, against a mock target whose
+`swap` does almost nothing. solc 0.8.28, optimizer 200. It excludes the 21,000 intrinsic cost
+of a transaction and excludes whatever the target actually does. That is the right scope for
+the question "what does enforcement cost", because it isolates the guard from the trade.
 
 | Path | Gas |
 |---|---|
 | Unguarded direct call | 27,113 |
-| Through Lockstep | 66,746 |
-| **Enforcement overhead** | **39,633** |
-| Marginal per extra call in a batch | 2,792 |
-| Reject a rug pull | 43,177 |
-| `LockstepGuard` deployed size | 3,349 bytes |
+| Through Lockstep | 67,142 |
+| **Enforcement overhead** | **40,029** |
+| Marginal per extra call in a batch | 3,092 |
+| Reject a rug pull | 43,263 |
+| `LockstepGuard` deployed size | 3,055 bytes |
+
+There is a second, larger set of figures further down, [measured on Monad
+itself](#three-monad-behaviours-worth-knowing), and the two are not in competition — they
+measure different things. See [reconciling the two gas
+tables](#reconciling-the-two-gas-tables). Reproduce these with `forge test -vv` in
+`contracts/`; `contracts/.gas-snapshot` is committed so a change in any of them shows up as a
+diff rather than as a number nobody rechecked.
 
 ## Repository layout
 
@@ -381,7 +394,7 @@ npm run test:unit          # 418 tests across seven packages
 npm run typecheck
 
 cd contracts
-forge test -vv             # 127 tests, gas and bond-velocity figures in the output
+forge test -vv             # 175 tests, gas and bond-velocity figures in the output
 
 cd ..
 npm run test:e2e           # 76 tests against a live Anvil chain
@@ -472,8 +485,8 @@ BOND_ASSET=0x... forge script script/Deploy.s.sol --tc Deploy \
 
 ## Design decisions worth knowing
 
-**Bonds are priced by breadth, not by value.** An early version sized bonds against
-`maxValuePerCall`, which is close to useless: a swap skill calls
+**Bonds are priced by breadth, not by value.** An early version sized bonds against the pin's
+native-value ceiling, which is close to useless: a swap skill calls
 `router.swap(...)` with `value == 0` and moves tokens through an allowance. What
 determines blast radius is *which functions* a skill may call. A skill permitted to
 call `approve` can hand unlimited allowance to an attacker. So the price keys on
@@ -543,9 +556,14 @@ measurement in the same typeface is not a plan.
 
 ### The constraint that determines everything
 
-The cost of enforcement is negligible: **115,207 gas** per guarded call on Monad, which
-at testnet fee levels is a rounding error. Nobody will decline this because the gas is
-too expensive.
+The cost of enforcement is negligible: the guard adds **40,029 gas** to a call that would
+otherwise cost 27,113, and a whole guarded transaction settled on Monad testnet came to
+115,207 gas including the trade it was wrapping. Either way, at testnet fee levels it is a
+rounding error. Nobody will decline this because the gas is too expensive.
+
+Those two numbers used to appear in this document 200 lines apart with no relationship
+stated, which reads as one of them being wrong. They measure different scopes; see
+[reconciling the two gas tables](#reconciling-the-two-gas-tables).
 
 The real cost is **publisher bond capital**. From the live registry:
 
@@ -793,16 +811,17 @@ exists at all — and it is also why the enforcement has to be free.
 |---|---|
 | Canonical skill hashing | Done, golden vector locked, 41 tests |
 | PinRegistry: bonding, blast-radius pricing | Done, 28 tests |
-| Equivocation slashing | Done, 23 tests. Permissionless, half the bond to the challenger |
-| Bond accounting invariants | Done, 6 invariants over 4096 calls per campaign |
-| LockstepGuard (EIP-7702) | Done, 23 tests, gas measured |
-| **LockstepLens (ERC-8004)** | **Live at `0x3338c4F5…75664` on chain 10143**, reading the real registries. 14 unit tests plus 15 covering the deploy script's identification checks. Sybil filter: naive 74 vs filtered 35, and the eligibility rule answers correctly against live state both ways — see below |
+| Equivocation slashing | Done, 36 tests. Permissionless — and the effective penalty is *half* the bond, not all of it, because the offender can submit the proof themselves. Stated plainly [below](#the-slashing-penalty-is-half-the-bond) |
+| Bond accounting invariants | Done, 7 invariants over 4096 calls per campaign |
+| LockstepGuard (EIP-7702) | Done, 31 tests, gas measured. The value ceiling is per *batch*; a per-call ceiling over an unbounded batch bounded nothing |
+| **Adversarial suite** | **Done, 15 tests.** Each of four exploitable holes run as the attack rather than as a property, against a real delegated account with a real approval. All four worked before this pass; three were free |
+| **LockstepLens (ERC-8004)** | 23 unit tests plus 18 covering the deploy script's identification checks. Sybil filter: naive 74 vs filtered 35. **The filter did not filter until this pass** — it believed any contract that claimed an approval. Fixed and [documented below](#the-sybil-filter-did-not-filter). **The live deployment at `0x3338c4F5…75664` predates the fix and needs redeploying** |
 | Allowlist-layer comparison | Done, 5 tests. Same calldata, one layer permits, the other refuses |
 | **MetaMask Gator differential** | **Done, 7 tests** against a model of the real ERC-7710 `functionCall` caveat, not a straw man. Both layers enforce the same targets/selectors/value ceiling; only Lockstep refuses the poisoned bytes — see above |
 | **EIP-7702 exclusivity** | **Done, 5 tests.** An account carries one delegation indicator, so Gator and Lockstep cannot share an account. Approvals survive in storage while unenforced. The layers stack across accounts instead |
 | Bond-velocity benchmark | Done, 3 tests. 40x from 300ms vs 12s blocks |
 | OpenClaw plugin logic | Done, 55 tests |
-| CLI, with self-slash refusal | Done, 38 tests |
+| CLI, with self-slash refusal | Done, 48 tests. Also refuses a confusable skill name before spending gas, using the registry's own rule |
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
 | Badge | Done, 28 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
@@ -810,12 +829,12 @@ exists at all — and it is also why the enforcement has to be free.
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
-| End-to-end on a live chain | Done, 74 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
+| End-to-end on a live chain | Done, 76 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
-| **Monad testnet gas** | **Measured.** Guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling |
-| Dashboard (Next.js static export) | Done, 224 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
+| **Monad testnet gas** | **Measured**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling. Enforcement *overhead* is 40,029 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. Both predate the current contracts |
+| Dashboard (Next.js static export) | Done, 472 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
 | Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
 | Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
 | Browser attack surface | Audited. Two gaps closed, CSP in headers and markup, zero production dependency vulnerabilities — see below |
@@ -849,10 +868,167 @@ The first settles and emits `SkillExecuted`. The second reverts at the guard wit
 Nothing about the skill's name or version string changes between the two runs. That
 is the whole point: a policy that trusts labels permits the second one.
 
+### What the security pass found
+
+A first-principles review of this repository found **four defects, three of them exploitable
+for free, and every one of them in a mechanism this document had already described as working.**
+They are recorded here in full rather than quietly fixed, because a project whose thesis is
+"verify, do not trust the label" does not get to publish a changelog that says "hardening".
+
+Each was fixed, and each fix was checked the same way: disable it, run the suite, confirm the
+new tests fail, restore. That number is given for each below, because a test that passes with
+and without the fix proves nothing.
+
+#### The version id was attacker-chosen, which made the bond decorative
+
+`publish` took `bytes32 versionId` and never checked it against anything. `computeVersionId`
+existed; nothing forced a caller to use it.
+
+That defeated the only slashing condition in the system, for the price of one `cast send`.
+Publish 1.0.0 honestly, collect approvals, then republish different bytes under
+`versionId = keccak256(<anything>)`. Users still read "1.0.0" because the version string they
+see lives in an off-chain manifest. Two contradictory claims about one release now exist and
+`slashEquivocation` cannot see a contradiction, because the two pins report unrelated ids.
+
+The honest CLI and the Action both derived the id correctly, which is precisely why nothing
+caught it: every test agreed with the tooling instead of testing the contract.
+
+**Fixed** by deriving the id on chain from `(name, version)`, which are now parameters and are
+recorded in the `Published` event. That closed a second hole one layer up in the same move:
+labels are restricted to printable ASCII, 1–64 bytes, because `"kuru-quote "` and a Cyrillic
+`о` both render as the trusted skill while hashing to an unrelated version. The cost is real
+and accepted: non-Latin skill names are refused.
+
+#### The Sybil filter did not filter
+
+`LockstepLens` decided reviewer eligibility by staticcalling `isPinApproved(pinId)` on a
+candidate and believing the answer.
+
+`isPinApproved` is a one-line view. Any address can implement it, and a contract that returns
+`true` unconditionally costs pocket change to deploy and can be cloned to as many addresses as
+an attacker wants to fund. So the entire Sybil defence — this contract's stated reason to
+exist, the thing the demo puts on screen next to `unfilteredScore` — fell to a stub.
+
+The suite did not catch it because **every Sybil in it was a bare EOA.** An EOA has no code, so
+the staticcall fails and the candidate is rejected, which looks like the filter working and
+proves only that an address which cannot answer is not counted. Nothing ever asked what happens
+when an address answers and lies. Thirteen passing tests coexisted with a filter that did
+nothing: disabling the new check fails **7** of them, including the headline demo, which
+reported the filtered score as *identical* to the naive one.
+
+**Fixed** by requiring the candidate's code to be an EIP-7702 delegation designator naming this
+exact guard, checked with `EXTCODEHASH` before any staticcall. That rests on EIP-3541 — contract
+code may not begin with `0xEF` — so a contract can never carry a designator. That dependency is
+proved rather than assumed, with a control case that deploys the same bytes behind a legal
+prefix to show the test's initcode is sound.
+
+What it buys, stated exactly: every counted reviewer is an account that put the publisher's code
+in its own signing path. A forged reviewer now costs a distinct EOA, a signed 7702
+authorisation, and one `approvePin` write — tens of thousands of gas, not a bond. A funded
+attacker can still manufacture reviewers. They can no longer do it with one contract and a loop.
+
+#### The value ceiling was per call, over an unbounded batch
+
+The guard checked `maxValuePerCall` against each call in a batch, and nothing bounded how many
+calls a batch could hold. So a pin declaring a 1 MON ceiling authorised 1 MON, or a hundred,
+depending only on how the executor chose to split it — and the executor is the agent, which the
+threat model assumes can be compromised.
+
+The number on the approval screen was an upper bound on nothing a user could observe. The
+fuzzer produced the attack in one line: 24 calls of 0.075 MON moved 1.80 MON through a 1 MON
+ceiling. Disabling the fix fails **5** tests.
+
+**Fixed** by summing the batch and checking the total once, before any call executes, plus
+`MAX_CALLS = 32`. The field is renamed `maxValuePerBatch`, because leaving a field called
+`maxValuePerCall` while enforcing it per batch would be worse than either honest option. One
+number, not two: two numbers constrain the *shape* of spending, and blast radius depends only on
+the total.
+
+Scope, precisely: this bounds the value one *transaction* can move. It does not bound lifetime
+spend, because an executor can send another transaction. Rate limiting belongs with whatever
+holds the funds, and MetaMask's Agent Wallet already does it well. The two compose; neither is
+sufficient alone.
+
+#### An honest rebuild destroyed a publisher's capital
+
+`versionPinCount` counted publishes and was never decremented, and `reclaimBond` refuses to
+release collateral while a version has more than one claim.
+
+Two consequences, and the second is worse. A publisher whose build is not byte-reproducible —
+a different compiler, a timestamp in a bundle, a lockfile that resolved differently — publishes
+1.0.0 twice by accident and freezes both bonds with no way out. And after a *successful*
+challenge, the surviving pin stayed frozen too, because the count still read two. That pin was
+the earlier, honest claim users had actually approved against, and its bond was then locked
+forever: not slashed, not returned, not burned. Stranded, with no beneficiary at all.
+
+A frozen-with-no-beneficiary bond is strictly worse than a slashed one. Slashing at least pays
+someone and deters something. This paid nobody and deterred nothing.
+
+The old test suite asserted this behaviour on purpose, with the comment "the innocent pin's bond
+is still frozen: the contradiction stands." The bug was written down as intent.
+
+**Fixed** by decrementing on slash, so the count means *unresolved* claims. Once a contradiction
+has been priced there is nothing left for the freeze to protect. Because challenging is
+permissionless, that also hands an honest publisher a way out: prove your own contradiction,
+forfeit the offending bond, recover the rest. Disabling the decrement fails **4** tests and
+breaks a dedicated invariant.
+
+Rejected on the way: letting `revoke` clear the freeze, and time-bounding it — both are
+revoke-and-run, the attack the freeze exists for. Also rejected: making `publish` refuse a
+second claim per version, which prevents the bug perfectly and would leave the only slashing
+condition in the system with no reachable trigger, turning the bond into a refundable deposit.
+
+#### The slashing penalty is half the bond
+
+Not a defect, and not previously stated: an honest reading of the economics that the arithmetic
+makes easy to get wrong in a publisher's favour.
+
+Challenging is permissionless, so **the offender is also a potential challenger.** Nothing stops
+a publisher who equivocated from submitting the proof themselves, from an unrelated address, and
+collecting `challengerRewardBps` of their own forfeited bond. At the configured 5,000 bps that
+halves the cost of the offence: the real penalty is the `slashRecipient` share, not the bond.
+
+This is not fixable by checking `msg.sender != publisher`. A fresh EOA defeats that in one
+transaction, and a check that looks like a protection but is not is worse than no check, because
+it invites people to price the risk wrong. A privileged challenger set reintroduces a committee;
+dropping the reward removes the only funding a watcher has.
+
+So the honest figure is `requiredBond * (10_000 - challengerRewardBps) / 10_000`. The reward
+exists to make sure somebody is watching, not to make the offence maximally expensive. A test
+pins the number so it cannot drift from this paragraph.
+
+#### There is no name ownership
+
+Recorded in the adversarial suite rather than a defect, because it is a limit rather than a bug.
+
+Any publisher may publish under any name, including one they did not originate. It is not
+slashable and should not be: two publishers making different claims about their own code is the
+normal case, not a contradiction.
+
+What makes it tolerable is that pins are keyed by `(publisher, skillHash)` and approvals are per
+pin, so a squatter inherits nothing — no approval, no reputation, no bond. What they get is a
+name collision in a listing, which is a real interface hazard. **Any surface showing a skill
+name must show the publisher beside it**, and that is why.
+
 ### Live on Monad testnet
 
+> **This deployment predates the current contracts and has not been replaced yet.**
+>
+> Four exploitable defects were found and fixed after these addresses went live — see
+> [what the security pass found](#what-the-security-pass-found). The deployed bytecode
+> therefore does **not** match `contracts/src`, and specifically the code at these addresses
+> still lets a publisher choose an arbitrary `versionId`, still treats the value ceiling as
+> per-call, and its Lens still accepts any contract that claims an approval.
+>
+> Everything below is accurate as a record of what was deployed and verified. None of it should
+> be read as a description of the code in this repository today. A redeploy is prepared and
+> simulated (5,589,160 gas, ~1.14 MON) but deliberately not broadcast: it rotates every address
+> here, invalidates the transaction hashes cited as evidence, and requires re-establishing the
+> demo account's delegation and approvals. That is a decision to take deliberately rather than
+> as a side effect of a refactor.
+
 Chain 10143. Every address below has code at it and every immutable has been read back
-and compared against the source.
+and compared against the source **as it stood when they were deployed**.
 
 | | address | deployed in block |
 |---|---|---|
@@ -862,9 +1038,19 @@ and compared against the source.
 | LockstepLens | `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664` | 59619349 |
 | Account, delegated via EIP-7702 | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | — |
 
-The bond asset is a freely mintable mock. That is correct on a test chain and refused on
-mainnet by the deploy script, because a registry whose bonds are worthless is worse than
-no registry.
+**The bond asset is a freely mintable mock, and "freely" means exactly that.** `MockBondAsset`
+in `script/Deploy.s.sol` has an unpermissioned `mint(address, uint256)` — no owner, no cap, no
+access control. Anyone can mint themselves any balance and bond any manifest at zero cost, so
+on this deployment **every bond figure below is theatre**: the collateral is real in the sense
+that the accounting is correct and the slashing works, and worthless in the sense that nothing
+was given up to post it.
+
+That is the right choice on a test chain — requiring a faucet-funded stablecoin to try the
+system would stop anyone trying it — and the deploy script `require`s a real `BOND_ASSET` on
+mainnet, because a registry whose bonds are worthless is worse than no registry. But a demo
+that shows "1,150 mAUSD bonded" without saying the token is free is claiming an economic
+guarantee it does not have, so it is said here rather than left for a reader to discover in
+the deploy script.
 
 **`LockstepLens` reads the real ERC-8004 registries**, deployed by
 `script/DeployLens.s.sol` in tx
@@ -947,6 +1133,9 @@ attempts without an event.
 
 **Gas, measured on Monad rather than locally.**
 
+Scope: the whole transaction, on a live chain, cold state, wrapping a real ERC-20 transfer.
+Includes the 21,000 intrinsic cost and includes the trade itself.
+
 | operation | gas |
 |---|---|
 | guard-checked execution, 1-call batch | 115,207 |
@@ -960,6 +1149,41 @@ attempts without an event.
 **Refusing costs less than settling** (62,181 against 115,207). That validates the choice
 not to emit an event before reverting: an earlier version did, and because the log is
 rolled back with the revert, it made rejection more expensive while telling nobody.
+
+> **These on-chain figures describe superseded bytecode.** They were measured against the
+> deployment recorded in [Deployed on Monad testnet](#deployed-on-monad-testnet). The
+> contracts have since changed — the value ceiling became a per-batch budget, `MAX_CALLS` was
+> added, and `publish` takes a struct — so re-measuring needs a redeploy. The local figures
+> above are current; these are historical and labelled as such rather than quietly left to
+> look current. `contracts/.gas-snapshot` is the reproducible record.
+
+#### Reconciling the two gas tables
+
+This document reports enforcement at 67,142 gas in one place and 115,207 in another. Both are
+real measurements and neither is the other's correction, which is worth spelling out because a
+reader who spots the gap and gets no explanation is right to distrust every other number here.
+
+They differ in three ways, and the differences account for the gap:
+
+| | local table | Monad table |
+|---|---|---|
+| what is measured | the `execute` call | the whole transaction |
+| intrinsic 21,000 | excluded | included |
+| the call being wrapped | a mock `swap` that stores one counter | a real ERC-20 transfer, 39,822 |
+| state | warm | cold |
+
+Subtracting the parts the local measurement does not contain — 21,000 intrinsic and 39,822 for
+the transfer — leaves roughly 54,000 for the guard and registry on chain against 67,142
+locally, and the remainder is cold-storage access that a warm local run never pays.
+
+**Which number to quote depends on the question.** "What does Lockstep cost me?" is the
+overhead: ~40k, because the trade was going to happen anyway. "What does a guarded transaction
+cost?" is the Monad figure, because that is the bill. Quoting the smaller number for the second
+question would be the kind of selective measurement this section exists to make impossible.
+
+One methodological note that makes the Monad column trustworthy at all: it does **not** come
+from receipts. Monad receipts report the gas limit rather than gas used, which is the next
+finding below.
 
 ### What the first CI run found
 
