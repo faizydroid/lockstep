@@ -22,7 +22,10 @@
                     "test:unit":  "npm run test --workspace @lockstep/runtime --workspace @lockstep/openclaw-plugin --workspace @lockstep/cli --workspace @lockstep/watcher --workspace @lockstep/sandbox --workspace @lockstep/badge --workspace @lockstep/app",
                     "test:e2e":  "npm run test --workspace @lockstep/e2e",
     "serve":  "node scripts/serve-export.mjs",
-                    "typecheck":  "npm run typecheck --workspaces --if-present"
+                    "typecheck":  "npm run typecheck --workspaces --if-present",
+                    "build:dashboard":  "npm run build --workspace @lockstep/app && node scripts/write-cloudflare-headers.mjs",
+                    "verify:dashboard":  "npm run build:dashboard && node scripts/check-export.mjs",
+                    "deploy:dashboard":  "npm run verify:dashboard && npx --yes wrangler@4 pages deploy app/out --project-name=lockstep --branch=main"
                 },
     "engines":  {
                     "node":  "\u003e=22.18.0"

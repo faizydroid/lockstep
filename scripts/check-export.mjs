@@ -15,6 +15,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { HEADER_ONLY, HEADER_ONLY_CSP_DIRECTIVES } from "./security-headers.mjs";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "app", "out");
 
@@ -703,6 +705,8 @@ function main() {
 
   checkTheming(index, problems);
 
+  checkHostHeaders(problems);
+
   if (problems.length > 0) {
     process.stderr.write(`\n${problems.length} problem(s):\n`);
     for (const problem of problems) process.stderr.write(`  - ${problem}\n`);
@@ -711,6 +715,80 @@ function main() {
 
   process.stdout.write("\nexport looks good\n");
   return 0;
+}
+
+/**
+ * The headers the host must send, because markup cannot express them.
+ *
+ * This exists because of a specific gap rather than for completeness. `scripts/serve-export.mjs`
+ * sends six security headers and the README calls it "the reference for what a real deploy should
+ * configure" — but a reference nothing enforces is a suggestion. The deployed site is static files
+ * on Cloudflare Pages, which sends whatever `_headers` says and nothing more, so until that file
+ * existed the public deployment had none of them.
+ *
+ * `frame-ancestors`, `X-Frame-Options` and `Referrer-Policy` are the three that cannot be set in a
+ * `<meta>` tag at all. The first two decide whether this dashboard can be framed by a page trying to
+ * convince a reader they are approving something; the third decides whether pin ids and account
+ * addresses leak in a `Referer`. Those are the ones worth failing a build over, so a missing or
+ * gutted `_headers` is a build failure rather than something noticed in production.
+ */
+function checkHostHeaders(problems) {
+  process.stdout.write("\nhost contract\n");
+
+  /*
+   * A top-level 404.html, because its absence changes the host's behaviour rather than just
+   * losing a page.
+   *
+   * Cloudflare Pages treats a project with no top-level `404.html` as a single-page application
+   * and answers *every* unmatched path from `/` with a 200. So dropping this file would not
+   * produce a missing-404; it would produce a site where `/pnis` or `/approvals-old` silently
+   * renders the landing page and reports success. On a dashboard whose argument is that you
+   * should check what you are shown rather than trust it, a URL that quietly answers with
+   * different content than it names is the wrong failure to ship.
+   *
+   * Next's `output: export` emits this today. The check exists because a config change could
+   * stop it, and nothing else here would notice.
+   */
+  const notFound = join(OUT, "404.html");
+  const hasNotFound = existsSync(notFound);
+  process.stdout.write(`  404.html               ${hasNotFound ? "ok" : "MISSING"}\n`);
+  if (!hasNotFound) {
+    problems.push(
+      "no top-level 404.html: Cloudflare Pages would treat this as a single-page app and serve " +
+        "the landing page with a 200 for every unknown path",
+    );
+  }
+
+  const file = join(OUT, "_headers");
+  if (!existsSync(file)) {
+    problems.push(
+      "app/out/_headers is missing: run `node scripts/write-cloudflare-headers.mjs` after the build. " +
+        "Without it the deployed site sends no CSP, no frame protection and no referrer policy.",
+    );
+    process.stdout.write("  _headers               MISSING\n");
+    return;
+  }
+
+  const raw = readFileSync(file, "utf8");
+  const lower = raw.toLowerCase();
+
+  for (const name of HEADER_ONLY) {
+    const present = lower.includes(`${name}:`);
+    process.stdout.write(`  ${name.padEnd(22)} ${present ? "ok" : "MISSING"}\n`);
+    if (!present) problems.push(`_headers does not send ${name}, which a <meta> tag cannot express`);
+  }
+
+  for (const directive of HEADER_ONLY_CSP_DIRECTIVES) {
+    const present = lower.includes(directive);
+    process.stdout.write(`  ${directive.padEnd(22)} ${present ? "ok" : "MISSING"}\n`);
+    if (!present) problems.push(`_headers CSP is missing ${directive}`);
+  }
+
+  // The rule has to actually match the pages. A file full of correct headers scoped to a path
+  // nothing resolves to is the failure mode that would otherwise look fine here.
+  if (!/^\/\*\s*$/m.test(raw)) {
+    problems.push("_headers has no `/*` rule, so the headers apply to nothing");
+  }
 }
 
 process.exit(main());

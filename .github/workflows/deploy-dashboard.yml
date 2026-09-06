@@ -1,0 +1,118 @@
+name: Deploy dashboard
+
+# Publishes the static export to Cloudflare Pages at https://lockstep.dofolabs.space.
+#
+# ## Why this builds the site instead of letting Cloudflare build it
+#
+# Cloudflare Pages can watch the repository and run the build itself, and that is the usual
+# choice. It is the wrong one here for two reasons.
+#
+# The dashboard's configuration is compiled in. `NEXT_PUBLIC_*` values are inlined at build
+# time, so the registry address, the guard address and the pin ids are properties of the
+# artifact rather than of the runtime. A Cloudflare-side build means those seven values live
+# in a second place, in a dashboard nobody reviews, and an unset one leaves no trace -- it
+# produces a site that silently shows sample data and never reads the chain.
+#
+# And `scripts/check-export.mjs` is the gate that makes the artifact trustworthy: it proves the
+# pages contain real rendered data, that the write boundary held so nothing capable of signing
+# reached the bundle, that the bond figures carry their disclosure, and that the security
+# headers a static host must send are present. Cloudflare's build pipeline would not run it.
+# Building here means the bytes that are checked are the bytes that are uploaded.
+#
+# ## Why it waits for CI
+#
+# `workflow_run` rather than `push`, gated on CI having succeeded. Publishing a dashboard that
+# describes contracts whose tests are failing is exactly the sort of unverified claim this
+# project exists to argue against, so the deploy is downstream of the evidence.
+#
+# The cost of that choice is one real trap, handled below: in a `workflow_run` context
+# `actions/checkout` defaults to the default branch, *not* the commit that triggered it. Left
+# alone, this would deploy whatever main happened to be rather than the commit CI passed on.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  # One deploy at a time, and never cancel one midway: a half-uploaded Pages deployment is a
+  # site serving a mix of two builds.
+  group: deploy-dashboard
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Manual runs are always allowed. Automatic ones only for a green CI run on main, because a
+    # `workflow_run` fires for every branch's CI including forks.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The commit CI passed on, not the branch tip. See the note above.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The same seven values CI builds with, kept in step with `.github/workflows/ci.yml`.
+      # Every one is public by construction: `NEXT_PUBLIC_*` is compiled into the client bundle,
+      # so nothing secret can be passed this way even by mistake. They are also in .env.example
+      # and in the README.
+      #
+      # These change when the registry is redeployed. Both places must move together, and
+      # `check-export.mjs` fails if the Lens address stops matching, which is the tripwire.
+      - name: Build the dashboard
+        env:
+          NEXT_PUBLIC_CHAIN_ID: "10143"
+          NEXT_PUBLIC_RPC_URL: https://testnet-rpc.monad.xyz
+          NEXT_PUBLIC_PIN_REGISTRY: "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b"
+          NEXT_PUBLIC_ACCOUNT_ADDRESS: "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2"
+          NEXT_PUBLIC_DEPLOY_BLOCK: "59431400"
+          NEXT_PUBLIC_PIN_IDS: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401"
+          NEXT_PUBLIC_LOCKSTEP_LENS: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664"
+          NEXT_PUBLIC_LOCKSTEP_GUARD: "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510"
+        run: npm run build --workspace @lockstep/app
+
+      # A static host sends only the headers it is told to. `frame-ancestors`,
+      # `X-Frame-Options` and `Referrer-Policy` cannot be expressed in a meta tag, so without
+      # this file the deployed site has no frame protection and leaks pin ids and account
+      # addresses in the Referer. Generated from the same definition the local reference server
+      # uses, so the two cannot disagree.
+      - name: Write the host headers
+        run: node scripts/write-cloudflare-headers.mjs
+
+      # The gate. Fails if a page rendered empty, if a font came from a CDN, if anything able to
+      # sign reached the bundle, if the mock-bond disclosure went missing, or if the headers
+      # above are absent. Nothing is uploaded when this fails.
+      - name: Check the export
+        run: node scripts/check-export.mjs
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # `--branch=main` is explicit so this is always a production deployment rather than
+          # depending on which branch the runner happens to be on.
+          command: pages deploy app/out --project-name=lockstep --branch=main
+
+      - name: Where it went
+        run: |
+          echo "Production: https://lockstep.dofolabs.space"
+          echo "Pages URL:  https://lockstep.pages.dev"
+          echo "Commit:     ${{ github.event.workflow_run.head_sha || github.sha }}"
