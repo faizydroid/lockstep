@@ -193,7 +193,19 @@ const PAGES = {
   ],
   approvals: ["Approved versions", "read only", "The executor is not the account"],
   publishers: ["Publishers", "Challenger reward", "equivocat"],
-  bonds: ["What a pin costs to publish", "Declared capabilities", "Bond required"],
+  /*
+   * `freely mintable mock` is the load-bearing one here, for the same reason the `publishers`
+   * caveat is checked: this page renders a bond as a figure with a currency beside it, which reads
+   * as capital at risk. On this deployment the bond asset has an unpermissioned `mint`, so it is
+   * not. An honest page and an overclaiming one are indistinguishable in a screenshot, so the
+   * disclosure is a build gate rather than a thing a reviewer is trusted to remember.
+   */
+  bonds: [
+    "What a pin costs to publish",
+    "Declared capabilities",
+    "Bond required",
+    "freely mintable mock",
+  ],
   badge: ["The badge", "Paste into a README", "Why amber exists"],
   /*
    * The account page renders its profile from a client-side chain read and its settings behind a tab,

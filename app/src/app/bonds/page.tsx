@@ -97,6 +97,37 @@ export default function BondsPage() {
         />
       </Reveal>
 
+      {/*
+        The disclosure that makes every figure on this page honest.
+
+        This page turns a bond into a number with a currency beside it, which reads as an economic
+        guarantee. On the deployment it reads from, it is not one: the bond asset is a mock with an
+        unpermissioned `mint`, so anyone can post any bond for free. The accounting is real and the
+        slashing works; the collateral cost nothing.
+
+        Stating it here rather than in a README is the whole point -- a reader who never opens the
+        repository is exactly the reader who would otherwise take the number at face value. The
+        alternative, showing the figures without this, is claiming a guarantee the chain does not
+        provide, which is the specific failure this project exists to argue against.
+
+        `scripts/check-export.mjs` greps the exported HTML for this sentence, because an honest page
+        and an overclaiming one look identical in a screenshot.
+      */}
+      <Reveal>
+        <Card>
+          <div className="space-y-2">
+            <p className="shout text-label text-faint">What these numbers are worth</p>
+            <p className="text-sm text-muted">
+              On this testnet deployment the bond asset is a freely mintable mock, so a bond costs
+              nothing to post and none of these figures represent capital actually at risk. The
+              pricing, the accounting and the slashing are real and are exercised by tests; the
+              money is not. A mainnet registry is required by the deploy script to name a real
+              asset, because a registry whose bonds are worthless is worse than no registry.
+            </p>
+          </div>
+        </Card>
+      </Reveal>
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-8">
         <Reveal>
           <Card>
