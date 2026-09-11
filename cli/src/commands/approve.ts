@@ -66,17 +66,33 @@ export async function approveCommand(options: ApproveOptions): Promise<number> {
   }
 
   if (!options.assumeYes) {
-    // Only prompt when capability widened. A code-only change is the case this
-    // product exists to make painless, and prompting for it every release is how
-    // permission systems train users to click through.
-    if (widened) {
-      const ok = await confirm("\napprove these capabilities? [y/N] ");
-      if (!ok) {
-        process.stdout.write("aborted\n");
-        return 1;
-      }
-    } else {
-      process.stdout.write("capabilities unchanged: approving without a prompt\n");
+    /*
+     * Every hash change prompts. The capability diff changes the wording, never whether you are
+     * asked.
+     *
+     * This used to skip the prompt entirely when capabilities were unchanged, on the reasoning that
+     * a code-only rebuild is the case this product exists to make painless. That reasoning
+     * contradicted the product's own thesis. The headline is that a software update must not
+     * silently inherit financial authority, and the update that inherits it most quietly is exactly
+     * the one whose declared capabilities are identical — a publisher who rewrites the bytes and
+     * touches nothing in the manifest. Skipping the prompt there made the one case the whole system
+     * exists to catch the one case nobody was asked about.
+     *
+     * What the diff still buys is real and is kept: a widening change says so, names what was
+     * gained, and warrants a slower read. A narrowing or capability-identical change is a cheaper
+     * decision, not an automatic one. The chain was never the problem here — new bytes are a new
+     * hash and therefore a new pin, which is unapproved until this transaction lands. The gap was
+     * that this command sent that transaction without asking.
+     *
+     * `--yes` still bypasses it, because a flag someone typed is a decision they made.
+     */
+    const question = widened
+      ? "\nthis version can do things the approved one could not. approve anyway? [y/N] "
+      : "\nthe bytes changed. capabilities are unchanged. approve this version? [y/N] ";
+    const ok = await confirm(question);
+    if (!ok) {
+      process.stdout.write("aborted\n");
+      return 1;
     }
   }
 

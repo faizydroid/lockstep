@@ -330,11 +330,18 @@ the question "what does enforcement cost", because it isolates the guard from th
 | Path | Gas |
 |---|---|
 | Unguarded direct call | 27,113 |
-| Through Lockstep | 67,142 |
-| **Enforcement overhead** | **40,029** |
-| Marginal per extra call in a batch | 3,092 |
+| Through Lockstep | 67,462 |
+| **Enforcement overhead** | **40,349** |
+| Marginal per extra call in a batch | 3,412 |
 | Reject a rug pull | 43,263 |
-| `LockstepGuard` deployed size | 3,055 bytes |
+
+Overhead and the marginal per-call figure each rose by **320 gas** when `execute` started
+refusing the account as a call target, which closed a confirmed privilege escalation — an
+executor could route `authorizeExecutor` or `approvePin` through a batch, because a call made
+*from* the account to the account satisfies `onlySelf`. The check is per call, which is why the
+marginal figure moved by the same amount. Rejection is unchanged at 43,263, because a hash
+mismatch reverts before the pre-flight pass the check lives in. See
+`contracts/test/SelfCallEscalation.t.sol`.
 
 There is a second, larger set of figures further down, [measured on Monad
 itself](#three-monad-behaviours-worth-knowing), and the two are not in competition — they
@@ -497,10 +504,19 @@ proportional to the power declared.
 **`lockedBond` per publisher.** Without it, one deposit backs unlimited pins and
 every claim of collateral is a lie.
 
-**Approval is spent on capability changes, never code changes.** Every permission
-system in computing has died of fatigue. A rebuild that alters bytes but declares
-the same powers is auto-approved and logged; a version that widens capability stops
-and shows a diff.
+**Every change of bytes needs approving. The capability diff decides how loudly you are
+asked, not whether.** Every permission system in computing has died of fatigue, so a
+rebuild that declares the same powers is a cheap decision — one prompt that says the
+capabilities are unchanged. A version that widens capability names what it gained and
+warrants a slower read.
+
+This used to read "approval is spent on capability changes, never code changes", and the
+CLI skipped the prompt entirely for a capability-identical rebuild. That contradicted the
+thesis directly: the update that inherits authority most quietly is precisely the one whose
+manifest is untouched, so the one case this system exists to catch was the one case nobody
+was asked about. The chain was never the problem — new bytes are a new hash and therefore an
+unapproved pin — the gap was that `lockstep approve` would send that transaction without
+asking.
 
 **No `RugPullBlocked` event.** An earlier version emitted one immediately before
 reverting, which the revert rolls back — so no indexer would ever have received it,
@@ -556,7 +572,7 @@ measurement in the same typeface is not a plan.
 
 ### The constraint that determines everything
 
-The cost of enforcement is negligible: the guard adds **40,029 gas** to a call that would
+The cost of enforcement is negligible: the guard adds **40,349 gas** to a call that would
 otherwise cost 27,113, and a whole guarded transaction settled on Monad testnet came to
 115,207 gas including the trade it was wrapping. Either way, at testnet fee levels it is a
 rounding error. Nobody will decline this because the gas is too expensive.
@@ -833,7 +849,7 @@ exists at all — and it is also why the enforcement has to be free.
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
-| **Monad testnet gas** | **Measured**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling. Enforcement *overhead* is 40,029 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. Both predate the current contracts |
+| **Monad testnet gas** | **Measured**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling. Enforcement *overhead* is 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. **Both testnet figures predate the current contracts**, and predate the self-target check that added 320 gas per call |
 | Dashboard (Next.js static export) | Done, 472 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
 | Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
 | Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
@@ -1194,7 +1210,7 @@ rolled back with the revert, it made rejection more expensive while telling nobo
 
 #### Reconciling the two gas tables
 
-This document reports enforcement at 67,142 gas in one place and 115,207 in another. Both are
+This document reports enforcement at 67,462 gas in one place and 115,207 in another. Both are
 real measurements and neither is the other's correction, which is worth spelling out because a
 reader who spots the gap and gets no explanation is right to distrust every other number here.
 
@@ -1208,7 +1224,7 @@ They differ in three ways, and the differences account for the gap:
 | state | warm | cold |
 
 Subtracting the parts the local measurement does not contain — 21,000 intrinsic and 39,822 for
-the transfer — leaves roughly 54,000 for the guard and registry on chain against 67,142
+the transfer — leaves roughly 54,000 for the guard and registry on chain against 67,462
 locally, and the remainder is cold-storage access that a warm local run never pays.
 
 **Which number to quote depends on the question.** "What does Lockstep cost me?" is the

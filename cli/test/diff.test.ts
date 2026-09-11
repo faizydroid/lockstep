@@ -41,9 +41,12 @@ const pin = (
 
 describe("diffCapabilities", () => {
   /**
-   * The case that must never prompt. A rebuild changes bytes but declares the
-   * same powers, and prompting for it every release is how permission systems
-   * train people to click through without reading.
+   * The case that gets the quieter prompt. A rebuild changes bytes but declares the same
+   * powers, so it is a cheap decision rather than an automatic one.
+   *
+   * This comment used to read "the case that must never prompt", and `approve` honoured it by
+   * skipping confirmation entirely. `widened` is still exactly this flag; what changed is that
+   * it now selects the wording rather than deciding whether the user is asked.
    */
   it("does not report widening when only the code changed", () => {
     const before = pin("aa", [cap(ROUTER, SWAP)]);
@@ -57,7 +60,7 @@ describe("diffCapabilities", () => {
     expect(diff.unchanged).toHaveLength(1);
   });
 
-  /** The case that must always prompt. */
+  /** The case that gets the louder prompt, naming what was gained. */
   it("reports widening when a capability is added", () => {
     const before = pin("aa", [cap(ROUTER, SWAP)]);
     const after = pin("bb", [cap(ROUTER, SWAP), cap(TOKEN, APPROVE)]);

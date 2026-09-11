@@ -108,7 +108,10 @@ export default function DriftPage() {
                       widened &middot; approval required
                     </Pill>
                   ) : (
-                    <Pill tone="bonded" title="Same powers as the approved version. Auto-approvable.">
+                    <Pill
+                      tone="bonded"
+                      title="Same powers as the approved version. Still needs approving, because the bytes changed."
+                    >
                       capability identical
                     </Pill>
                   )}
@@ -177,8 +180,9 @@ export default function DriftPage() {
           <p className="mt-3 measure text-sm leading-relaxed text-muted">
             Widening means one of two things and nothing else: a new (target, selector) pair, or
             a strictly higher native-value ceiling. Removing a capability or lowering the ceiling
-            is a narrowing and is auto-approved. A recompile that changes every byte but declares
-            the same powers is therefore silent. That distinction is the difference between a
+            is a narrowing. Every change of bytes still needs your approval, whichever it is &mdash;
+            what the distinction changes is how loudly you are asked, not whether. That is the
+            difference between a
             permission system people read and one that trains them to click through.
           </p>
         </Card>

@@ -109,7 +109,7 @@ showing a skill name shows the publisher beside it.
 678 off-chain unit tests; 76 end-to-end against a real chain, which includes every hand-written ABI
 fragment checked against the compiled artifacts.
 
-**Gas, measured, with the scope stated.** Enforcement overhead is **40,029 gas** on a call that would
+**Gas, measured, with the scope stated.** Enforcement overhead is **40,349 gas** on a call that would
 otherwise cost 27,113 — the `execute` call alone, warm, excluding the 21,000 intrinsic cost. A whole
 guarded transaction on Monad testnet, cold, wrapping a real ERC-20 transfer, came to 115,207.
 Refusing is cheaper than settling (62,181), which is why there is no event emitted before a revert:

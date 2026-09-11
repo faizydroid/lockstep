@@ -175,7 +175,7 @@ Removing a capability is a narrowing. It never asks.
 
 **Captions.**
 ```
-Enforcement overhead: 40,029 gas. ~3.1k per additional call in a batch.
+Enforcement overhead: 40,349 gas. ~3.4k per additional call in a batch.
 Refusing (62,181) is cheaper than settling. The safe path is the cheap path.
 Bond velocity: B/W. 6s window vs 4min ≈ 40x capital efficiency.
 Measured in contracts/test/BondVelocity.t.sol

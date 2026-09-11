@@ -35,6 +35,8 @@ import {PinRegistry} from "./PinRegistry.sol";
 ///   - the batch holds no more than `MAX_CALLS` calls
 ///   - the pin is one the account holder explicitly approved
 ///   - the pin has not been revoked by its publisher
+///   - no call in the batch targets the account itself, so a batch cannot reach this contract's
+///     own policy setters (see the note in `execute`)
 ///
 /// ## The value ceiling used to be per call, and that bounded nothing
 ///
@@ -138,6 +140,8 @@ contract LockstepGuard {
     error EmptyBatch();
     error TooManyCalls(uint256 count, uint256 max);
     error CallReverted(uint256 index);
+    /// @dev A batch named the account itself as a call target. See the note in `execute`.
+    error SelfCallRefused(uint256 index);
 
     /// @dev Largest batch `execute` will accept.
     ///
@@ -186,8 +190,16 @@ contract LockstepGuard {
 
     /// @dev Only the account itself. Under 7702 `address(this)` is the account, so
     ///      this permits exactly one caller: a transaction the account holder
-    ///      signed to their own address. Executors deliberately cannot change
-    ///      policy - an agent must never be able to widen its own permissions.
+    ///      signed to their own address. Executors cannot change policy - an agent
+    ///      must never be able to widen its own permissions.
+    ///
+    ///      That sentence used to end "deliberately cannot", stated absolutely, and it was
+    ///      **conditionally false**. This modifier closes the direct path only: an executor calling
+    ///      `authorizeExecutor` at the account is refused with `NotSelf`, and two tests covered
+    ///      exactly that. Neither covered the nested path, where `execute` makes a call *from* the
+    ///      account to the account and so satisfies this check on the inner call. The claim is true
+    ///      again because `execute` now refuses the account as a call target, not because this
+    ///      modifier was ever sufficient on its own. The reasoning is recorded there.
     // forge-lint: disable-next-line(unwrapped-modifier-logic)
     modifier onlySelf() {
         // Deliberately not extracted into an internal function. The lint suggests that to shrink
@@ -272,8 +284,29 @@ contract LockstepGuard {
         // sum to 1 — so the total would sit under the ceiling while each call moved a fortune.
         // Verified by removing the check: the budget passed and only the account's balance stopped
         // the batch. See `test_theValueTotalCannotBeWrappedAroundTheCeiling`.
+        //
+        // The same pre-flight pass refuses the account as a call target, and that check closes a
+        // confirmed privilege escalation rather than guarding a hypothetical one.
+        //
+        // `onlySelf` requires `msg.sender == address(this)`, which under 7702 means a transaction
+        // the owner signed to their own address. But `execute` makes its calls *from* the account,
+        // so a call whose target is the account satisfies `onlySelf` on the inner call. An executor
+        // could therefore route `authorizeExecutor(attacker)` or `approvePin(anything)` through a
+        // batch and change policy without the owner signing anything — the exact thing this
+        // contract's documentation said was impossible. It needed an approved pin that declared
+        // `(accountAddress, policySelector)`, so it was narrow and targeted rather than broadly
+        // exploitable, and it was still reachable. Established by test, not by inspection: see
+        // `SelfCallEscalationTest`.
+        //
+        // Refusing *every* self-target rather than blacklisting the four policy selectors is
+        // deliberate. A selector blacklist has to be maintained in step with the contract's own
+        // surface, so any function added later is permitted until someone remembers this list; the
+        // target check fails closed for all of them at once. Nothing legitimate is lost — the guard
+        // exposes no other function worth batching, and a plain value transfer to self is a no-op
+        // that `receive()` already covers.
         uint256 total = 0;
         for (uint256 i = 0; i < calls.length; ++i) {
+            if (calls[i].target == address(this)) revert SelfCallRefused(i);
             total += calls[i].value;
         }
         if (total > ceiling) revert BatchValueExceedsCeiling(total, ceiling);

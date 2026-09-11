@@ -108,7 +108,9 @@ contract PinRegistryBondTest is Fixtures {
     /// would silently under-price the most dangerous capability there is.
     function test_allHighRiskSelectorsAreRegistered() public view {
         bytes4[] memory selectors = HighRiskSelectors.all();
-        assertEq(selectors.length, 12);
+        // 14, not 12: the guard's own `approvePin` and `authorizeExecutor` were added after a test
+        // showed a policy rewrite was priced below an ERC-20 approve. See HighRiskSelectors.
+        assertEq(selectors.length, 14);
         for (uint256 i = 0; i < selectors.length; ++i) {
             assertTrue(registry.isHighRiskSelector(selectors[i]), "selector not registered");
         }

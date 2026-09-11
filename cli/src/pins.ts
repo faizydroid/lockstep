@@ -1,11 +1,16 @@
 /**
  * Pin discovery and capability diffing.
  *
- * The diff is the heart of the approval UX. Approval is spent on capability
- * changes, never on code changes: a rebuild that alters bytes but declares the
- * same powers should not interrupt anyone, while a version that adds `approve` on
- * a token must stop and be read. Getting this distinction right is what keeps the
- * product from dying of permission fatigue.
+ * The diff is the heart of the approval UX. It decides how loudly a change is presented,
+ * not whether it is presented: a rebuild that alters bytes but declares the same powers is
+ * a cheap decision, while a version that adds `approve` on a token must stop and be read.
+ * Getting that distinction right is what keeps the product from dying of permission
+ * fatigue.
+ *
+ * `widened` used to decide whether the user was asked at all, and a capability-identical
+ * rebuild was approved with no prompt. That is the quietest possible inheritance of
+ * financial authority, which is the thing this product exists to prevent, so it now always
+ * prompts. See `commands/approve.ts`.
  */
 
 import type { Address, Hex, PublicClient } from "viem";
