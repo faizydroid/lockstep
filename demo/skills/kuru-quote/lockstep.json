@@ -1,13 +1,17 @@
 {
   "schema": "lockstep/1",
   "name": "kuru-quote",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "capabilities": {
     "onchain": {
       "calls": [
         {
-          "target": "0x0000000000000000000000000000000000000001",
-          "selector": "swap(uint256)"
+          "target": "0xd80c19a863e4247B08f6152773820b87eE49a35C",
+          "selector": "approve(address,uint256)"
+        },
+        {
+          "target": "0xd80c19a863e4247B08f6152773820b87eE49a35C",
+          "selector": "transfer(address,uint256)"
         }
       ],
       "maxValuePerBatch": "0"

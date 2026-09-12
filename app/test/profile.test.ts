@@ -19,8 +19,21 @@ import {
  * guarded would be confidently wrong at exactly the moment it mattered.
  */
 
-const GUARD = "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510" as Address;
-const LIVE_CODE = "0xef0100c41ece384ee559a30ed350ce26ba563b618a3510";
+const GUARD = "0xee23156D1B7D64aF1b3671290DdcEf6edF734a81" as Address;
+/*
+ * Lowercase, deliberately, because that is what `eth_getCode` returns.
+ *
+ * A 7702 designator is bytes, not a checksummed address, so the node hands it back
+ * lowercased — verified against the live account, which reads
+ * `0xef0100ee23156d1b7d64af1b3671290ddcef6edf734a81`. `parseDelegation` slices the
+ * implementation straight out of those bytes and does not re-checksum it, so the expectation
+ * below is lowercase too.
+ *
+ * Worth a comment because an address-rotation script briefly "corrected" both of these to the
+ * checksummed form and this test caught it. Normalising casing here would be asserting
+ * something the chain does not do.
+ */
+const LIVE_CODE = "0xef0100ee23156d1b7d64af1b3671290ddcef6edf734a81";
 
 describe("parseDelegation", () => {
   it("reads the live account's real code", () => {
@@ -28,7 +41,7 @@ describe("parseDelegation", () => {
     const parsed = parseDelegation(LIVE_CODE);
     expect(parsed.kind).toBe("delegated");
     expect(parsed.kind === "delegated" && parsed.implementation).toBe(
-      "0xc41ece384ee559a30ed350ce26ba563b618a3510",
+      "0xee23156d1b7d64af1b3671290ddcef6edf734a81",
     );
   });
 
@@ -55,7 +68,7 @@ describe("parseDelegation", () => {
 
   it("refuses a prefix-only or truncated indicator", () => {
     expect(parseDelegation("0xef0100").kind).toBe("contract");
-    expect(parseDelegation("0xef0100c41ece").kind).toBe("contract");
+    expect(parseDelegation("0xef0100ee2315").kind).toBe("contract");
   });
 
   it("accepts either casing and normalises", () => {

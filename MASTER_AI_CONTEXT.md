@@ -808,12 +808,12 @@ UNKNOWN ROUTE → not-found.tsx (server component, zero JS)
 
 ## 12. `indexer/` — Envio HyperIndex (PARTIAL: configured and CI-verified, NOT hosted)
 
-`name: lockstep`, `rollback_on_reorg: true`, chain `10143`, `start_block: 59428872`.
+`name: lockstep`, `rollback_on_reorg: true`, chain `10143`, `start_block: 61714758`.
 
 **Why it exists, in one number:** Monad's public RPC caps `eth_getLogs` at 100 blocks. "HyperIndex exists precisely so the read path is not that." The stated split: **the indexer is the read path; the chain is the write path (settlement and dispute only).** Forced by two facts — ERC-8004's `getSummary` iterates a caller-supplied array on chain, and `PinRegistry` stores capabilities in a nested mapping that cannot be enumerated. Both are correct for a single-SLOAD hot path and both mean the readable view must be reconstructed off chain.
 
 **Indexed contracts:**
-- `PinRegistry` at `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b` — 8 events: `Published`, `CapabilityDeclared`, `Revoked`, `Slashed`, `BondDeposited`, `BondWithdrawn`, `BondLocked`, `BondReclaimed`.
+- `PinRegistry` at `0xF0800974aE84F55508E3e31F72A52E09b19829B0` — 8 events: `Published`, `CapabilityDeclared`, `Revoked`, `Slashed`, `BondDeposited`, `BondWithdrawn`, `BondLocked`, `BondReclaimed`.
 - `LockstepGuard` — **`address` deliberately omitted.** Under 7702 guard events are emitted by *each delegated account*, not by a single contract, so there is no fixed address to index; HyperIndex matches on event signature across all senders and handlers key by `event.srcAddress`. "An indexer keyed to the guard address would see nothing, which is the trap this omission avoids." 3 events: `PinApproved`, `PinUnapproved`, `SkillExecuted`. `ExecutorAuthorized`/`ExecutorRevoked` were removed — they were declared with nothing implementing them.
 
 **Schema entities** (`schema.graphql`): `Publisher`, `Pin`, `Capability`, `Approval`, `Execution`, `Slash`, `Global`. **There is no `BlockedAttempt` entity, deliberately** — "Adding an entity here would imply a feed that cannot exist."
@@ -1153,13 +1153,13 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 
 | Contract | Address | Block |
 |---|---|---|
-| `PinRegistry` | `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b` | 59428872 |
-| `LockstepGuard` | `0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510` | 59428911 |
-| `MockBondAsset` (mAUSD, 6dp) | `0xF9D382a5A851dAe325526ec0Aa1a9773221c033A` | 59428803 |
-| `LockstepLens` | `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664` | 59619349 |
+| `PinRegistry` | `0xF0800974aE84F55508E3e31F72A52E09b19829B0` | 61714758 |
+| `LockstepGuard` | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 59428911 |
+| `MockBondAsset` (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 59428803 |
+| `LockstepLens` | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 59619349 |
 | Delegated account | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | code `0xef0100 \|\| guard` |
-| `DEPLOY_BLOCK` (scan start) | 59431400 | |
-| Live pin id | `0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401` | kuru-quote 2.1.0, 2 capabilities, 1 high risk, 1150 mAUSD |
+| `DEPLOY_BLOCK` (scan start) | 61714757 | |
+| Live pin id | `0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4` | kuru-quote 2.1.0, 2 capabilities, 1 high risk, 1150 mAUSD |
 | ERC-8004 Identity | `0x8004a818bfb912233c491871b3d84c89a494bd9e` | UUPS proxy |
 | ERC-8004 Reputation | `0x8004b663056a597dffe9eccc1965a193b7388713` | UUPS proxy |
 

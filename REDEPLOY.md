@@ -171,7 +171,7 @@ cast send <ACCOUNT> "revokeExecutor(address)" 0x769b15B7312504E8102BE080166fcA2a
 cast send <ACCOUNT> "revokeExecutor(address)" 0x85800d32af91eA711755D22267E42282648b6dE8 --private-key %ACCOUNT_PRIVATE_KEY% --rpc-url https://testnet-rpc.monad.xyz
 
 # Unapprove the stale pin. Inert against the new registry, but it reads as approved.
-cast send <ACCOUNT> "unapprovePin(bytes32)" 0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401 --private-key %ACCOUNT_PRIVATE_KEY% --rpc-url https://testnet-rpc.monad.xyz
+cast send <ACCOUNT> "unapprovePin(bytes32)" 0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4 --private-key %ACCOUNT_PRIVATE_KEY% --rpc-url https://testnet-rpc.monad.xyz
 
 # Authorise exactly ONE executor.
 cast send <ACCOUNT> "authorizeExecutor(address)" <EXECUTOR> --private-key %ACCOUNT_PRIVATE_KEY% --rpc-url https://testnet-rpc.monad.xyz

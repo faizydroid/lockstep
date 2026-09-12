@@ -10,7 +10,7 @@ import { isSafeHref, pinIdFromQuery } from "../src/lib/untrusted";
 
 describe("pinIdFromQuery", () => {
   it("accepts a 32-byte hex id in either casing", () => {
-    const id = "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401";
+    const id = "0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4";
     expect(pinIdFromQuery(`?pin=${id}`)).toBe(id);
     expect(pinIdFromQuery(`?pin=${id.toUpperCase().replace("0X", "0x")}`)).toBeDefined();
   });

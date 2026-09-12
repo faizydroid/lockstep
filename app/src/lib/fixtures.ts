@@ -7,7 +7,7 @@
  * that can fail for reasons unrelated to the product.
  *
  * Every value here is taken from the real end-to-end run rather than invented, including the
- * two hashes at the centre of it: the approved skill hashed to 0x233f0359… and, after the
+ * two hashes at the centre of it: the approved skill hashed to 0x9b68b339… and, after the
  * publisher shipped different bytes under the same version string, the copy on disk hashed to
  * 0x1eac5d90…. The guard refused the call with NOT_PINNED. Using the real figures keeps the
  * sample honest and means the numbers on screen match the ones in the write-up.
@@ -43,8 +43,8 @@ const ACCOUNT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Address;
 const EXECUTOR = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as Address;
 
 /** The two hashes from the live run. The whole product is the difference between them. */
-export const APPROVED_HASH = "0x233f0359c38d87e332c87aa294aab227d89d2a12ece44b254e65ddb4011681ef" as Hex;
-export const DRIFTED_HASH = "0x1eac5d908cd7ab20417efb5ee1f7a563c82b62d6affd97ab5e86012772783b04" as Hex;
+export const APPROVED_HASH = "0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80" as Hex;
+export const DRIFTED_HASH = "0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da" as Hex;
 
 const cap = (target: Address, signature: string, highRisk: boolean): Capability => ({
   target,
@@ -203,7 +203,7 @@ export const sampleExecutions: readonly Execution[] = [
 
 export const sampleBlocked: readonly BlockedAttempt[] = [
   {
-    txHash: "0x1eac5d908cd7ab20417efb5ee1f7a563c82b62d6affd97ab5e86012772783b04" as Hex,
+    txHash: "0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da" as Hex,
     account: ACCOUNT,
     reason: "skill version does not match the approved pin",
     attestedSkillHash: DRIFTED_HASH,

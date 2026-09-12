@@ -24,8 +24,11 @@ const OUT = join(ROOT, "app", "out");
  * Strips tags before matching text.
  *
  * Necessary because the hash-diff view deliberately splits a hash into a dimmed shared prefix
- * and a highlighted remainder. Searching raw markup for "0x233f0359" fails on the span boundary
- * between "0x" and "233f0359" -- that is the component doing its job, not a missing value.
+ * and a highlighted remainder. Searching raw markup for "0x9b68b339" fails on the span boundary
+ * between "0x" and "9b68b339" -- that is the component doing its job, not a missing value.
+ *
+ * Note these are 8-character truncations of the live skill hashes, which is why an address
+ * rotation that only matches full values leaves them stale. This gate caught exactly that.
  */
 function textOf(html) {
   return html
@@ -55,8 +58,8 @@ const PAGES = {
   index: [
     "A lockfile for",
     "agent money.",
-    "233f0359",
-    "1eac5d90",
+    "9b68b339",
+    "960ea319",
     "NOT_PINNED",
 
     /*
@@ -544,7 +547,7 @@ function checkLensWiring(problems) {
    * switch is therefore checked by looking for the deployed address itself, case-insensitively:
    * minifiers preserve string contents, but the source and the chain disagree on EIP-55 casing.
    */
-  const lensWired = /0x3338c4f5c8eefeacf8e41d6ac47b63c466175664/i.test(bundle);
+  const lensWired = /0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc/i.test(bundle);
   process.stdout.write(`  lens address inlined   ${lensWired ? "ok" : "NOT CONFIGURED"}\n`);
   if (!lensWired) {
     problems.push(

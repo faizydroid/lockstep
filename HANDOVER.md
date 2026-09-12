@@ -229,7 +229,7 @@ values, and three values in `indexer/config.yaml` (`start_block`, the registry a
 `0xef0100 || guard` comment). `indexer/README.md` lists that last set precisely. Then re-run CI, and
 re-record any video beat showing an address.
 
-**One trap:** the demo account's code is `0xef0100c41ece…`, meaning it is EIP-7702 delegated to the
+**One trap:** the demo account's code is `0xef0100ee2315…`, meaning it is EIP-7702 delegated to the
 **old** guard. A new guard means re-signing the delegation, or the account keeps routing through the
 contract you just replaced. This is the step most likely to be forgotten, and the symptom is a demo
 that appears to work while proving nothing.

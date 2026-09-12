@@ -4,7 +4,7 @@
  * This exists because of a design failure worth naming. The whole product is the difference
  * between two hashes -- the bytes the account owner approved, and the bytes that would actually
  * run -- and the obvious way to show that is two lines of monospace text. But
- * `0x233f0359c38d…` and `0x1eac5d908cd7…` are indistinguishable to a reader who is not
+ * `0x9b68b339278f…` and `0x960ea319b251…` are indistinguishable to a reader who is not
  * deliberately comparing character by character. A judge watching a three-minute demo will not do
  * that. So the most important fact in the system was the least visible thing on screen.
  *

@@ -27,7 +27,7 @@ function liveSnapshot(patch: Partial<Snapshot> = {}): Snapshot {
     source: {
       kind: "chain",
       chainId: 10143,
-      registry: "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b" as Address,
+      registry: "0xF0800974aE84F55508E3e31F72A52E09b19829B0" as Address,
       blockNumber: 59640065n,
     },
     approvals: [],

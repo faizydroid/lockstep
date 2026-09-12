@@ -34,11 +34,11 @@ chains:
     # The block PinRegistry was created in, from
     # contracts/broadcast/Deploy.s.sol/10143/run-latest.json. Starting at 0 would scan
     # ~59 million empty blocks before reaching anything this indexer cares about.
-    start_block: 59428872
+    start_block: 61714758
     contracts:
       - name: PinRegistry
         address:
-          - "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b"
+          - "0xF0800974aE84F55508E3e31F72A52E09b19829B0"
         handler: src/EventHandlers.ts
         events:
           - event: Published(bytes32 indexed pinId, address indexed publisher, bytes32 indexed skillHash, bytes32 versionId, string name, string version, uint256 maxValuePerBatch, uint256 capabilityCount, uint256 highRiskCount, uint256 requiredBond)
@@ -57,7 +57,7 @@ chains:
       # `event.srcAddress`, which is the account.
       #
       # Confirmed on the live deployment: 0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2 carries
-      # code 0xef0100 || 0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510 and emits PinApproved
+      # code 0xef0100 || 0xee23156D1B7D64aF1b3671290DdcEf6edF734a81 and emits PinApproved
       # and SkillExecuted from its own address, not the guard's. An indexer keyed to the
       # guard address would see nothing, which is the trap this omission avoids.
       #

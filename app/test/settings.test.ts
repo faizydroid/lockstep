@@ -87,14 +87,14 @@ describe("parse", () => {
       JSON.stringify({
         rpcUrl: "javascript:alert(1)",
         account: "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2",
-        deployBlock: "59431400",
+        deployBlock: "61714757",
         motion: "reduced",
       }),
     );
 
     expect(parsed.rpcUrl).toBeUndefined();
     expect(parsed.account).toBe("0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2");
-    expect(parsed.deployBlock).toBe(59431400n);
+    expect(parsed.deployBlock).toBe(61714757n);
     expect(parsed.motion).toBe("reduced");
   });
 
@@ -156,7 +156,7 @@ describe("serialise", () => {
     const settings: Settings = {
       rpcUrl: "https://testnet-rpc.monad.xyz",
       account: "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2",
-      deployBlock: 59431400n,
+      deployBlock: 61714757n,
       motion: "full",
       completedSteps: ["connect-wallet"],
       quickstartDismissed: true,

@@ -51,28 +51,28 @@ import { readFileSync, writeFileSync } from "node:fs";
  * account read as guarded.
  */
 const VALUES = [
-  { key: "registry", flag: "--registry", old: "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b" },
-  { key: "guard", flag: "--guard", old: "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510" },
-  { key: "lens", flag: "--lens", old: "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664" },
-  { key: "bondAsset", flag: "--bond-asset", old: "0xF9D382a5A851dAe325526ec0Aa1a9773221c033A" },
+  { key: "registry", flag: "--registry", old: "0xF0800974aE84F55508E3e31F72A52E09b19829B0" },
+  { key: "guard", flag: "--guard", old: "0xee23156D1B7D64aF1b3671290DdcEf6edF734a81" },
+  { key: "lens", flag: "--lens", old: "0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc" },
+  { key: "bondAsset", flag: "--bond-asset", old: "0xd80c19a863e4247B08f6152773820b87eE49a35C" },
   { key: "account", flag: "--account", old: "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2" },
   {
     key: "pinId",
     flag: "--pin-id",
-    old: "0x0573e8dd6c49cffb9c00dbf3eb224b0ee1abab6bae817b95f07d9a1273736401",
+    old: "0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4",
   },
   {
     key: "skillHash",
     flag: "--skill-hash",
-    old: "0x233f0359c38d87e332c87aa294aab227d89d2a12ece44b254e65ddb4011681ef",
+    old: "0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80",
   },
   {
     key: "driftedHash",
     flag: "--drifted-hash",
-    old: "0x1eac5d908cd7ab20417efb5ee1f7a563c82b62d6affd97ab5e86012772783b04",
+    old: "0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da",
   },
-  { key: "deployBlock", flag: "--deploy-block", old: "59431400" },
-  { key: "indexerStartBlock", flag: "--indexer-start-block", old: "59428872" },
+  { key: "deployBlock", flag: "--deploy-block", old: "61714757" },
+  { key: "indexerStartBlock", flag: "--indexer-start-block", old: "61714758" },
 ];
 
 function arg(flag) {
@@ -111,7 +111,7 @@ if (supplied.length === 0) {
 /*
  * Derived designator pair, added only when the guard rotates.
  *
- * Longest-first ordering matters: the truncated form `0xef0100c41ece` appears in prose and in a
+ * Longest-first ordering matters: the truncated form `0xef0100ee2315` appears in prose and in a
  * test, and is a prefix of the full 23-byte designator. Replacing the short form first would
  * corrupt the long one into a mix of both guards.
  */
@@ -125,6 +125,35 @@ if (guardChange !== undefined) {
     label: "delegationCode (truncated)",
     old: `0xef0100${guardChange.old.slice(2, 8)}`,
     new: `0xef0100${guardChange.new.slice(2, 8)}`,
+  });
+}
+
+/*
+ * Eight-character truncations of the two skill hashes, appended last so the full forms are
+ * consumed first.
+ *
+ * These exist because `scripts/check-export.mjs` asserts hash *prefixes* against the built HTML
+ * — the hash-diff component splits a hash across two spans, so the full string never appears in
+ * the markup. A rotation matching only full values left those assertions pointing at the
+ * previous deployment, and the export gate failed on `index.html is missing: 233f0359, 1eac5d90`.
+ * That is the gate working, and it is also the second time truncation caught this script out.
+ *
+ * Deliberately NOT applied to arbitrary-length prefixes. `app/test/fingerprint.test.ts` and
+ * `app/test/format.test.ts` both contain synthetic hex that happens to share a prefix with a live
+ * hash — one testing a single-nibble difference, the other testing that two hashes sharing a
+ * prefix still render distinguishably. Rewriting those would change what the tests are about, so
+ * anything below 8 characters or not followed by hash-like context is left alone and the two
+ * files above are excluded by name.
+ */
+const PREFIX_EXEMPT = new Set(["app/test/fingerprint.test.ts", "app/test/format.test.ts"]);
+for (const key of ["skillHash", "driftedHash"]) {
+  const v = supplied.find((x) => x.key === key);
+  if (v === undefined) continue;
+  replacements.push({
+    label: `${key} (8-char prefix)`,
+    old: v.old.slice(2, 10),
+    new: v.new.slice(2, 10),
+    prefixOnly: true,
   });
 }
 
@@ -153,12 +182,28 @@ for (const file of files) {
   let updated = text;
   const perFile = [];
   for (const r of replacements) {
-    // Case-insensitive because addresses appear checksummed, lowercased, and inside a
-    // designator. The replacement always writes the canonical form supplied on the CLI.
+    if (r.prefixOnly === true && PREFIX_EXEMPT.has(file)) continue;
+    // Case-insensitive, because an address appears checksummed in config, lowercased inside a
+    // 7702 designator, and either way in prose.
     const re = new RegExp(r.old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
     const n = (updated.match(re) ?? []).length;
     if (n === 0) continue;
-    updated = updated.replace(re, r.new);
+    /*
+     * Casing of the match is preserved, and this is not cosmetic.
+     *
+     * An earlier version always wrote the canonical checksummed form. That silently "corrected"
+     * `app/test/profile.test.ts`, where the fixture is a designator read from `eth_getCode` and
+     * is lowercase *because the chain returns it that way* — `parseDelegation` slices the
+     * implementation out of those bytes and does not re-checksum it. Normalising the casing made
+     * the test assert something the node never produces, and it failed, which is the only reason
+     * this was caught rather than shipped.
+     *
+     * So: a match that was entirely lowercase is replaced with the lowercase form. Anything else
+     * gets the canonical value as supplied.
+     */
+    updated = updated.replace(re, (match) =>
+      match === match.toLowerCase() ? r.new.toLowerCase() : r.new,
+    );
     perFile.push(`${n}x ${r.label}`);
     touchedOccurrences += n;
   }
@@ -189,6 +234,7 @@ if (WRITE) {
       continue;
     }
     for (const r of replacements) {
+      if (r.prefixOnly === true && PREFIX_EXEMPT.has(file)) continue;
       const re = new RegExp(r.old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
       const n = (text.match(re) ?? []).length;
       if (n > 0) survivors.push(`${file}: ${n}x ${r.label} (${r.old})`);

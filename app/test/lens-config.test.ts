@@ -31,8 +31,8 @@ describe("readConfig, for the Lens", () => {
   });
 
   it("reads a well-formed lens address", () => {
-    process.env.NEXT_PUBLIC_LOCKSTEP_LENS = "0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664";
-    expect(readConfig().lens).toBe("0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664");
+    process.env.NEXT_PUBLIC_LOCKSTEP_LENS = "0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc";
+    expect(readConfig().lens).toBe("0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc");
   });
 
   it("rejects the zero address, which is the common way to look configured and not be", () => {

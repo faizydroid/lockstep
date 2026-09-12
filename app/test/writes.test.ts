@@ -22,8 +22,8 @@ import {
 import type { WriteName } from "@/lib/writes";
 
 const ACCOUNT = "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2" as Address;
-const REGISTRY = "0xe784a386591cFcE683fAd2C678C8A3c282a9e17b" as Address;
-const GUARD = "0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510" as Address;
+const REGISTRY = "0xF0800974aE84F55508E3e31F72A52E09b19829B0" as Address;
+const GUARD = "0xee23156D1B7D64aF1b3671290DdcEf6edF734a81" as Address;
 const PIN_A = `0x${"11".repeat(32)}` as Hex;
 const PIN_B = `0x${"22".repeat(32)}` as Hex;
 

@@ -1060,8 +1060,8 @@ PASS: the rug pull was refused, and the agent was told why.
 ```
 
 The rug-pull run is the one that matters. The approved bytes hashed to
-`0x233f0359c38d87e332c87aa294aab227d89d2a12ece44b254e65ddb4011681ef`; after the swap the
-bytes on disk hashed to `0x1eac5d908cd7ab20417efb5ee1f7a563c82b62d6affd97ab5e86012772783b04`.
+`0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80`; after the swap the
+bytes on disk hashed to `0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da`.
 Provenance still resolved — the skill really was in context — and the guard refused anyway.
 The model reported it back as **`Swap failed with error code: NOT_PINNED`**.
 

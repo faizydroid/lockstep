@@ -878,8 +878,8 @@ The first settles and emits `SkillExecuted`. The second reverts at the guard wit
 
 | | skill hash |
 |---|---|
-| approved | `0x233f0359c38d87e332c87aa294aab227d89d2a12ece44b254e65ddb4011681ef` |
-| on disk, after the swap | `0x1eac5d908cd7ab20417efb5ee1f7a563c82b62d6affd97ab5e86012772783b04` |
+| approved | `0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80` |
+| on disk, after the swap | `0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da` |
 
 Nothing about the skill's name or version string changes between the two runs. That
 is the whole point: a policy that trusts labels permits the second one.
@@ -1083,10 +1083,10 @@ and compared against the source **as it stood when they were deployed**.
 
 | | address | deployed in block |
 |---|---|---|
-| PinRegistry | `0xe784a386591cFcE683fAd2C678C8A3c282a9e17b` | 59428872 |
-| LockstepGuard | `0xC41eCe384Ee559A30Ed350Ce26ba563B618A3510` | 59428911 |
-| MockBondAsset (mAUSD, 6dp) | `0xF9D382a5A851dAe325526ec0Aa1a9773221c033A` | 59428803 |
-| LockstepLens | `0x3338c4F5c8eEFeACF8e41d6ac47B63c466175664` | 59619349 |
+| PinRegistry | `0xF0800974aE84F55508E3e31F72A52E09b19829B0` | 61714758 |
+| LockstepGuard | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 59428911 |
+| MockBondAsset (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 59428803 |
+| LockstepLens | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 59619349 |
 | Account, delegated via EIP-7702 | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | — |
 
 **The bond asset is a freely mintable mock, and "freely" means exactly that.** `MockBondAsset`
@@ -1154,7 +1154,7 @@ Three consequences worth stating, since they shape what the panel is:
 **EIP-7702 works.** The account's code is `0xef0100` followed by the guard's address:
 
 ```
-0xef0100c41ece384ee559a30ed350ce26ba563b618a3510
+0xef0100ee23156d1b7d64af1b3671290ddcef6edf734a81
 ```
 
 `isPinApproved` and `isExecutorAuthorized` both persist in the ERC-7201 namespaced slot,
@@ -1173,10 +1173,10 @@ Replaying the refusal shows the guard reading the pin and stopping before the to
 moves:
 
 ```
-[38213] 0x209C…aFF2::execute(pinId, 0x1eac5d90…, [(mAUSD, 0, transfer(...))])
+[38213] 0x209C…aFF2::execute(pinId, 0x960ea319…, [(mAUSD, 0, transfer(...))])
   ├─ [17769] 0xe784…e17b::verify(pinId, mAUSD, 0xa9059cbb) [staticcall]
-  │   └─ ← 0x233f0359…  (the pinned hash)
-  └─ ← [Revert] SkillHashMismatch(0x1eac5d90…, 0x233f0359…)
+  │   └─ ← 0x9b68b339…  (the pinned hash)
+  └─ ← [Revert] SkillHashMismatch(0x960ea319…, 0x9b68b339…)
 ```
 
 Both hashes survive in the revert reason, which is how the watcher reconstructs blocked
@@ -1307,7 +1307,7 @@ so this is a report rather than an explanation.
 
 Narrowed further since: **contract creation from the same delegated account also works.**
 `LockstepLens` was deployed by a `CREATE` transaction from `0x209C…aFF2` while that account
-was carrying `0xef0100c41ece…`, and it succeeded. So whatever rejects the transfer is
+was carrying `0xef0100ee2315…`, and it succeeded. So whatever rejects the transfer is
 specific to a plain value send rather than a general restriction on delegated senders, which
 narrows the search without closing it.
 
