@@ -10,7 +10,7 @@ Submission is **11 October 2026**. Today is **2 September 2026**.
 | 1 | [Cloudflare Pages + domain](#1-cloudflare-pages-and-the-domain) | ~20 min | do now | the dashboard link in every doc |
 | 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr to start | **start now, 4+ week lead** | three demo claims |
 | 3 | [Record the video](#3-record-the-video) | ~3 hrs | after 1 | the submission |
-| 4 | [Redeploy the contracts](#4-the-redeploy-decision) | ~45 min | your call | honesty of the live addresses |
+| 4 | [Redeploy the contracts](#4-redeploy-the-contracts--completed) | **DONE** | — | — |
 | 5 | [Envio Cloud](#5-envio-cloud-do-this-late-on-purpose) | ~15 min | **wait until October** | an Envio bounty |
 | 6 | [Marketplace listing](#6-marketplace-listing-optional) | ~15 min | optional | discovery only |
 | 7 | [Submit](#7-submit) | ~30 min | 11 Oct | — |
@@ -21,8 +21,8 @@ Task 2 has the longest lead time and the least to do. Start it before task 1.
 
 ## Current state, so you can trust the rest of this
 
-CI is green on `eb902c3`, which is `main`. 929 tests: 175 contract across 13 suites including 7
-invariants, 678 unit, 76 end-to-end against a real chain.
+CI is green on `58b84fe`, which is `main`. 941 tests: 187 contract across 14 suites including 7
+invariants, 678 unit, 76 end-to-end against a real chain. The dashboard export gate also passed.
 
 The deploy workflow **fires correctly and fails on one line**, which is the honest state of task 1:
 
@@ -170,7 +170,7 @@ someone who is not you is worth more than any code you could add in the same tim
 
 **What to do today:** pick 3–5 maintainers of agent skills, MCP servers, or OpenClaw plugins. Send a
 short message with: the problem in one sentence, the dashboard link once it is live, and one concrete
-ask — add `faizydroid/lockstep/action@v0.1.0` to their release workflow.
+ask — add `faizydroid/lockstep/action@v0.1.1` to their release workflow.
 
 The Action is the ask, not the contracts. It is a dozen lines of YAML in a repository they already
 control, and it needs no wallet, no bond and no chain interaction to try.
@@ -211,36 +211,25 @@ Record it. Do not perform it live.
 
 ---
 
-## 4. The redeploy decision
+## 4. Redeploy the contracts — completed
 
-**This is a judgement call, and I have deliberately not made it for you.**
+The redeploy is complete on Monad testnet (chain 10143). The current committed addresses and
+configuration now match the audited source, and the account was re-delegated with
+`--self-broadcast`. The carried-over ERC-7201 approvals and executor state were cleaned before the
+new policy was installed; the publisher, account, executor and slash recipient are separate.
 
-The contracts currently deployed on Monad testnet **predate this month's security pass.** Four
-exploitable defects were found and fixed in the source; the live addresses do not have those fixes.
-Every document in the repository says so, in those words. Nothing is claiming otherwise, so this is
-not dishonest as it stands — it is just less impressive than it could be.
+Evidence kept in `.scratch/evidence.json` and `.scratch/m10.txt`:
 
-**Cost:** simulated at 5,589,160 gas, about **1.135 MON**. The demo account
-`0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` holds 4.025 MON, so it is affordable.
+- delegation: `0x072e5aed8692361b921e77da13373fd785a451b32972dd6991e5412fae9f442c`
+- successful `SkillExecuted`: `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8`
+  (block 62009032; the account balance changed from 10,000 to 9,750 mAUSD)
+- refusal: `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`
+  (`SkillHashMismatch`, reverted, zero logs, no balance change)
+- verification: CI is green on `58b84fe`, and `npm run verify:dashboard` passed with exit 0.
 
-**Work after broadcasting:** roughly six signed transactions, then rotating the new addresses through
-~15 files — `.env.example`, `README.md`, `SUBMISSION.md`, both workflows' seven `NEXT_PUBLIC_*`
-values, and three values in `indexer/config.yaml` (`start_block`, the registry address, and the
-`0xef0100 || guard` comment). `indexer/README.md` lists that last set precisely. Then re-run CI, and
-re-record any video beat showing an address.
-
-**One trap:** the demo account's code is `0xef0100ee2315…`, meaning it is EIP-7702 delegated to the
-**old** guard. A new guard means re-signing the delegation, or the account keeps routing through the
-contract you just replaced. This is the step most likely to be forgotten, and the symptom is a demo
-that appears to work while proving nothing.
-
-**My read:** do it only if you are recording the video afterwards, not before. A redeploy that
-invalidates footage you already shot costs more than it gains. If the video is done and the addresses
-are stale, leave them and let the disclosure stand — it is already written and a judge who reads it
-sees deliberate scoping rather than a gap.
-
-Everything is staged: `.scratch\sim-deploy.cmd`, which needs `--tc Deploy`. The only key present is
-`ACCOUNT_PRIVATE_KEY` in `.env.local`.
+The bond asset remains a freely mintable mock on testnet. Cloudflare deployment and automatic pin
+publishing still need repository credentials/settings owned by the maintainer; neither is a source
+change that can be completed honestly from this checkout.
 
 ---
 
@@ -273,7 +262,7 @@ deletion. `indexer/README.md` has the full detail.
 ## 6. Marketplace listing (optional)
 
 **The Action already works without this.** `uses:` accepts a subdirectory, so
-`faizydroid/lockstep/action@v0.1.0` is a complete, valid reference today. A listing adds a searchable
+`faizydroid/lockstep/action@v0.1.1` is a complete, valid reference today. A listing adds a searchable
 page and nothing else. Skip it if time is short.
 
 It cannot be done from this repository: the Marketplace requires exactly one action per repository
@@ -281,12 +270,12 @@ with its metadata at the repository **root**, and this is a monorepo with the me
 `action/action.yml`. No configuration changes that.
 
 ```powershell
-node scripts/publish-action-repo.mjs --dry-run --version v0.1.0   # inspect first
+node scripts/publish-action-repo.mjs --dry-run --version v0.1.1   # inspect first
 gh repo create faizydroid/lockstep-action --public
-node scripts/publish-action-repo.mjs --version v0.1.0
+node scripts/publish-action-repo.mjs --version v0.1.1
 ```
 
-Then on that repository: **Releases** → **Draft a new release** → pick tag `v0.1.0` → tick
+Then on that repository: **Releases** → **Draft a new release** → pick tag `v0.1.1` → tick
 **Publish this Action to the GitHub Marketplace** → accept the terms → publish.
 
 The script force-pushes `main` there, because it is a generated snapshot with no history worth
@@ -307,23 +296,29 @@ Track 04, Monad Metropolis, deadline 11 October 2026.
 
 ---
 
-## One decision I left for you
+## The tag decision, resolved
 
-The tag `v0.1.0` points at `3e65306`, and **CI failed on that commit.** The failure was the missing
-`_headers` step, fixed in `691dcba`.
+**`v0.1.0` stays where it is. `v0.1.1` marks the stable release.** Reasoning, because the
+alternative was tempting and wrong.
 
-`action/` and `LICENSE` are byte-identical between the tag and `main` — the only difference in the
-whole tree is two workflow files — so `faizydroid/lockstep/action@v0.1.0` is correct and unaffected.
-But the repository *at that tag* does not pass its own CI, and that is visible to anyone who looks.
+`v0.1.0` points at `3e65306`, whose CI failed on the missing `_headers` step. Force-moving it to a
+green commit was the obvious tidy-up, and I decided against it for one reason that outweighs the
+tidiness: **that tree also contains the privilege escalation, the inverted bond pricing, and the
+CLI that approved capability-identical byte changes without asking.** Relocating the tag would
+quietly delete the record that a vulnerable version was ever tagged, in a project whose entire
+credibility rests on documenting its own defects rather than hiding them. A moved tag is also a
+force-push to a shared ref on a public repository.
 
-Moving a published tag is normally the wrong instinct. Here it is about an hour old, nothing consumes
-it, and no release has been drafted from it. My recommendation is to move it to the green commit:
+So the history stays intact and `v0.1.1` marks the finalized redeployed release built on the
+verified `58b84fe` source. The release commit contains only the documentation and workflow hygiene
+needed to make that state reproducible; it does not move `v0.1.0`.
 
-```powershell
-git tag -f -a v0.1.0 -m "v0.1.0 - first tagged release"
-git push --force origin v0.1.0
+`action/` is byte-identical between `v0.1.0` and the new release, so nothing pinned to the old tag
+breaks. Every recommendation in this repository now points at `v0.1.1`, because the tree around the
+Action is materially better even where the Action itself is unchanged.
+
+Consume the Action as:
+
+```yaml
+- uses: faizydroid/lockstep/action@v0.1.1
 ```
-
-That is a force-push to a shared ref, which is why I have not run it. Say the word and I will, or
-run it yourself, or leave it and cut `v0.1.1` from `main` instead — that is the non-destructive
-option and it is equally defensible.

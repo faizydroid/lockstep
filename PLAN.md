@@ -80,7 +80,7 @@ agent wants to move funds
   → runtime attaches keccak256(loaded skill bytes)
   → LockstepGuard: is there an approved pin matching this hash for this account?
        match     → execute
-       mismatch  → revert, emit RugPullBlocked
+       mismatch  → revert with SkillHashMismatch(attested, pinned); no log survives the revert
 ```
 
 That is the entire critical path. Everything else is off it.
@@ -210,13 +210,11 @@ is the ERC-8004 spec URI, which identifies it rather than making it plausible. C
 `[x]` done and evidenced in the repo. `[~]` built but not live, with the reason stated. `[ ]` not done.
 Where reality diverged from what this plan assumed, the line says so instead of being quietly reworded.
 
-> **Every on-chain address, transaction hash and gas figure below predates a security pass that
-> found four exploitable defects.** The evidence is real — those transactions happened and did
-> what the lines say — but the code at those addresses is no longer the code in `contracts/src`.
-> The pass is written up in [README → What the security pass found](README.md#what-the-security-pass-found)
-> and [FINDINGS §38](FINDINGS.md). A redeploy is prepared and simulated but not broadcast, because
-> it rotates every address here and invalidates the hashes cited as proof. Lines are left as they
-> were rather than back-dated, per the note above.
+> **The Week 1–2 transactions and measurements below are historical evidence from before the security
+> pass.** They remain accurate records of what those old deployments did. The current deployment,
+> addresses and fresh success/refusal receipts are recorded in `README.md` and `.env.example`; the
+> redeploy is complete rather than merely simulated. Lines that describe the original kill gate remain
+> historical instead of being silently back-dated.
 
 ### Week 1 · Sep 2–8 — **KILL GATE**
 
@@ -236,7 +234,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 
 ### Week 3 · Sep 16–22 — Adoption removal
 - [x] Sandbox replay on forked Monad → draft capability sets — `sandbox/`.
-- [x] `lockstep-action` GitHub Action written and green in CI — `action/action.yml`. **Usable now as `faizydroid/lockstep/action@v0.1.0`**; `uses:` accepts a subdirectory. **Not listed on the Marketplace, and "needs the repo public" was the wrong reason** — the repo is public and it still cannot be listed, because the Marketplace requires one action per repository with its metadata at the repository *root*. `scripts/publish-action-repo.mjs` generates the standalone repo that satisfies that; ticking the listing box is a web-UI step. See [README](README.md#why-the-action-is-not-on-the-marketplace).
+- [x] `lockstep-action` GitHub Action written and green in CI — `action/action.yml`. **Usable now as `faizydroid/lockstep/action@v0.1.1`**; `uses:` accepts a subdirectory. **Not listed on the Marketplace, and "needs the repo public" was the wrong reason** — the repo is public and it still cannot be listed, because the Marketplace requires one action per repository with its metadata at the repository *root*. `scripts/publish-action-repo.mjs` generates the standalone repo that satisfies that; ticking the listing box is a web-UI step. See [README](README.md#why-the-action-is-not-on-the-marketplace).
 - [~] Envio indexer — config points at the live registry from block 61714758, 13 events. Codegen cannot run on Windows, so it is verified by the Linux CI job, **not yet running as a hosted deployment**.
 - [x] Invariants — `contracts/test/Invariants.t.sol`, seven of them: locked never exceeds balance, locked equals the sum of live pin bonds, the registry holds what it owes, a bond is never paid twice, live pins stay fully bonded, revoked pins are never live, and `versionPinCount` equals the number of unslashed claims per version. The seventh was added with the fix for a bond that stayed frozen after a successful challenge — too high strands honest collateral forever, too low is revoke-and-run.
 - [ ] **Sep 18–19 NYC Metropolis Lounge — go.** Judges and mentors are physically present. SF/London Sep 25, Singapore Oct 6 as alternates.
@@ -244,12 +242,12 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 ### Week 4 · Sep 23–29 — Surfaces
 - [x] Install-time UI: pin line, capability diff, approval queue — seven routes: `/`, `/pins`, `/approvals`, `/drift`, `/bonds`, `/publishers`, `/badge`. `/publishers` also reads the live Lens, and states in the interface that on this deployment the only publisher and the configured account are the same address, so the filter has nothing to exclude yet. That caveat is grepped for by `scripts/check-export.mjs`, because the honest panel and the overclaiming one look identical.
 - [x] `lockstep-provenance` skill in MetaMask's own `domains/<domain>/skills/<name>/skill.md` layout → **MetaMask bounty**. Teaches a Gator operator when a `functionCall` scope is insufficient. Named to avoid colliding with the existing `skill/SKILL.md`, which does a different job.
-- [x] `LockstepLens` over ERC-8004 — **live at `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc`**, block 59619349, reading the real registries. `script/DeployLens.s.sol` identifies the registries on chain before it will deploy, and refuses otherwise; `test/DeployLensChecks.t.sol` (15 tests) proves those checks fire on the live `tokenURI` payload and reject a lookalike. Immutables read back off chain, and the eligibility rule answers correctly against live state in both directions.
+- [x] `LockstepLens` over ERC-8004 — **live at `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc`**, block 61714764, reading the real registries. `script/DeployLens.s.sol` identifies the registries on chain before it will deploy, and refuses otherwise; `test/DeployLensChecks.t.sol` (15 tests) proves those checks fire on the live `tokenURI` payload and reject a lookalike. Immutables read back off chain, and the eligibility rule answers correctly against live state in both directions.
 - [x] Embeddable badge — `badge/`, plus the `/badge` route.
 - [ ] **First 3 third-party skills pinned**
 
 ### Week 5 · Sep 30 – Oct 6 — The demo that wins
-- [x] **Reproduce a ClawHavoc-class rug pull.** `demo/skills/kuru-quote` clean at approval, `demo/attack/kuru-quote-hostile` after the silent update, refused at settlement on testnet.
+- [x] **Reproduce a ClawHavoc-class rug pull.** `demo/skills/kuru-quote` clean at approval, `demo/attack/kuru-quote-hostile` after the silent update, refused at settlement on the current testnet deployment. Fresh evidence: `SkillExecuted` `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8`; zero-log `SkillHashMismatch` `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`.
 - [x] Show the same attack against an allowlist-only wallet, then blocked by Lockstep — `contracts/test/AllowlistComparison.t.sol`, and `contracts/test/GatorComparison.t.sol` does the same against MetaMask Gator's real `functionCall` caveat rather than a straw man.
 - [x] Bond-velocity benchmark: 6s window vs 4min window — `contracts/test/BondVelocity.t.sol`. This is the number the monetisation argument rests on.
 - [ ] `lockstep-action` merged into at least one real publisher's CI
@@ -269,7 +267,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 
 1. **0:00–0:20 — The number.** "341 malicious skills. 300,000 users. Prompt injection defeats model guardrails 57 to 72 percent of the time. You cannot fix this at the model layer."
 2. **0:20–0:45 — The gap.** MetaMask Agent Wallet caps *how much* an agent spends. It has no idea *which code* asked. Show a poisoned description slipping past an allowlist untouched.
-3. **0:45–1:30 — The rug pull, live.** Approve a clean skill. Publisher silently ships a hostile update. Agent tries to move funds. **Reverted before settlement.** Show the block number and the `RugPullBlocked` event.
+3. **0:45–1:30 — The rug pull, live.** Approve a clean skill. Publisher silently ships a hostile update. Agent tries to move funds. **Reverted before settlement.** Show the reverted transaction, `SkillHashMismatch` and zero logs; there is no `RugPullBlocked` event because a log emitted before a revert is rolled back.
 4. **1:30–2:00 — Why it doesn't annoy anyone.** Capability-identical update: auto-approved, no prompt. Capability widened: a diff and an explicit ask. Show the auto/explicit ratio.
 5. **2:00–2:30 — Why Monad.** Gas for the hash check. Bond velocity table: 6 seconds vs 4 minutes, ~40x capital efficiency.
 6. **2:30–3:00 — Why it spreads.** `lockstep-action` in a real publisher's CI, N third-party skills pinned, the badge. Then: AIR raised $50M to *scan* this problem on Sept 1. Lockstep *enforces* it, on-chain, at settlement.

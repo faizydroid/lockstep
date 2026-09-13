@@ -7,26 +7,52 @@ name: Pin skill
 # Note the split: pull requests dry-run, which needs no key and makes a capability
 # change visible in review. Only a push to main publishes.
 
-# Automatic triggers are off until the registry is redeployed. This is a temporary,
-# stated condition rather than an abandoned workflow.
+# Automatic triggers are off, and the reason has changed. Read this before re-enabling them.
 #
-# Two independent reasons it cannot succeed right now, and both are the system working:
+# ## The two original blockers are resolved
 #
-#   1. `publish` takes a struct since the version id became a derived value. The registry
-#      recorded in `vars.PIN_REGISTRY` was deployed before that, so its selector differs
-#      and the call cannot land.
-#   2. Even against a matching registry, the demo manifest's bytes changed with the
-#      `maxValuePerCall` -> `maxValuePerBatch` rename, so republishing under the same
-#      version is exactly the equivocation this action refuses to help commit. The right
-#      response is a version bump, which belongs with the redeploy rather than before it.
+#   1. `publish` takes a struct since the version id became a derived value, and the registry
+#      then recorded in `vars.PIN_REGISTRY` predated that, so the selector differed and the
+#      call could not land. **Fixed by the redeploy**: the live registry is
+#      0xF0800974aE84F55508E3e31F72A52E09b19829B0, compiled from current source.
+#   2. Republishing the demo manifest under a version already on chain would have been the
+#      equivocation this action exists to refuse. **Fixed by the version bump**: the demo skill
+#      is kuru-quote 3.0.0, already published, and `action/src/main.ts` treats an identical byte
+#      set as a no-op — "already published: these exact bytes are pinned" — rather than a
+#      failure. So a push that changes nothing is green, not red.
 #
-# The first run of this workflow, triggered by that manifest edit, found a real defect:
-# every hyphenated input was unreachable because the runner sets `INPUT_SKILL-DIR` and the
-# action read `INPUT_SKILL_DIR`. Fixed, and the e2e fixture now uses the runner's real
-# convention instead of the code's assumption. Restore the `pull_request` and `push`
-# triggers below when the redeploy lands.
+# ## What still blocks it, and no commit can fix it
+#
+# This workflow reads deployment settings from GitHub's Actions variables and secrets rather than
+# from the repository. The values that must be configured for automatic publishing are:
+#
+#   vars.PIN_REGISTRY              -> 0xF0800974aE84F55508E3e31F72A52E09b19829B0
+#   vars.CHAIN_ID                  -> 10143, or leave unset; the default below is correct
+#   vars.RPC_URL                   -> https://testnet-rpc.monad.xyz, or leave unset; the default below is correct
+#   secrets.PUBLISHER_PRIVATE_KEY  -> the key for the SEPARATED publisher,
+#                                     0xcc71E1f66CA325A9D3dEC74b2AA94CDF870194Dc, which holds
+#                                     the 1,150 mAUSD bond in the current registry
+#
+# Until the registry variable and publisher secret are configured in GitHub, enabling `push` would
+# publish against an unset or stale registry on every merge and leave a permanent red check on main.
+# The publisher key matters most: it is deliberately no longer the account key, because one address
+# publishing, bonding and approving demonstrated no adversarial relationship at all.
+#
+# Set those values, then restore the two triggers commented out below. Until then `workflow_dispatch`
+# allows a deliberate run, which is enough to prove the workflow works without making every merge
+# depend on an unverified repository setting.
+#
+# The first run of this workflow found a real defect worth remembering: every hyphenated input
+# was unreachable, because the runner sets `INPUT_SKILL-DIR` and the action read
+# `INPUT_SKILL_DIR`. Fixed, and the e2e fixture now uses the runner's real convention rather
+# than the code's assumption.
 on:
   workflow_dispatch:
+  # Restore both once the required settings above are updated.
+  #
+  # pull_request:
+  # push:
+  #   branches: [main]
 
 permissions:
   contents: read

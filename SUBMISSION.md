@@ -165,11 +165,12 @@ Stated because the gap between a demo and a product is where credibility is won 
 - **No mainnet deployment.** These are immutable, unaudited contracts. Four exploitable defects were
   found in them *this month*, by us. Shipping them to mainnet with real bonds would be the wrong
   lesson to draw from that.
-- **The live testnet deployment predates the security pass.** The addresses in the README were
-  deployed before the four fixes, so the code at them does not match `contracts/src`. This is
-  labelled everywhere it appears rather than left to look current. A redeploy is prepared and
-  simulated; it is deliberately not broadcast, because it rotates every recorded address and
-  invalidates the transaction hashes cited as evidence.
+- **The live testnet deployment now matches the audited source.** It was redeployed with separated
+  publisher, account and executor identities; the account was re-delegated with `--self-broadcast`
+  and the carried-over storage was cleaned. A successful `SkillExecuted` receipt exists at
+  `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8`, and the refusal proof is
+  `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4` with `SkillHashMismatch`
+  and zero logs. The bond asset remains a freely mintable mock on testnet.
 - **The bond asset on testnet is a freely mintable mock.** Anyone can mint any balance, so every bond
   figure is accounting rather than capital. The deploy script refuses a mock on mainnet. The dashboard
   says so on the page where the figures appear, and a build gate keeps that disclosure there.

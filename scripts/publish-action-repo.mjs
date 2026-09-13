@@ -3,7 +3,7 @@
  * GitHub Marketplace.
  *
  *   node scripts/publish-action-repo.mjs --dry-run
- *   node scripts/publish-action-repo.mjs --version v0.1.0
+ *   node scripts/publish-action-repo.mjs --version v0.1.1
  *
  * ## Why a second repository is unavoidable
  *
@@ -14,7 +14,7 @@
  *
  * Worth being precise about what is and is not blocked, because the README previously gave the
  * wrong reason. **The action is fully usable from this repository today** — `uses:` accepts a
- * subdirectory, so `faizydroid/lockstep/action@v0.1.0` works and needs nothing from the
+ * subdirectory, so `faizydroid/lockstep/action@v0.1.1` works and needs nothing from the
  * Marketplace. What a listing adds is discovery: a searchable page. That is worth having and it is
  * not worth restructuring a monorepo for.
  *
@@ -54,7 +54,7 @@ function arg(name, fallback) {
   return at === -1 || process.argv[at + 1] === undefined ? fallback : process.argv[at + 1];
 }
 const DRY_RUN = process.argv.includes("--dry-run");
-const VERSION = arg("version", "v0.1.0");
+const VERSION = arg("version", "v0.1.1");
 
 function run(command, args, options = {}) {
   process.stdout.write(`$ ${command} ${args.join(" ")}\n`);

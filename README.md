@@ -456,11 +456,10 @@ every byte is public, the pages are read-only views over public chain state, and
 deliberately cannot encode a transaction that asserts anything. `--host 0.0.0.0` exposes it on the
 network if you want to show someone, and is opt-in rather than the default.
 
-Live rather than fixtures, provided the config below is set. Verified by running the dashboard's own
-`loadSnapshot` outside the browser against Monad testnet: `source.kind` came back `chain` at block
-59640065 in 14s, with one bonded pin, one publisher, one approval, two executions, and the Lens
-reporting the delegated account as an eligible reviewer. Without configuration the pages still
-render, from fixtures, and the banner says so.
+Live rather than fixtures, provided the config below is set. The dashboard's own `loadSnapshot` has
+been verified against Monad testnet with `source.kind` returning `chain`, one bonded pin, one publisher,
+one approval, and the Lens reporting the delegated account as an eligible reviewer. Without
+configuration the pages still render from fixtures, and the banner says so.
 
 Copy `.env.example` to `app/.env.local` and set the five `NEXT_PUBLIC_*` values recorded there;
 `NEXT_PUBLIC_DEPLOY_BLOCK` is the one people miss, and without it log queries start at genesis, the
@@ -831,7 +830,7 @@ exists at all — and it is also why the enforcement has to be free.
 | Bond accounting invariants | Done, 7 invariants over 4096 calls per campaign |
 | LockstepGuard (EIP-7702) | Done, 31 tests, gas measured. The value ceiling is per *batch*; a per-call ceiling over an unbounded batch bounded nothing |
 | **Adversarial suite** | **Done, 15 tests.** Each of four exploitable holes run as the attack rather than as a property, against a real delegated account with a real approval. All four worked before this pass; three were free |
-| **LockstepLens (ERC-8004)** | 23 unit tests plus 18 covering the deploy script's identification checks. Sybil filter: naive 74 vs filtered 35. **The filter did not filter until this pass** — it believed any contract that claimed an approval. Fixed and [documented below](#the-sybil-filter-did-not-filter). **The live deployment at `0x3338c4F5…75664` predates the fix and needs redeploying** |
+| **LockstepLens (ERC-8004)** | 23 unit tests plus 18 covering the deploy script's identification checks. Sybil filter: naive 74 vs filtered 35. **The current testnet deployment at `0xEB0A033C…9323Ebc` includes the fixed filter**, reading the real registries. See below for the deliberate same-publisher/account caveat |
 | Allowlist-layer comparison | Done, 5 tests. Same calldata, one layer permits, the other refuses |
 | **MetaMask Gator differential** | **Done, 7 tests** against a model of the real ERC-7710 `functionCall` caveat, not a straw man. Both layers enforce the same targets/selectors/value ceiling; only Lockstep refuses the poisoned bytes — see above |
 | **EIP-7702 exclusivity** | **Done, 5 tests.** An account carries one delegation indicator, so Gator and Lockstep cannot share an account. Approvals survive in storage while unenforced. The layers stack across accounts instead |
@@ -841,7 +840,7 @@ exists at all — and it is also why the enforcement has to be free.
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
 | Badge | Done, 28 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
-| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.0`** — `uses:` accepts a subdirectory. Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
+| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.1`** — `uses:` accepts a subdirectory. Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
@@ -849,7 +848,7 @@ exists at all — and it is also why the enforcement has to be free.
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
-| **Monad testnet gas** | **Measured**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing is cheaper than settling. Enforcement *overhead* is 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. **Both testnet figures predate the current contracts**, and predate the self-target check that added 320 gas per call |
+| **Monad testnet gas** | **Measured historically**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing was cheaper than settling. Enforcement *overhead* was 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. The Monad figures predate the redeploy; this release does not claim a fresh live gas measurement |
 | Dashboard (Next.js static export) | Done, 472 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
 | Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
 | Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
@@ -897,7 +896,7 @@ monorepo — contracts, a dashboard, a CLI, a watcher, an indexer — and the me
 **The Action works today regardless.** `uses:` accepts a subdirectory, so this is enough:
 
 ```yaml
-- uses: faizydroid/lockstep/action@v0.1.0
+- uses: faizydroid/lockstep/action@v0.1.1
   with:
     skill-dir: skills/my-skill
     pin-registry: ${{ vars.PIN_REGISTRY }}
@@ -1063,31 +1062,38 @@ name must show the publisher beside it**, and that is why.
 
 ### Live on Monad testnet
 
-> **This deployment predates the current contracts and has not been replaced yet.**
+> **This is the current deployment of the audited source on chain 10143.**
 >
-> Four exploitable defects were found and fixed after these addresses went live — see
-> [what the security pass found](#what-the-security-pass-found). The deployed bytecode
-> therefore does **not** match `contracts/src`, and specifically the code at these addresses
-> still lets a publisher choose an arbitrary `versionId`, still treats the value ceiling as
-> per-call, and its Lens still accepts any contract that claims an approval.
->
-> Everything below is accurate as a record of what was deployed and verified. None of it should
-> be read as a description of the code in this repository today. A redeploy is prepared and
-> simulated (5,589,160 gas, ~1.14 MON) but deliberately not broadcast: it rotates every address
-> here, invalidates the transaction hashes cited as evidence, and requires re-establishing the
-> demo account's delegation and approvals. That is a decision to take deliberately rather than
-> as a side effect of a refactor.
+> The redeploy separated the publisher, account, executor and slash recipient, corrected the
+> registry wiring, re-signed the account's EIP-7702 delegation with `--self-broadcast`, and cleaned
+> the ERC-7201 state that survived the old delegation. The current deployment's success and refusal
+> receipts are recorded below. The bond asset remains a freely mintable mock, so its collateral is
+> accounting evidence rather than production economic security.
 
-Chain 10143. Every address below has code at it and every immutable has been read back
-and compared against the source **as it stood when they were deployed**.
+Chain 10143. Every address below has code and every immutable has been read back and compared
+against the current source and deployment configuration.
 
 | | address | deployed in block |
 |---|---|---|
 | PinRegistry | `0xF0800974aE84F55508E3e31F72A52E09b19829B0` | 61714758 |
-| LockstepGuard | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 59428911 |
-| MockBondAsset (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 59428803 |
-| LockstepLens | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 59619349 |
+| LockstepGuard | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 61714760 |
+| MockBondAsset (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 61714754 |
+| LockstepLens | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 61714764 |
 | Account, delegated via EIP-7702 | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | — |
+
+The identities are deliberately separate:
+
+| Role | Address |
+|---|---|
+| Account / approver | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` |
+| Publisher / bonder | `0xcc71E1f66CA325A9D3dEC74b2AA94CDF870194Dc` |
+| Executor | `0x258981915bF60938809277Eace03a2379aE46472` |
+| Slash recipient / insurance pool treasury | `0x6A6066f5933a4258808C2E8BEc466cCbc587e344` |
+
+The live pin is `0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4`:
+`kuru-quote` 3.0.0, hash
+`0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80`, two high-risk
+capabilities on the deployed mAUSD, and 1,150 mAUSD bonded.
 
 **The bond asset is a freely mintable mock, and "freely" means exactly that.** `MockBondAsset`
 in `script/Deploy.s.sol` has an unpermissioned `mint(address, uint256)` — no owner, no cap, no
@@ -1105,7 +1111,7 @@ the deploy script.
 
 **`LockstepLens` reads the real ERC-8004 registries**, deployed by
 `script/DeployLens.s.sol` in tx
-`0x02b6e6b3b255b51c457c9a09c3c961d12d01f3b05c77128d76d9bafa92f185ce`. It exists as a
+`0xc829cc4ab9fedebbaa2a2bdcc0274f64d2f0e2996182f8ffa567c0cce2ec1b42`. It exists as a
 separate script rather than a rerun of `Deploy.s.sol` on purpose: that script builds the
 system from nothing and would deploy a *second* registry, which would split the pins and
 make every address published here ambiguous.
@@ -1161,26 +1167,20 @@ Three consequences worth stating, since they shape what the panel is:
 read back from `0x209C…aFF2` rather than from the guard's own address, which is what
 confirms the delegate is writing into the account's storage.
 
-**The kill gate, on chain.** Two real transactions, same batch, same pin, same executor.
-Only the attested hash differs:
+**The kill gate, on chain.** Two current-deployment transactions use the same pin and executor.
+The successful run moved 250 mAUSD; the mismatch was reverted before anything moved:
 
 | | tx | result |
 |---|---|---|
-| approved hash | `0x0990fdb43e036ad9fdf2bdb8054ab836ef8a3ea391034b35880d262132762cec` | settled, `SkillExecuted` emitted |
-| drifted hash | `0x1464e35e9231e9e021dc5be743abc456d28a7ff0b528f3ab14286c559c9ba35b` | reverted, zero logs |
+| approved hash | `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8` | settled, `SkillExecuted`, block 62009032 |
+| mismatched hash | `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4` | reverted, `SkillHashMismatch`, block 62009210, zero logs |
 
-Replaying the refusal shows the guard reading the pin and stopping before the token ever
-moves:
-
-```
-[38213] 0x209C…aFF2::execute(pinId, 0x960ea319…, [(mAUSD, 0, transfer(...))])
-  ├─ [17769] 0xe784…e17b::verify(pinId, mAUSD, 0xa9059cbb) [staticcall]
-  │   └─ ← 0x9b68b339…  (the pinned hash)
-  └─ ← [Revert] SkillHashMismatch(0x960ea319…, 0x9b68b339…)
-```
-
-Both hashes survive in the revert reason, which is how the watcher reconstructs blocked
-attempts without an event.
+The successful receipt emitted `SkillExecuted` from the delegated account with `callCount 2` and
+changed its mAUSD balance from 10,000 to 9,750. The refusal used the same batch with
+`attested = 0xdead0000000000000000000000000000000000000000000000000000feedbeef` and the pinned
+skill hash `0x9b68b339278fd5f40079090a0a535d6c687aaacbb36d9ef888a942a12c600b80`. The reverted
+trace carries both values in `SkillHashMismatch`; the zero logs are deliberate because logs emitted
+before a revert are rolled back.
 
 **Gas, measured on Monad rather than locally.**
 
@@ -1201,12 +1201,10 @@ Includes the 21,000 intrinsic cost and includes the trade itself.
 not to emit an event before reverting: an earlier version did, and because the log is
 rolled back with the revert, it made rejection more expensive while telling nobody.
 
-> **These on-chain figures describe superseded bytecode.** They were measured against the
-> deployment recorded in [Deployed on Monad testnet](#deployed-on-monad-testnet). The
-> contracts have since changed — the value ceiling became a per-batch budget, `MAX_CALLS` was
-> added, and `publish` takes a struct — so re-measuring needs a redeploy. The local figures
-> above are current; these are historical and labelled as such rather than quietly left to
-> look current. `contracts/.gas-snapshot` is the reproducible record.
+> **These on-chain gas figures are historical measurements from the pre-redeploy deployment.** The
+> current deployment is verified and exercised above, but this release does not claim a fresh Monad
+> gas measurement for it. The local figures remain current for the source, and
+> `contracts/.gas-snapshot` is the reproducible record.
 
 #### Reconciling the two gas tables
 

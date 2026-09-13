@@ -66,7 +66,7 @@ Three roles, evidenced by `app/src/lib/settings.ts` (`PROFILE_ROLES`), the CLI's
 
 ### Maturity
 
-`PARTIAL` overall. Contracts, off-chain packages, CLI, dashboard, Action and indexer config are implemented and tested. A live testnet deployment exists but **predates the current contracts**. Not on mainnet. Indexer not hosted. No third-party publisher has pinned a skill. See §17.
+`PARTIAL` overall. Contracts, off-chain packages, CLI, dashboard, Action and indexer config are implemented and tested. The live testnet deployment now matches the current contracts and has separated identities plus recorded success/refusal evidence. Not on mainnet. Indexer not hosted. No third-party publisher has pinned a skill. See §17.
 
 ---
 
@@ -526,7 +526,7 @@ Selectors are written as human-readable signatures and derived, not transcribed.
 
 **`dist/index.js` (728 KB) is committed deliberately** — "A published action is fetched and executed without an install step, so `dist/index.js` has to be in the tree. That is the one place in this project where a build artifact belongs in version control."
 
-**Marketplace is structurally impossible from here:** the Marketplace requires exactly one action per repository with metadata at the repository **root**. This is a monorepo with metadata at `action/action.yml`. But **the Action is fully usable today** as `faizydroid/lockstep/action@v0.1.0` — `uses:` accepts a subdirectory. A listing adds discovery only. `scripts/publish-action-repo.mjs` generates a standalone repo (`faizydroid/lockstep-action`) for that purpose; it force-pushes `main` (a generated snapshot) but pushes tags **without** force.
+**Marketplace is structurally impossible from here:** the Marketplace requires exactly one action per repository with metadata at the repository **root**. This is a monorepo with metadata at `action/action.yml`. But **the Action is fully usable today** as `faizydroid/lockstep/action@v0.1.1` — `uses:` accepts a subdirectory. A listing adds discovery only. `scripts/publish-action-repo.mjs` generates a standalone repo (`faizydroid/lockstep-action`) for that purpose; it force-pushes `main` (a generated snapshot) but pushes tags **without** force.
 
 A real defect found by the first run of the Action: **every hyphenated input was unreachable** because the runner sets `INPUT_SKILL-DIR` and the action read `INPUT_SKILL_DIR`. Fixed; the e2e fixture now uses the runner's real convention.
 
@@ -1015,11 +1015,11 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job green | `indexer/` |
 | Indexer **hosted** | **PLANNED** | free plan deletes after 30 days | see `indexer/README.md` |
 | Cloudflare Pages deploy workflow | **IMPLEMENTED**; blocked on secrets | fails only on missing `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy-dashboard.yml` |
-| Live testnet deployment | **PARTIAL** | live, but **predates the security pass** | `.env.example` |
+| Live testnet deployment | **IMPLEMENTED (testnet)** | current audited deployment; separated identities, re-delegated account, and recorded success/refusal receipts | `.env.example` |
 | Mainnet | **not done** | deploy script refuses mock bond on 143 | — |
 | Real bond asset (AUSD) | **not done** | live bond asset is a freely mintable mock | `Deploy.s.sol` `MockBondAsset` |
 | Third-party pinned skill | **not done** | no publisher outside this repo has pinned | `HANDOVER.md` task 2 |
-| `pin-skill.yml` automatic triggers | **TEMPORARY: disabled** | `workflow_dispatch` only; two stated reasons | `.github/workflows/pin-skill.yml` |
+| `pin-skill.yml` automatic triggers | **TEMPORARY: disabled** | `workflow_dispatch` only; source/on-chain blockers resolved, GitHub publishing settings still required | `.github/workflows/pin-skill.yml` |
 | Indirect prompt injection defence | **out of scope, stated** | guard header + `skill/SKILL.md` | — |
 | Amount / rate limiting | **out of scope by design** | "belongs with the wallet that holds the funds" | `PinRegistry` header |
 | Video | **PLANNED** | shot list written | `VIDEO.md` |
@@ -1128,11 +1128,12 @@ Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. **Currently
 
 ### `.github/workflows/pin-skill.yml` — `TEMPORARY: automatic triggers disabled`
 
-`workflow_dispatch` only. Two stated reasons it cannot currently succeed, "and both are the system working":
-1. `publish` takes a struct since the version id became derived, so the registry in `vars.PIN_REGISTRY` (deployed before that) has a different selector and the call cannot land.
-2. Even against a matching registry, the demo manifest's bytes changed with the `maxValuePerCall` → `maxValuePerBatch` rename, so republishing under the same version **is exactly the equivocation this action refuses to help commit.** The right response is a version bump, which belongs with the redeploy.
-
-Restore `pull_request` and `push` triggers when the redeploy lands. Design: PRs dry-run (no key, shows the capability diff in review); only a push to `main` publishes.
+`workflow_dispatch` only. The redeploy and the manifest bump are complete: `vars.PIN_REGISTRY` must
+now resolve to `0xF0800974aE84F55508E3e31F72A52E09b19829B0`, and the demo pin is `kuru-quote 3.0.0`.
+Automatic publishing remains deliberately manual until the GitHub Actions variable and the separated
+`PUBLISHER_PRIVATE_KEY` secret are configured and verified. Enabling `pull_request` and `push` before
+that would make every merge depend on an unset or stale external setting. Design: PRs dry-run (no key,
+shows the capability diff in review); only a push to `main` publishes.
 
 ### Environment variables
 
@@ -1154,18 +1155,25 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 | Contract | Address | Block |
 |---|---|---|
 | `PinRegistry` | `0xF0800974aE84F55508E3e31F72A52E09b19829B0` | 61714758 |
-| `LockstepGuard` | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 59428911 |
-| `MockBondAsset` (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 59428803 |
-| `LockstepLens` | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 59619349 |
+| `LockstepGuard` | `0xee23156D1B7D64aF1b3671290DdcEf6edF734a81` | 61714760 |
+| `MockBondAsset` (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 61714754 |
+| `LockstepLens` | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 61714764 |
 | Delegated account | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | code `0xef0100 \|\| guard` |
 | `DEPLOY_BLOCK` (scan start) | 61714757 | |
-| Live pin id | `0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4` | kuru-quote 2.1.0, 2 capabilities, 1 high risk, 1150 mAUSD |
+| Live pin id | `0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4` | kuru-quote 3.0.0, 2 capabilities, 2 high risk, 1150 mAUSD |
 | ERC-8004 Identity | `0x8004a818bfb912233c491871b3d84c89a494bd9e` | UUPS proxy |
 | ERC-8004 Reputation | `0x8004b663056a597dffe9eccc1965a193b7388713` | UUPS proxy |
 
-**These contracts predate the security pass.** Six on-chain fixes are absent from the live addresses: the original four, plus the self-target refusal that closes the nested-call privilege escalation and the corrected high-risk pricing. **The live guard is exploitable by that escalation.** Every document says the deployment is stale; this is the sharpest reason to redeploy.
+**This is the current testnet deployment.** It was redeployed from the audited source with separated
+publisher, account and executor identities. The account was re-delegated with `--self-broadcast`,
+the carried-over ERC-7201 state was cleaned, and the live success/refusal evidence is recorded below:
+`SkillExecuted` `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8` and zero-log
+`SkillHashMismatch` refusal `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`.
 
-Versioning: root `package.json` is `0.0.1`; git tag `v0.1.0` exists. `[KNOWN ISSUE]` the tag points at commit `3e65306`, whose CI **failed**. `action/` and `LICENSE` are byte-identical between that tag and `main` (the only tree difference is two workflow files), so `faizydroid/lockstep/action@v0.1.0` is substantively correct, but the repository at that tag does not pass its own CI. See `HANDOVER.md`.
+Versioning: root `package.json` is `0.0.1`; `v0.1.0` remains at its original commit, and `v0.1.1`
+marks this finalized redeployed release. `action/` and `LICENSE` are byte-identical between the two
+references, so consumers of the Action are not broken by the non-destructive tag decision. See
+`HANDOVER.md`.
 
 ---
 
@@ -1246,7 +1254,7 @@ scripts/serve-export.mjs         local reference host
 scripts/live-dispatch.mjs        the demo
 .github/workflows/ci.yml         3 jobs; forge build FIRST
 .github/workflows/deploy-dashboard.yml workflow_run + head_sha checkout
-.github/workflows/pin-skill.yml  disabled triggers, stated reason
+.github/workflows/pin-skill.yml  manual trigger only until GitHub publishing settings are configured
 ```
 
 **Fixtures**
@@ -1383,15 +1391,15 @@ Extracted from source comments and `FINDINGS.md`. "Confidence" reflects how expl
 ### Critical
 None outstanding. Five exploitable defects are now fixed in source: four from the original self-audit, covered by `Adversarial.t.sol`, plus the nested-call privilege escalation below, covered by `SelfCallEscalation.t.sol`.
 
-**FIXED — privilege escalation through `execute` (was critical).** An authorised executor could change account policy — add another executor, or approve a pin the owner had never seen — by putting a call to the account itself in a batch, because `execute` makes its calls *from* the account and so satisfied `onlySelf` on the inner call. It required an approved pin declaring `(accountAddress, policySelector)`, which made it targeted rather than broadly exploitable, and the raw-selector rendering in the capability diff made such a pin plausible to approve by accident. `LockstepGuard.execute` now refuses every self-target in its pre-flight pass, so nothing in the batch runs. Two existing tests had covered only the direct path and passed throughout. **This fix is not in the live testnet contracts.**
+**FIXED — privilege escalation through `execute` (was critical).** An authorised executor could change account policy — add another executor, or approve a pin the owner had never seen — by putting a call to the account itself in a batch, because `execute` makes its calls *from* the account and so satisfied `onlySelf` on the inner call. It required an approved pin declaring `(accountAddress, policySelector)`, which made it targeted rather than broadly exploitable, and the raw-selector rendering in the capability diff made such a pin plausible to approve by accident. `LockstepGuard.execute` now refuses every self-target in its pre-flight pass, so nothing in the batch runs. Two existing tests had covered only the direct path and passed throughout. **The fix is deployed and verified at the current guard; the re-delegation transaction is recorded in `HANDOVER.md`.**
 
-**FIXED — bond pricing inverted against the most dangerous capability (was high).** `authorizeExecutor` and `approvePin` were absent from `HighRiskSelectors`, so declaring the power to rewrite an account's entire approval state cost 125 AUSD while declaring an ERC-20 `approve` cost 625. Both are now priced at the premium; the narrowing setters deliberately are not. **Not in the live contracts.**
+**FIXED — bond pricing inverted against the most dangerous capability (was high).** `authorizeExecutor` and `approvePin` were absent from `HighRiskSelectors`, so declaring the power to rewrite an account's entire approval state cost 125 AUSD while declaring an ERC-20 `approve` cost 625. Both are now priced at the premium; the narrowing setters deliberately are not. **The corrected selector pricing is deployed in the current registry.**
 
 **FIXED — the CLI approved capability-identical byte changes without asking (was high).** `lockstep approve` skipped confirmation whenever the capability diff did not widen, which is precisely the update that inherits authority most quietly. It now prompts on every hash change, with the diff selecting the wording. The chain was never the problem — new bytes are a new pin and unapproved until the transaction lands — the gap was that the command sent that transaction unprompted. Four documents and the drift page repeated the old behaviour as a feature; all corrected.
 
 ### High
 
-1. **The live testnet deployment predates the security pass — now by a wider margin.** `[KNOWN ISSUE]` Seven fixes are absent from the live addresses: the original four, plus the self-target refusal, the corrected high-risk pricing, and (off-chain, so not a deployment matter) the CLI prompt. **The live guard is exploitable by the nested-call escalation.** The four fixed defects are not present at the live addresses. Disclosed in `README.md`, `SUBMISSION.md`, `.env.example`, `indexer/README.md`. Consequence: the deployed system is demonstrably weaker than the audited source. Workaround: disclosure. Resolution: redeploy (~1.135 MON simulated, ~6 signed transactions, ~15 files to rotate, plus re-signing the 7702 delegation).
+1. **The testnet deployment is current; mainnet is not deployed.** The current Monad testnet addresses run the audited source, including the self-target refusal and corrected high-risk pricing. The account was re-delegated, carried-over state was cleaned, and success/refusal receipts are recorded. The remaining limitation is that the bond asset is a freely mintable mock, not production collateral. Disclosed in `README.md`, `SUBMISSION.md`, `.env.example`, and `indexer/README.md`.
 
 2. **The bond asset on testnet is a freely mintable mock.** `[KNOWN ISSUE]` Bonds are economically meaningless there. Correct on a test chain, and `Deploy.s.sol` refuses it on chain 143. Disclosed; `check-export.mjs` asserts the disclosure survives into the shipped HTML.
 
@@ -1403,9 +1411,9 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 ### Medium
 
-4. **The `v0.1.0` tag points at a commit whose CI failed** (`3e65306`). `[KNOWN ISSUE]` `action/` and `LICENSE` are byte-identical to `main`, so the `uses:` reference is correct, but the tagged tree is red. Open decision in `HANDOVER.md`.
+4. **The `v0.1.0` tag points at a commit whose CI failed** (`3e65306`). `[KNOWN ISSUE]` That historical ref is intentionally unchanged; `v0.1.1` is the non-destructive release for the redeployed, documented state. `action/` and `LICENSE` remain byte-identical to the old tag.
 
-5. **`pin-skill.yml` automatic triggers are disabled.** `[TEMPORARY]` Two stated reasons, both correct behaviour. Restore with the redeploy.
+5. **`pin-skill.yml` automatic triggers are disabled.** `[TEMPORARY]` The redeploy and version bump resolved the source and on-chain blockers. Automatic execution remains off until the GitHub `PIN_REGISTRY` variable and separated `PUBLISHER_PRIVATE_KEY` secret are configured and verified; `workflow_dispatch` remains available.
 
 6. **The Windows executable-bit divergence.** `[KNOWN ISSUE]` A skill with an executable script hashes differently on Windows than Linux. Mitigation: publish from Linux CI. Not fixable without dropping the executable bit from the hash, which would be a security regression.
 
@@ -1445,12 +1453,12 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 ### EXISTING plans, recorded in the repository
 
-From `HANDOVER.md` — the seven remaining tasks, ordered by lead time:
+From `HANDOVER.md` — the remaining operator tasks, ordered by lead time:
 
 1. Cloudflare Pages project + API token + 2 repo secrets + custom domain `lockstep.dofolabs.space`
 2. Publisher outreach (longest lead time, ~4 weeks; gates three "not done" items)
 3. Record the video per `VIDEO.md`
-4. Redeploy decision (open, deliberately not made)
+4. **Redeploy decision — completed.** Current testnet addresses, separated identities, delegation and receipts are documented
 5. Envio Cloud deployment — **first week of October**, not earlier
 6. Marketplace listing (optional; the Action works without it)
 7. Submit

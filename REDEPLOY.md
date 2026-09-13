@@ -1,8 +1,12 @@
 # Redeploy runbook
 
-Aligns the live Monad testnet deployment with the audited source, and fixes three things the
-current deployment gets wrong regardless of security.
+> **Completed and retained as an audit trail.** This runbook was executed on Monad testnet. Do not
+> rerun the broadcast steps against the current account unless you intentionally want another
+> deployment. The resulting deployment, separated identities, delegation and evidence are recorded
+> in `README.md`, `HANDOVER.md` and `.scratch/evidence.json`.
 
+The procedure below aligned the live Monad testnet deployment with the audited source and documented
+three operational traps discovered during the run.
 **Simulated cost: 5,690,414 gas ≈ 1.1552 MON** at 203 gwei max fee. The account holds 4.0252 MON.
 The whole sequence is ~17 transactions; the deploy dominates and the rest are small.
 
@@ -254,19 +258,22 @@ node .scratch/livepin.mjs        # update the constants at the top first
 node .scratch/liveapprovals.mjs
 ```
 
-## 12. Update the honesty sections
+## 12. Post-redeploy documentation state
 
-These currently say the deployment predates the security pass. After this, they should not.
+The honesty sections have been updated for the completed deployment. Current addresses, the 3.0.0
+pin, separated identities, delegation proof, successful `SkillExecuted` receipt and zero-log
+`SkillHashMismatch` refusal are recorded in the README, submission, handover, master context and
+`.env.example`.
 
-- `README.md` — "Live on Monad testnet", "What the security pass found", both gas tables
-- `SUBMISSION.md` — "What is not done", the evidence table
-- `MASTER_AI_CONTEXT.md` — §19 addresses, §23 known problems 1 and 2
-- `HANDOVER.md` — task 4 becomes done
-- `.github/workflows/pin-skill.yml` — restore the `pull_request` and `push` triggers, since both
-  stated reasons for disabling them are resolved by this deployment
+- `README.md` — current live deployment and evidence; historical gas figures remain labelled
+- `SUBMISSION.md` — current testnet state and evidence
+- `MASTER_AI_CONTEXT.md` — current addresses, status matrix and known-problem resolution
+- `HANDOVER.md` — task 4 is complete
+- `.github/workflows/pin-skill.yml` — source/on-chain blockers are resolved, but triggers remain
+  manual until GitHub's `PIN_REGISTRY` variable and separated `PUBLISHER_PRIVATE_KEY` secret exist
 
-**The bond asset is still a freely mintable mock.** A redeploy does not change that, and
-`SUBMISSION.md` must keep saying so.
+**The bond asset is still a freely mintable mock.** The redeploy does not change that, and the
+submission keeps saying so.
 
 ---
 
