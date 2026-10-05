@@ -16,18 +16,43 @@
  * publish a second conflicting claim about one version, which would be
  * self-slashing. And it fails the job on a widened capability set, so a larger blast
  * radius shows up as a red check rather than a silent release.
+ *
+ * "Widened" means a `(target, selector)` pair the previous pin did not allow, or a higher
+ * native-value ceiling, checked against chain state. It used to mean "more capabilities than the
+ * previous pin", found by scanning this publisher's `Published` logs from genesis. Both halves of
+ * that were wrong: a same-count swap of one capability for another passed, and the scan was the
+ * publisher's latest pin of *any* skill. The scan also could not run where this action is meant to
+ * run, because Monad's public RPC refuses `eth_getLogs` over more than 100 blocks, so every real
+ * publish failed there with an RPC error. Only the dry run and the already-published no-op worked,
+ * because both return before the scan.
  */
 
 import { appendFile } from "node:fs/promises";
 
-import { createPublicClient, createWalletClient, formatUnits, http, isAddress, type Address, type Hex } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  formatEther,
+  formatUnits,
+  http,
+  isAddress,
+  type Address,
+  type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monad, monadTestnet } from "viem/chains";
 
 import { badgeSnippet, renderBadge, LOCKSTEP_DASHBOARD } from "@lockstep/badge";
 import { hashSkillDirectory } from "@lockstep/runtime";
 
-import { loadManifest, isHighRiskSelector, HIGH_RISK_LABELS, registryAbi } from "./shared.ts";
+import {
+  loadManifest,
+  isHighRiskSelector,
+  HIGH_RISK_LABELS,
+  registryAbi,
+  type Capability,
+  type Manifest,
+} from "./shared.ts";
 
 /**
  * Where a badge links to. Shared with the CLI rather than matched by hand.
@@ -130,6 +155,12 @@ export async function main(): Promise<void> {
   const dryRun = bool("dry-run", false);
   const failOnChange = bool("fail-on-capability-change", true);
 
+  const previousPinRaw = input("previous-pin-id").trim();
+  if (previousPinRaw !== "" && !/^0x[0-9a-fA-F]{64}$/.test(previousPinRaw)) {
+    fail(`previous-pin-id must be a 32-byte hex pin id, got ${previousPinRaw}`);
+  }
+  const previousPin = previousPinRaw === "" ? undefined : (previousPinRaw.toLowerCase() as Hex);
+
   const manifest = await loadManifest(skillDir);
   const hashed = await hashSkillDirectory(skillDir);
   const client = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -150,14 +181,7 @@ export async function main(): Promise<void> {
   await setOutput("version-id", manifest.versionId);
   await setOutput("bond-required", bond.toString());
 
-  const rows = manifest.capabilities
-    .map((c) => {
-      const risk = isHighRiskSelector(c.selector)
-        ? `⚠️ ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}`
-        : "";
-      return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
-    })
-    .join("\n");
+  const rows = manifest.capabilities.map(capabilityRow).join("\n");
 
   await summary(
     [
@@ -178,7 +202,19 @@ export async function main(): Promise<void> {
     ].join("\n"),
   );
 
+  /*
+   * A dry run has no key, so it has no publisher address to look history up by. It can still
+   * compare against a pin it is told about, and that is the comparison worth having on a pull
+   * request: it puts what a release adds in front of the reviewer before a merge can publish it.
+   */
   if (dryRun) {
+    if (previousPin === undefined) {
+      await summary(comparisonSummary({ kind: "skipped" }));
+    } else {
+      const widening = await compareWithPin(client, registryAddress as Address, previousPin, manifest);
+      await summary(comparisonSummary({ kind: "compared", source: "input", widening }));
+      if (failOnChange && isWidened(widening)) failWidened(widening);
+    }
     process.stdout.write("dry-run: nothing published\n");
     return;
   }
@@ -229,13 +265,47 @@ export async function main(): Promise<void> {
     );
   }
 
+  /*
+   * Always computed, so the run summary says what this release adds even when the check is
+   * switched off. Only `fail-on-capability-change` decides whether the answer stops the release.
+   */
+  const baseline = await findBaseline(
+    client,
+    registryAddress as Address,
+    account.address,
+    manifest.name,
+    previousPin,
+  );
+  const comparison: Comparison =
+    baseline.kind === "pin"
+      ? {
+          kind: "compared",
+          source: baseline.source,
+          widening: await compareWithPin(
+            client,
+            registryAddress as Address,
+            baseline.pinId,
+            manifest,
+            account.address,
+          ),
+        }
+      : baseline;
+  await summary(comparisonSummary(comparison));
+
   if (failOnChange) {
-    const previous = await previousCapabilityCount(client, registryAddress as Address, account.address);
-    if (previous !== undefined && manifest.capabilities.length > previous) {
+    // Fails closed. Publishing on "could not check" would make the default setting a promise
+    // the action only keeps on RPCs generous enough to answer.
+    if (comparison.kind === "unknown") {
       fail(
-        `Capability set widened: ${previous} declared previously, ${manifest.capabilities.length} now. ` +
-          `Users must re-approve. Set fail-on-capability-change: false to allow it.`,
+        `Cannot tell whether this release widens capability: the RPC could not serve this ` +
+          `publisher's publish history (${comparison.reason}). Monad's public RPC caps eth_getLogs ` +
+          `at 100 blocks, so history from genesis cannot be read there. Set previous-pin-id to the ` +
+          `pin this release replaces, or set fail-on-capability-change: false to publish without ` +
+          `the check.`,
       );
+    }
+    if (comparison.kind === "compared" && isWidened(comparison.widening)) {
+      failWidened(comparison.widening);
     }
   }
 
@@ -336,27 +406,230 @@ export async function main(): Promise<void> {
   process.stdout.write(`badge markdown: ${snippet.markdown}\n`);
 }
 
+type Client = ReturnType<typeof createPublicClient>;
+
+/** What a release adds relative to the pin it replaces. */
+interface Widening {
+  readonly previousPinId: Hex;
+  /** Declared `(target, selector)` pairs the previous pin did not allow. */
+  readonly added: readonly Capability[];
+  /** Present only when the native-value ceiling rises. Lowering it narrows the release. */
+  readonly ceiling?: { readonly from: bigint; readonly to: bigint };
+}
+
+type Comparison =
+  | { readonly kind: "compared"; readonly source: "input" | "history"; readonly widening: Widening }
+  | { readonly kind: "first-release"; readonly why: string }
+  | { readonly kind: "unknown"; readonly reason: string }
+  | { readonly kind: "skipped" };
+
+type Baseline =
+  | { readonly kind: "pin"; readonly pinId: Hex; readonly source: "input" | "history" }
+  | Extract<Comparison, { readonly kind: "first-release" | "unknown" }>;
+
+function isWidened(widening: Widening): boolean {
+  return widening.added.length > 0 || widening.ceiling !== undefined;
+}
+
+function failWidened(widening: Widening): never {
+  const parts: string[] = [];
+  if (widening.added.length > 0) {
+    parts.push(`adds ${widening.added.map((c) => `${c.label} on ${c.target}`).join(", ")}`);
+  }
+  if (widening.ceiling !== undefined) {
+    parts.push(
+      `raises the native value ceiling from ${formatEther(widening.ceiling.from)} to ` +
+        `${formatEther(widening.ceiling.to)} MON per batch`,
+    );
+  }
+  fail(
+    `Capability set widened against pin ${widening.previousPinId}: this release ${parts.join(" and ")}. ` +
+      `Users must approve it explicitly, and a wider blast radius should be a decision rather than a ` +
+      `side effect. Set fail-on-capability-change: false to publish it anyway.`,
+  );
+}
+
+function capabilityRow(c: Capability): string {
+  const risk = isHighRiskSelector(c.selector) ? `⚠️ ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}` : "";
+  return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
+}
+
+function comparisonSummary(comparison: Comparison): string {
+  const heading = ["", "### Compared with the previous pin", ""];
+  switch (comparison.kind) {
+    case "skipped":
+      return [
+        ...heading,
+        "Not compared. Set `previous-pin-id` to the pin this release replaces to see what it adds.",
+      ].join("\n");
+    case "first-release":
+      return [...heading, `Nothing to compare: ${comparison.why}.`].join("\n");
+    case "unknown":
+      return [...heading, `Not compared: ${comparison.reason}.`].join("\n");
+    case "compared": {
+      const { widening } = comparison;
+      const origin = comparison.source === "input" ? "given as `previous-pin-id`" : "the latest earlier pin of this skill";
+      const lines = [...heading, `Previous pin \`${widening.previousPinId}\`, ${origin}.`, ""];
+      if (!isWidened(widening)) {
+        lines.push(
+          "No capability added and no higher native-value ceiling. Users still approve the new pin " +
+            "explicitly, because its bytes are new.",
+        );
+        return lines.join("\n");
+      }
+      if (widening.added.length > 0) {
+        lines.push(
+          `#### Added capabilities (${widening.added.length})`,
+          "",
+          "| target | function | risk |",
+          "|---|---|---|",
+          ...widening.added.map(capabilityRow),
+          "",
+        );
+      }
+      if (widening.ceiling !== undefined) {
+        lines.push(
+          `Native value per batch rises from ${formatEther(widening.ceiling.from)} to ` +
+            `${formatEther(widening.ceiling.to)} MON.`,
+        );
+      }
+      return lines.join("\n");
+    }
+  }
+}
+
 /**
- * Capability count of this publisher's most recent pin, if any.
+ * What this release adds over `pinId`, read from chain state rather than logs.
  *
- * Used only to warn about widening. Returns undefined for a first publish, which
- * must not be treated as a widening or every new skill would fail its own release.
+ * `isAllowed` is the registry's own capability check, the one the guard enforces, so the
+ * comparison cannot disagree with enforcement. A revoked pin keeps its capability set, so a
+ * release replacing a revoked one is still compared against what it replaces.
  */
-async function previousCapabilityCount(
-  client: ReturnType<typeof createPublicClient>,
+async function compareWithPin(
+  client: Client,
   registry: Address,
-  publisher: Address,
-): Promise<number | undefined> {
-  const logs = await client.getContractEvents({
+  pinId: Hex,
+  manifest: Manifest,
+  publisher?: Address,
+): Promise<Widening> {
+  const pin = (await client.readContract({
     address: registry,
     abi: registryAbi,
-    eventName: "Published",
-    args: { publisher },
-    fromBlock: "earliest",
-  });
-  if (logs.length === 0) return undefined;
+    functionName: "getPin",
+    args: [pinId],
+  })) as { readonly publisher: Address; readonly maxValuePerBatch: bigint; readonly exists: boolean };
 
-  const latest = logs.reduce((a, b) => ((a.blockNumber ?? 0n) >= (b.blockNumber ?? 0n) ? a : b));
-  const count = (latest.args as { capabilityCount?: bigint }).capabilityCount;
-  return count === undefined ? undefined : Number(count);
+  if (!pin.exists) fail(`previous pin ${pinId} does not exist in registry ${registry}`);
+  // A comparison against someone else's pin answers a question nobody asked, and would pass a
+  // widening whenever the other publisher's skill happened to be broader.
+  if (publisher !== undefined && pin.publisher.toLowerCase() !== publisher.toLowerCase()) {
+    fail(`previous pin ${pinId} was published by ${pin.publisher}, not ${publisher}`);
+  }
+
+  const added: Capability[] = [];
+  for (const capability of manifest.capabilities) {
+    const allowed = (await client.readContract({
+      address: registry,
+      abi: registryAbi,
+      functionName: "isAllowed",
+      args: [pinId, capability.target, capability.selector],
+    })) as boolean;
+    if (!allowed) added.push(capability);
+  }
+
+  const raised = manifest.maxValuePerBatch > pin.maxValuePerBatch;
+  return {
+    previousPinId: pinId,
+    added,
+    ...(raised ? { ceiling: { from: pin.maxValuePerBatch, to: manifest.maxValuePerBatch } } : {}),
+  };
+}
+
+/**
+ * The pin a release is compared against: given, inferred from bond state, or found in history.
+ *
+ * Never throws for an RPC that cannot answer. It reports `unknown`, and the caller decides
+ * whether that blocks the release.
+ */
+async function findBaseline(
+  client: Client,
+  registry: Address,
+  publisher: Address,
+  name: string,
+  explicit: Hex | undefined,
+): Promise<Baseline> {
+  if (explicit !== undefined) return { kind: "pin", pinId: explicit, source: "input" };
+
+  /*
+   * Nothing locked means no live pin, so there is nothing a release could widen.
+   *
+   * Sound only while every publish locks a nonzero bond, which a nonzero base bond guarantees, and
+   * `quoteBond(0, 0, false)` is exactly the base bond. Bond is only ever released by reclaiming a
+   * revoked pin or by a slash, which revokes both pins it touches, so zero locked means zero pins
+   * in service. Checked first because it is two reads, and a first release is the common case on
+   * an RPC that cannot serve the history query below.
+   */
+  const [floor, locked] = (await Promise.all([
+    client.readContract({ address: registry, abi: registryAbi, functionName: "quoteBond", args: [0n, 0n, false] }),
+    client.readContract({ address: registry, abi: registryAbi, functionName: "lockedBond", args: [publisher] }),
+  ])) as [bigint, bigint];
+  if (floor > 0n && locked === 0n) {
+    return { kind: "first-release", why: "this publisher has no live pins" };
+  }
+
+  /*
+   * One query, never a loop. Paging 100-block windows from the registry's deployment would cost
+   * tens of thousands of requests against a rate-limited endpoint, which is not a check a CI step
+   * can make. An RPC that answers an open range gets an exact lookup; one that refuses gets an
+   * honest "unknown" and the instruction to pass `previous-pin-id`.
+   */
+  try {
+    const logs = await client.getContractEvents({
+      address: registry,
+      abi: registryAbi,
+      eventName: "Published",
+      args: { publisher },
+      fromBlock: "earliest",
+    });
+    // Same skill only. The latest pin of any skill was the old baseline, which compared a release
+    // against whatever this publisher happened to ship last.
+    const mine = logs.filter((log) => (log.args as { name?: string }).name === name);
+    if (mine.length === 0) {
+      return { kind: "first-release", why: `no earlier pin of ${name} by this publisher` };
+    }
+    const latest = mine.reduce((a, b) => {
+      const ab = a.blockNumber ?? 0n;
+      const bb = b.blockNumber ?? 0n;
+      if (ab !== bb) return ab > bb ? a : b;
+      return (a.logIndex ?? 0) >= (b.logIndex ?? 0) ? a : b;
+    });
+    return { kind: "pin", pinId: (latest.args as { pinId: Hex }).pinId, source: "history" };
+  } catch (error) {
+    return { kind: "unknown", reason: rpcReason(error) };
+  }
+}
+
+/**
+ * Why an RPC call failed, without the request URL.
+ *
+ * viem's error messages include the URL, and an RPC URL often carries an API key in its path, so
+ * printing the raw error would put that key in a CI log anyone with read access can see. Only the
+ * server's own reason is surfaced.
+ */
+function rpcReason(error: unknown): string {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current !== null && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const details = (current as { details?: unknown }).details;
+    if (typeof details === "string" && details !== "") {
+      const range = /limited to a \d+ range/i.exec(details);
+      if (range !== null) return `eth_getLogs is ${range[0]}`;
+      const quoted = /"message"\s*:\s*"([^"]{1,200})"/.exec(details);
+      if (quoted?.[1] !== undefined) return quoted[1];
+      if (!/https?:\/\//i.test(details)) return details.slice(0, 200);
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return "the RPC refused the query";
 }

@@ -36,10 +36,20 @@ inputs:
     default: "false"
   fail-on-capability-change:
     description: >
-      Fail the job when the manifest declares capabilities the previous pin did not.
-      Turns a widened blast radius into a red check instead of a silent release.
+      Fail the job when the manifest declares a (target, selector) pair the previous pin did
+      not allow, or raises the native-value ceiling. Turns a widened blast radius into a red
+      check instead of a silent release. Fails closed when the previous pin cannot be
+      determined; see previous-pin-id.
     required: false
     default: "true"
+  previous-pin-id:
+    description: >
+      The pin this release replaces. When set, the widening check reads it straight from chain
+      state, which works on RPCs that cap eth_getLogs (Monad's public RPC allows 100 blocks per
+      query). When unset, the action treats a publisher with no live pins as a first release,
+      and otherwise looks the previous pin up in the publisher's history, failing closed if the
+      RPC refuses that query. Also adds the capability diff to dry runs.
+    required: false
 
 outputs:
   skill-hash:

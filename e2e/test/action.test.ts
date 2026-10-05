@@ -13,6 +13,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -40,6 +41,71 @@ const FORGE = join(FOUNDRY_BIN, process.platform === "win32" ? "forge.exe" : "fo
 const PORT = 8550;
 const RPC = `http://127.0.0.1:${PORT}`;
 const PUBLISHER_PK = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
+/** Anvil's second default account: a publisher that starts with no pins at all. */
+const SECOND_PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as Hex;
+
+const CAPPED_PORT = 8551;
+const CAPPED_RPC = `http://127.0.0.1:${CAPPED_PORT}`;
+
+interface CappedRpc {
+  readonly server: Server;
+  /** `eth_getLogs` requests refused since the last reset, retries included. */
+  logQueries(): number;
+  reset(): void;
+}
+
+/**
+ * Anvil behind a proxy that refuses `eth_getLogs` exactly the way Monad's public RPC does: HTTP 413
+ * with `{"code":-32614,"message":"eth_getLogs is limited to a 100 range"}`.
+ *
+ * Anvil has no range cap. Without this, the history path is only ever exercised against an
+ * endpoint more generous than the one the action ships against, which is how a genesis log scan
+ * passed every test here and failed every real publish.
+ */
+async function startCappedRpc(upstream: string, port: number): Promise<CappedRpc> {
+  let refused = 0;
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      void (async () => {
+        const body = Buffer.concat(chunks).toString("utf8");
+        const parsed = JSON.parse(body) as { id?: unknown; method?: string } | { id?: unknown; method?: string }[];
+        const calls = Array.isArray(parsed) ? parsed : [parsed];
+        if (calls.some((call) => call.method === "eth_getLogs")) {
+          refused += 1;
+          res.writeHead(413, { "content-type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: calls[0]?.id ?? 0,
+              error: { code: -32614, message: "eth_getLogs is limited to a 100 range" },
+            }),
+          );
+          return;
+        }
+        const forwarded = await fetch(upstream, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        });
+        res.writeHead(forwarded.status, { "content-type": "application/json" });
+        res.end(await forwarded.text());
+      })().catch((error: unknown) => {
+        res.writeHead(502);
+        res.end(String(error));
+      });
+    });
+  });
+  await new Promise<void>((done) => server.listen(port, "127.0.0.1", done));
+  return {
+    server,
+    logQueries: () => refused,
+    reset: () => {
+      refused = 0;
+    },
+  };
+}
 
 const registryAbi = parseAbi([
   "function deposit(uint256 amount)",
@@ -63,13 +129,17 @@ interface RunResult {
 
 describe.skipIf(!available)("lockstep GitHub Action against a live chain", () => {
   let anvil: ChildProcess;
+  let capped: CappedRpc;
   let client: PublicClient;
   let registry: Address;
   const publisher = privateKeyToAccount(PUBLISHER_PK);
+  const second = privateKeyToAccount(SECOND_PK);
   const tempDirs: string[] = [];
 
   const wallet = () =>
     createWalletClient({ account: publisher, chain: foundry, transport: http(RPC) });
+  const secondWallet = () =>
+    createWalletClient({ account: second, chain: foundry, transport: http(RPC) });
   const send = async (hash: Hex) => client.waitForTransactionReceipt({ hash });
 
   /** A skill directory with a manifest, written fresh so each case controls its bytes. */
@@ -78,6 +148,8 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     readonly version: string;
     readonly body: string;
     readonly calls: readonly { target: string; selector: string }[];
+    /** Wei, as the manifest takes it. Defaults to "0", a skill that moves no native value. */
+    readonly maxValuePerBatch?: string;
   }): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), "lockstep-action-"));
     tempDirs.push(dir);
@@ -89,7 +161,9 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
           schema: "lockstep/1",
           name: options.name,
           version: options.version,
-          capabilities: { onchain: { calls: options.calls, maxValuePerBatch: "0" } },
+          capabilities: {
+            onchain: { calls: options.calls, maxValuePerBatch: options.maxValuePerBatch ?? "0" },
+          },
         },
         null,
         2,
@@ -106,6 +180,11 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     await writeFile(outputFile, "");
     await writeFile(summaryFile, "");
 
+    // Each run is a fresh job. Without this, a case that calls run() twice inherits the first
+    // call's inputs, so a "false" set once silently applies to every later call in that case.
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("INPUT_")) delete process.env[key];
+    }
     process.env.GITHUB_OUTPUT = outputFile;
     process.env.GITHUB_STEP_SUMMARY = summaryFile;
     /*
@@ -187,10 +266,18 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
       address: registry, abi: registryAbi, functionName: "bondAsset",
     })) as Address;
 
-    const funding = 10_000_000_000n; // 10,000 units at 6 decimals
+    const funding = 100_000_000_000n; // 100,000 units at 6 decimals
     await send(await wallet().writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "mint", args: [publisher.address, funding], chain: foundry, account: publisher }));
     await send(await wallet().writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "approve", args: [registry, funding], chain: foundry, account: publisher }));
     await send(await wallet().writeContract({ address: registry, abi: registryAbi, functionName: "deposit", args: [funding], chain: foundry, account: publisher }));
+
+    // A second publisher with bond deposited and nothing published, for the cases about a
+    // publisher's first release.
+    await send(await wallet().writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "mint", args: [second.address, funding], chain: foundry, account: publisher }));
+    await send(await secondWallet().writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "approve", args: [registry, funding], chain: foundry, account: second }));
+    await send(await secondWallet().writeContract({ address: registry, abi: registryAbi, functionName: "deposit", args: [funding], chain: foundry, account: second }));
+
+    capped = await startCappedRpc(RPC, CAPPED_PORT);
   }, 180_000);
 
   afterEach(() => {
@@ -203,6 +290,7 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
   });
 
   afterAll(async () => {
+    await new Promise<void>((done) => (capped ? capped.server.close(() => done()) : done()));
     anvil?.kill();
     await Promise.all(tempDirs.map((d) => rm(d, { recursive: true, force: true })));
   });
@@ -231,6 +319,7 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     expect(outputs["pin-id"]).toBeUndefined();
     expect(summary).toContain("act-dry 1.0.0");
     expect(summary).toContain("Declared capabilities (1)");
+    expect(summary).toContain("Not compared. Set `previous-pin-id`");
   }, 60_000);
 
   /** A high-risk capability must be visible in review, not buried in a bond number. */
@@ -380,6 +469,184 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     });
 
     expect(result.outputs["pin-id"]).toMatch(/^0x[0-9a-f]{64}$/);
+    // Allowed, not hidden: the summary still names what was added.
+    expect(result.summary).toContain("Added capabilities (1)");
+  }, 120_000);
+
+  // --- what counts as widening ---
+
+  /** The check used to compare counts, so trading one capability for another passed. */
+  it("fails the job when a capability is swapped for another at the same count", async () => {
+    const before = await makeSkill({
+      name: "act-swap", version: "1.0.0", body: "swap",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    await run({ ...base(), "skill-dir": before, "publisher-private-key": PUBLISHER_PK });
+
+    const after = await makeSkill({
+      name: "act-swap", version: "2.0.0", body: "approve instead",
+      calls: [{ target: TOKEN, selector: "approve(address,uint256)" }],
+    });
+
+    await expect(
+      run({ ...base(), "skill-dir": after, "publisher-private-key": PUBLISHER_PK }),
+    ).rejects.toThrow(/Capability set widened.*approve\(address,uint256\)/);
+  }, 120_000);
+
+  /** A higher value ceiling is a wider blast radius with the same capability list. */
+  it("fails the job when the native value ceiling rises", async () => {
+    const before = await makeSkill({
+      name: "act-value", version: "1.0.0", body: "no value",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    await run({ ...base(), "skill-dir": before, "publisher-private-key": PUBLISHER_PK });
+
+    const after = await makeSkill({
+      name: "act-value", version: "2.0.0", body: "some value",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+      maxValuePerBatch: "1000000000000000",
+    });
+
+    await expect(
+      run({ ...base(), "skill-dir": after, "publisher-private-key": PUBLISHER_PK }),
+    ).rejects.toThrow(/native value ceiling from 0 to 0\.001 MON/);
+  }, 120_000);
+
+  /**
+   * The baseline used to be this publisher's latest pin of any skill. Against the narrow skill
+   * published in between, an unchanged release of the wide one read as a widening.
+   */
+  it("compares a release only against the same skill's earlier pin", async () => {
+    const twoCalls = [
+      { target: ROUTER, selector: "swap(uint256)" },
+      { target: ROUTER, selector: "quote(uint256)" },
+    ];
+    const wide = await makeSkill({ name: "act-multi-wide", version: "1.0.0", body: "wide", calls: twoCalls });
+    await run({ ...base(), "skill-dir": wide, "publisher-private-key": PUBLISHER_PK });
+
+    const narrow = await makeSkill({
+      name: "act-multi-narrow", version: "1.0.0", body: "narrow",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    await run({ ...base(), "skill-dir": narrow, "publisher-private-key": PUBLISHER_PK });
+
+    const wideNext = await makeSkill({ name: "act-multi-wide", version: "1.1.0", body: "wide, next", calls: twoCalls });
+    const result = await run({ ...base(), "skill-dir": wideNext, "publisher-private-key": PUBLISHER_PK });
+
+    expect(result.outputs["pin-id"]).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(result.summary).toContain("No capability added");
+  }, 120_000);
+
+  // --- an RPC that caps eth_getLogs, the way Monad's public endpoint does ---
+
+  /** Publishing on "could not check" would make the default a promise kept only on lenient RPCs. */
+  it("fails closed when the RPC cannot serve publish history", async () => {
+    const v1 = await makeSkill({
+      name: "act-capped", version: "1.0.0", body: "capped one",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    await run({ ...base(), "skill-dir": v1, "publisher-private-key": PUBLISHER_PK });
+
+    const v2 = await makeSkill({
+      name: "act-capped", version: "1.1.0", body: "capped two",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+
+    await expect(
+      run({ ...base(), "rpc-url": CAPPED_RPC, "skill-dir": v2, "publisher-private-key": PUBLISHER_PK }),
+    ).rejects.toThrow(/limited to a 100 range.*previous-pin-id/);
+  }, 120_000);
+
+  it("checks against previous-pin-id from chain state without reading logs", async () => {
+    const calls = [{ target: ROUTER, selector: "swap(uint256)" }];
+    const v1 = await makeSkill({ name: "act-explicit", version: "1.0.0", body: "explicit one", calls });
+    const first = await run({ ...base(), "skill-dir": v1, "publisher-private-key": PUBLISHER_PK });
+
+    capped.reset();
+    const v2 = await makeSkill({ name: "act-explicit", version: "1.1.0", body: "explicit two", calls });
+    const next = await run({
+      ...base(), "rpc-url": CAPPED_RPC, "skill-dir": v2, "publisher-private-key": PUBLISHER_PK,
+      "previous-pin-id": first.outputs["pin-id"]!,
+    });
+    expect(next.outputs["pin-id"]).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(next.summary).toContain("given as `previous-pin-id`");
+
+    const v3 = await makeSkill({
+      name: "act-explicit", version: "2.0.0", body: "explicit three",
+      calls: [...calls, { target: TOKEN, selector: "approve(address,uint256)" }],
+    });
+    await expect(
+      run({
+        ...base(), "rpc-url": CAPPED_RPC, "skill-dir": v3, "publisher-private-key": PUBLISHER_PK,
+        "previous-pin-id": next.outputs["pin-id"]!,
+      }),
+    ).rejects.toThrow(/Capability set widened/);
+
+    expect(capped.logQueries()).toBe(0);
+  }, 120_000);
+
+  /** The common case on Monad: a publisher's first release, where there is no history to read. */
+  it("treats a publisher with no live pins as a first release without reading logs", async () => {
+    capped.reset();
+    const skill = await makeSkill({
+      name: "act-fresh", version: "1.0.0", body: "fresh publisher",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+
+    const result = await run({
+      ...base(), "rpc-url": CAPPED_RPC, "skill-dir": skill, "publisher-private-key": SECOND_PK,
+    });
+
+    expect(result.outputs["pin-id"]).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(result.summary).toContain("this publisher has no live pins");
+    expect(capped.logQueries()).toBe(0);
+  }, 120_000);
+
+  it("refuses a previous-pin-id that another publisher owns", async () => {
+    const theirs = await makeSkill({
+      name: "act-theirs", version: "1.0.0", body: "theirs",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    const published = await run({ ...base(), "skill-dir": theirs, "publisher-private-key": PUBLISHER_PK });
+
+    const mine = await makeSkill({
+      name: "act-mine", version: "1.0.0", body: "mine",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+
+    await expect(
+      run({
+        ...base(), "skill-dir": mine, "publisher-private-key": SECOND_PK,
+        "previous-pin-id": published.outputs["pin-id"]!,
+      }),
+    ).rejects.toThrow(/was published by/);
+  }, 120_000);
+
+  /** Where a widening is cheapest to catch: in review, before a merge can publish it. */
+  it("shows what a release adds in a dry run given previous-pin-id", async () => {
+    const v1 = await makeSkill({
+      name: "act-dry-diff", version: "1.0.0", body: "reviewed",
+      calls: [{ target: ROUTER, selector: "swap(uint256)" }],
+    });
+    const first = await run({ ...base(), "skill-dir": v1, "publisher-private-key": PUBLISHER_PK });
+
+    const v2 = await makeSkill({
+      name: "act-dry-diff", version: "2.0.0", body: "proposed",
+      calls: [
+        { target: ROUTER, selector: "swap(uint256)" },
+        { target: TOKEN, selector: "approve(address,uint256)" },
+      ],
+    });
+    const inputs = {
+      ...base(), "skill-dir": v2, "dry-run": "true", "previous-pin-id": first.outputs["pin-id"]!,
+    };
+
+    const shown = await run({ ...inputs, "fail-on-capability-change": "false" });
+    expect(shown.summary).toContain("Added capabilities (1)");
+    expect(shown.summary).toContain("approve(address,uint256)");
+    expect(shown.outputs["pin-id"]).toBeUndefined();
+
+    await expect(run(inputs)).rejects.toThrow(/Capability set widened/);
   }, 120_000);
 
   // --- input validation ---
@@ -388,6 +655,7 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     [{ "skill-dir": "" }, /skill-dir is required/],
     [{ "pin-registry": "0x1234" }, /pin-registry is not an address/],
     [{ "chain-id": "1" }, /chain-id must be 143 or 10143/],
+    [{ "previous-pin-id": "0x1234" }, /previous-pin-id must be a 32-byte hex pin id/],
   ])("rejects bad input (%#)", async (override, pattern) => {
     const skill = await makeSkill({
       name: "act-bad", version: "1.0.0", body: "x",
