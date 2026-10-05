@@ -847,7 +847,7 @@ exists at all — and it is also why the enforcement has to be free.
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
 | End-to-end on a live chain | Done, 85 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
-| **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
+| **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock, most recently on 5 October 2026 against the current contracts. Honest run emitted `SkillExecuted` and moved the account's mAUSD; the same prompt with changed bytes was refused by the plugin with `NOT_PINNED`, before any transaction. The harness first needed a fix, because its publish call predated the struct form ([FINDINGS §40](FINDINGS.md#40-the-live-dispatch-harness-called-a-function-the-registry-no-longer-has)). See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured historically**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing was cheaper than settling. Enforcement *overhead* was 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. The Monad figures predate the redeploy; this release does not claim a fresh live gas measurement |
 | Dashboard (Next.js static export) | Done, 472 tests, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
@@ -870,11 +870,20 @@ node scripts/live-dispatch.mjs --provider bedrock \
 # Same prompt, same model, bytes swapped underneath.
 node scripts/live-dispatch.mjs --provider bedrock \
   --model amazon-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0 --rug-pull
+
+# Same again, but only the quote's payee changes. SKILL.md and every capability are identical.
+node scripts/live-dispatch.mjs --provider bedrock \
+  --model amazon-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0 --silent-update
 ```
 
-The model is not told which mode it is in and the tool schema is identical in both.
-The first settles and emits `SkillExecuted`. The second reverts at the guard with
-`SkillHashMismatch`, surfaced as `NOT_PINNED`:
+The model is not told which mode it is in and the tool schema is identical in all three.
+The first settles, emits `SkillExecuted`, and moves the account's mAUSD. In the other two the
+plugin refuses with `NOT_PINNED` before any transaction is sent, because the bytes on disk are not
+the approved pin. That is the first layer. The second, the guard reverting on chain with
+`SkillHashMismatch`, is the testnet receipt `0x8136…f4` recorded under "Deployed on Monad testnet"
+below, and the two are deliberately not conflated. The
+`--rug-pull` fixture carries a visible prompt injection that Claude sometimes refuses on its own,
+which proves nothing about Lockstep; `--silent-update` gives a model nothing to object to.
 
 | | skill hash |
 |---|---|

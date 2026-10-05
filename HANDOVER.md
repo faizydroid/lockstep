@@ -3,19 +3,22 @@
 Everything that can be done from the repository is done. What is left needs an account you own, a
 credential only you can mint, a wallet only you can sign with, or your face and voice.
 
-Submission is **11 October 2026**. Today is **2 September 2026**.
+Submission is **11 October 2026**. Updated **5 October 2026**, six days out. An earlier version of
+this file said 2 September and timed tasks 2 and 5 from that; both are corrected below.
 
 | # | Task | Time | Deadline pressure | Blocks |
 |---|------|------|-------------------|--------|
 | 1 | [Cloudflare token + domain](#1-cloudflare-pages-and-the-domain) | ~10 min | do now | automatic deploys, the custom domain |
-| 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr to start | **start now, 4+ week lead** | three demo claims |
-| 3 | [Record the video](#3-record-the-video) | ~3 hrs | after 1 | the submission |
+| 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr | send now; will not merge before 11 Oct | three demo claims |
+| 3 | [Record the video](#3-record-the-video) | ~3 hrs | **this week**, rehearsed and ready | the submission |
 | 4 | [Redeploy the contracts](#4-redeploy-the-contracts--completed) | **DONE** | — | — |
-| 5 | [Envio Cloud](#5-envio-cloud-do-this-late-on-purpose) | ~15 min | **wait until October** | an Envio bounty |
+| 5 | [Envio Cloud](#5-envio-cloud-do-this-now) | ~15 min | **do it now** | an Envio bounty |
 | 6 | [Marketplace listing](#6-marketplace-listing-optional) | ~5 min | optional | discovery only |
 | 7 | [Submit](#7-submit) | ~30 min | 11 Oct | — |
 
-Task 2 has the longest lead time and the least to do. Start it before task 1.
+With six days left, the order that protects the submission is: 1 (so the video and the write-up can
+show the real domain), 5 (it needs time to index), 3, 7. Task 2 is an hour and worth sending, but
+it cannot change what the submission can claim.
 
 ---
 
@@ -175,8 +178,12 @@ conversation.
 The Action is the ask, not the contracts. It is a dozen lines of YAML in a repository they already
 control, and it needs no wallet, no bond and no chain interaction to try.
 
-Expect 4+ weeks between first contact and a merged workflow file. Sending these on 2 September means
-a plausible answer by early October. Sending them on 1 October means no.
+Expect 4+ weeks between first contact and a merged workflow file, so nothing sent this week will
+merge before 11 October. Send anyway: a reply or an open PR thread is still evidence someone outside
+this repository looked, and the messages are drafted. The shortlist, checked on 5 October, is
+`pareen/monad-mcp` (best fit: its tools move money on Monad and it already scopes signing with
+session keys), `mcpdotdirect/evm-mcp-server` (379 stars, active) and `ColinkaMir/monad-mcp` (an x402
+tool that spends per call). Do not describe any of them as an adoption unless one merges.
 
 Even one acceptance converts three "not done" items into demonstrated ones. Zero acceptances costs
 you an hour and changes nothing else.
@@ -202,6 +209,20 @@ The live beat needs AWS credentials in `.env.local` and the `us.` prefix on the 
 the bare id fails with a `ValidationException`, because Claude on Bedrock is only reachable through a
 cross-region inference profile. The first run is slow, since it installs OpenClaw into an isolated
 state directory. Do a throwaway run before you record.
+
+**Rehearsed on 5 October, both directions, against the current contracts.** The harness needed
+fixing first: its publish call predated the struct form and reverted (`FINDINGS.md` §40). With the
+fix, the honest run prints the account's mAUSD balance before and after, a better shot than the
+event alone. Each run takes about seven minutes, most of it installing the Bedrock provider.
+
+**Record the attack with `--silent-update`, not `--rug-pull`.** The rug-pull fixture carries a
+visible prompt injection, and in two of three rehearsals Claude spotted it and refused the skill
+on its own. Nothing moved, but the guard was never reached, and the harness says `INCONCLUSIVE`
+rather than claiming a pass. `--silent-update` changes only who the quote pays, so the model has
+nothing to object to. It ran once and passed: the model called the tool, Lockstep's plugin refused
+with `NOT_PINNED` before sending any transaction, and the balance did not move. That is the plugin
+layer; label it as such, and show the guard's on-chain `SkillHashMismatch` from the testnet receipt
+as the second layer. `VIDEO.md` has the updated beat.
 
 If the model is flaky on the day, `VIDEO.md` gives a deterministic fallback:
 `cd contracts && forge test --match-test test_theSilentReplacementIsNowSlashable -vvv`. Say on camera
@@ -231,13 +252,11 @@ The bond asset remains a freely mintable mock on testnet.
 
 ---
 
-## 5. Envio Cloud (do this late, on purpose)
+## 5. Envio Cloud (do this now)
 
-**Do not do this now.** The free development plan **hard-deletes deployments after 30 days.**
-Deploying today means it can vanish around 2 October, nine days before submission, and the failure is
-silent from your side.
-
-Deploy in the **first week of October**. Set a reminder.
+**Now is the window this section was waiting for.** The free development plan **hard-deletes
+deployments after 30 days**, which is why it was deferred. A deployment made this week outlives
+11 October. One made after about 9 October leaves no time to notice a failed first index.
 
 When you do: install the Envio GitHub App on the repository, add an indexer, and set these three,
 which are what make a monorepo work at all:

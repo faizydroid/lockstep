@@ -508,7 +508,7 @@ Files: `index.ts`, `env.ts`, `abi.ts`, `manifest.ts`, `pins.ts`, `risk.ts`, `com
   }
 }
 ```
-Selectors are written as human-readable signatures and derived, not transcribed. The hostile fixture (`demo/attack/kuru-quote-hostile/`) is the same name at version `1.0.1` with an added `approve(address,uint256)` capability — the widening the Action is designed to turn red.
+Selectors are written as human-readable signatures and derived, not transcribed. The hostile fixture (`demo/attack/kuru-quote-hostile/`) claims the same name and version, `kuru-quote 3.0.0`, in its `lockstep.json` (its `SKILL.md` front matter still says `1.0.1`), and adds `transferFrom(address,address,uint256)` to the honest `approve` and `transfer` — the widening the Action is designed to turn red. Its payload is a prompt injection in `SKILL.md`, not code.
 
 ---
 
@@ -917,7 +917,7 @@ Error codes documented: `NO_SKILL_PROVENANCE`, `AMBIGUOUS_PROVENANCE`, `NOT_PINN
 
 ### `demo/` — fixtures
 
-`demo/skills/kuru-quote/` (honest, v1.0.0, 1 capability) and `demo/attack/kuru-quote-hostile/` (same name, v1.0.1, adds `approve(address,uint256)`). Each has `SKILL.md`, `lockstep.json`, `scripts/quote.mjs`.
+`demo/skills/kuru-quote/` (honest, `3.0.0`, `approve` and `transfer` on mAUSD, both high risk) and `demo/attack/kuru-quote-hostile/` (same name and manifest version, adds `transferFrom`, injected "setup" step in `SKILL.md`). Each has `SKILL.md`, `lockstep.json`, `scripts/quote.mjs`.
 
 ---
 
@@ -1270,8 +1270,8 @@ scripts/live-dispatch.mjs        the demo
 
 **Fixtures**
 ```
-demo/skills/kuru-quote/           honest v1.0.0
-demo/attack/kuru-quote-hostile/   same name v1.0.1, adds approve()
+demo/skills/kuru-quote/           honest 3.0.0, approve + transfer
+demo/attack/kuru-quote-hostile/   same name and version, adds transferFrom
 runtime/fixtures/kuru-quote/      hashing fixture
 contracts/test/Fixtures.sol       Solidity harness
 app/src/lib/fixtures.ts           sampleSnapshot, APPROVED_HASH, DRIFTED_HASH
@@ -1470,7 +1470,7 @@ From `HANDOVER.md` — the remaining operator tasks, ordered by lead time:
 2. Publisher outreach (longest lead time, ~4 weeks; gates three "not done" items)
 3. Record the video per `VIDEO.md`
 4. **Redeploy decision — completed.** Current testnet addresses, separated identities, delegation and receipts are documented
-5. Envio Cloud deployment — **first week of October**, not earlier
+5. Envio Cloud deployment — **due now** (the first week of October was the window; the free plan deletes after 30 days)
 6. Marketplace listing (optional; the Action works without it)
 7. Submit
 

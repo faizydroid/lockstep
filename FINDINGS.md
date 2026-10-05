@@ -1346,3 +1346,55 @@ joins a repeated header with a comma, so the `/*` rule's `no-store` was merged i
 were served as `no-store, public, max-age=31536000, immutable`, and `no-store` wins. The static
 rule now detaches the inherited value (`! cache-control`) before setting its own, verified on a
 preview deployment, and `scripts/check-export.mjs` fails a build whose static rule does not.
+
+---
+
+## 40. The live-dispatch harness called a function the registry no longer has
+
+Found by rehearsing the video's live beat on 5 October, the first run of
+`scripts/live-dispatch.mjs` since `publish` began taking a struct.
+
+The harness published through cast as `publish(bytes32,bytes32,uint256,address[],bytes4[])`, the
+positional form from before the version id became a derived value. The registry has had no such
+function since, so the call reverted with empty data: a missing selector, not a refusal. Nothing
+caught it because the harness needs a model credential, so CI never runs it, and the README's
+"verified both directions" described a run from before the change.
+
+Fixed by publishing exactly the way the CLI and the Action do: `loadManifest`, `isHighRiskSelector`
+and `pinRegistryAbi` come from `cli/src`, and viem's `writeContract` sends the struct. That ABI is
+checked against the compiled contracts by `e2e/test/abi.test.ts`, so the next signature change
+fails a test instead of the demo.
+
+The same rehearsal surfaced two more:
+
+- **The honest run moved nothing.** kuru-quote declares, and its quote emits, calls on the testnet
+  mAUSD token at a fixed address. The harness chain deploys its own copy elsewhere, so every call
+  hit an account with no code and succeeded trivially: an event, and no transfer. The harness now
+  copies the mock token's runtime code to the declared address, mints the account a balance, and
+  prints it before and after.
+- **A passing run could exit 1 on Windows.** The Gateway holds a SQLite journal open for a moment
+  after it is killed, so deleting the state directory failed with `EBUSY` *after* the verdict.
+  Cleanup now retries, and failing that names the directory instead of throwing.
+
+Re-verified on 5 October 2026 against the current contracts, with Claude Sonnet 4.5 on Bedrock:
+the honest run settled (`SkillExecuted`; account 1000.000000 → 999.999900 mAUSD, the skill's
+100-unit transfer), and in one rug-pull run the plugin refused with `NOT_PINNED` before any
+transaction was sent.
+
+**The rug-pull run is not deterministic, and that is the model, not the guard.** In two of three
+runs the model read the hostile `SKILL.md`, called its injected setup step a ClawHavoc pattern (or
+the burn-address payee a drain), and declined to use the skill at all. Nothing executed and the
+balance did not move, but the guard was never reached, so the harness correctly reported
+`INCONCLUSIVE` rather than a pass. The fixture makes this likelier than a real attack would: its
+HTML comment says, in words, that it is the ClawHavoc pattern reproduced for a demo, and the model
+can read comments. Rewriting it would change the hostile hash `0x960ea319…`, which the README, the
+dashboard fixtures and the export check all quote.
+
+So the harness gained `--silent-update`, which tests the guard alone. After approval it changes one
+line, the address the quote script pays, and leaves `SKILL.md`, `lockstep.json` and every declared
+capability identical. An allowlist of `(target, selector)` pairs permits that call and a model has
+nothing to object to; only the pin can refuse it. Rehearsed once: approved
+`0x9b68b339…`, on disk `0xd9a7a45d…`, the model called the tool, the plugin refused with
+`NOT_PINNED` before sending any transaction, and the balance stayed at 1000.000000. That is the
+plugin layer. The guard's own refusal, `SkillHashMismatch` on chain, is the second layer and is
+evidenced separately by the testnet receipt `0x8136…f4`.
