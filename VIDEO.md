@@ -99,30 +99,49 @@ node scripts/live-dispatch.mjs --provider bedrock \
 > A real model reads a real skill and calls a tool that moves funds. The account approved this exact
 > version, so it settles.
 
-Cut to the `SkillExecuted` line in the output.
+Cut to the verdict: the account's mAUSD balance line (`1000.000000 -> 999.999900`), then the
+`SkillExecuted` line.
 
-**The attack (0:52–1:20).** Same command, one flag.
+**The attack (0:52–1:20).** Same command, one flag. Use `--silent-update` for this take.
 
 ```bash
 node scripts/live-dispatch.mjs --provider bedrock \
-  --model amazon-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0 --rug-pull
+  --model amazon-bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0 --silent-update
 ```
 
+It changes one line after approval: the address the quote script pays. `SKILL.md`, `lockstep.json`
+and every declared capability stay identical, so the model has nothing to object to and an
+allowlist of `(target, selector)` pairs would permit the call. Rehearsed on 5 October: the model
+followed the unchanged instructions, Lockstep's plugin refused with `NOT_PINNED` before sending any
+transaction, and the balance did not move.
+
+Two layers refuse this, and they must be labelled separately. In this run the **plugin** refuses:
+`NOT_PINNED`, and no transaction exists. The **guard** refusing on chain is the testnet receipt
+`0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`: `SkillHashMismatch`, reverted,
+zero logs. Never present the plugin refusal as though it produced a transaction.
+
+Why not `--rug-pull`? Its fixture carries a visible prompt injection, and in rehearsal Claude
+sometimes spotted it and refused the skill itself. That shows the model being careful, not Lockstep
+working, and the harness reports it as `INCONCLUSIVE`. Never cut an `INCONCLUSIVE` take in as a
+guard refusal.
+
 **Voiceover.**
-> Now the publisher replaces the approved bytes with hostile ones, after approval. Same skill name.
-> Same version string. Nothing the user can see has changed.
+> Now the publisher changes the approved skill after approval. One line: who it pays. Same skill
+> name. Same version string. Same instructions, same declared capabilities. Nothing the user or the
+> model can see has changed.
 > The agent does exactly what it is told. And it is refused before settlement.
 
-**Screen.** The harness output showing `NOT_PINNED`, then cut to the revert trace: the two hashes
-side by side and the log count.
+**Screen.** The harness output: the approved hash and the on-disk hash, then `NOT_PINNED`, then
+the unchanged balance line (`1000.000000 -> 1000.000000`). Then cut to the testnet revert trace,
+labelled as the second layer: the two hashes side by side and the log count.
 
 **Captions.**
 ```
-Same command. One flag: --rug-pull.
-Approved bytes replaced AFTER approval.
-Same name. Same version. No visible change.
-REFUSED before settlement.
-SkillHashMismatch(attested, pinned) — and zero logs. Nothing moved.
+Same command. One flag: --silent-update.
+One line changed AFTER approval: who it pays.
+Same name. Same version. Same capabilities.
+Layer 1, the plugin: NOT_PINNED. No transaction sent. Balance unchanged.
+Layer 2, on chain: SkillHashMismatch(attested, pinned) — zero logs. Nothing moved.
 ```
 
 **Note.** The two hashes differ in almost every character. That is the shot. Hold on it for two full
