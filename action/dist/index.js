@@ -21342,7 +21342,13 @@ async function main() {
     if (previousPin === void 0) {
       await summary(comparisonSummary({ kind: "skipped" }));
     } else {
-      const widening = await compareWithPin(client, registryAddress, previousPin, manifest);
+      const widening = await compareWithPin(
+        client,
+        registryAddress,
+        previousPin,
+        manifest,
+        hashed.skillHash
+      );
       await summary(comparisonSummary({ kind: "compared", source: "input", widening }));
       if (failOnChange && isWidened(widening)) failWidened(widening);
     }
@@ -21399,6 +21405,7 @@ async function main() {
       registryAddress,
       baseline.pinId,
       manifest,
+      hashed.skillHash,
       account.address
     )
   } : baseline;
@@ -21529,7 +21536,7 @@ function comparisonSummary(comparison) {
       const lines = [...heading, `Previous pin \`${widening.previousPinId}\`, ${origin}.`, ""];
       if (!isWidened(widening)) {
         lines.push(
-          "No capability added and no higher native-value ceiling. Users still approve the new pin explicitly, because its bytes are new."
+          widening.sameBytes ? "These are the bytes the previous pin already holds, so there is nothing new to approve." : "No capability added and no higher native-value ceiling. Users still approve the new pin explicitly, because its bytes are new."
         );
         return lines.join("\n");
       }
@@ -21552,7 +21559,7 @@ function comparisonSummary(comparison) {
     }
   }
 }
-async function compareWithPin(client, registry, pinId, manifest, publisher) {
+async function compareWithPin(client, registry, pinId, manifest, skillHash, publisher) {
   const pin = await client.readContract({
     address: registry,
     abi: pinRegistryAbi,
@@ -21576,6 +21583,7 @@ async function compareWithPin(client, registry, pinId, manifest, publisher) {
   const raised = manifest.maxValuePerBatch > pin.maxValuePerBatch;
   return {
     previousPinId: pinId,
+    sameBytes: pin.skillHash.toLowerCase() === skillHash.toLowerCase(),
     added,
     ...raised ? { ceiling: { from: pin.maxValuePerBatch, to: manifest.maxValuePerBatch } } : {}
   };

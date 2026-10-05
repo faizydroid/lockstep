@@ -647,6 +647,14 @@ describe.skipIf(!available)("lockstep GitHub Action against a live chain", () =>
     expect(shown.outputs["pin-id"]).toBeUndefined();
 
     await expect(run(inputs)).rejects.toThrow(/Capability set widened/);
+
+    // A pull request that does not touch the skill compares its bytes with themselves, and the
+    // summary must not call them new.
+    const unchanged = await run({
+      ...base(), "skill-dir": v1, "dry-run": "true", "previous-pin-id": first.outputs["pin-id"]!,
+    });
+    expect(unchanged.summary).toContain("already holds");
+    expect(unchanged.summary).not.toContain("its bytes are new");
   }, 120_000);
 
   // --- input validation ---

@@ -211,7 +211,13 @@ export async function main(): Promise<void> {
     if (previousPin === undefined) {
       await summary(comparisonSummary({ kind: "skipped" }));
     } else {
-      const widening = await compareWithPin(client, registryAddress as Address, previousPin, manifest);
+      const widening = await compareWithPin(
+        client,
+        registryAddress as Address,
+        previousPin,
+        manifest,
+        hashed.skillHash,
+      );
       await summary(comparisonSummary({ kind: "compared", source: "input", widening }));
       if (failOnChange && isWidened(widening)) failWidened(widening);
     }
@@ -286,6 +292,7 @@ export async function main(): Promise<void> {
             registryAddress as Address,
             baseline.pinId,
             manifest,
+            hashed.skillHash,
             account.address,
           ),
         }
@@ -411,6 +418,8 @@ type Client = ReturnType<typeof createPublicClient>;
 /** What a release adds relative to the pin it replaces. */
 interface Widening {
   readonly previousPinId: Hex;
+  /** The previous pin already holds exactly these bytes, as a dry run of an unchanged skill does. */
+  readonly sameBytes: boolean;
   /** Declared `(target, selector)` pairs the previous pin did not allow. */
   readonly added: readonly Capability[];
   /** Present only when the native-value ceiling rises. Lowering it narrows the release. */
@@ -472,8 +481,10 @@ function comparisonSummary(comparison: Comparison): string {
       const lines = [...heading, `Previous pin \`${widening.previousPinId}\`, ${origin}.`, ""];
       if (!isWidened(widening)) {
         lines.push(
-          "No capability added and no higher native-value ceiling. Users still approve the new pin " +
-            "explicitly, because its bytes are new.",
+          widening.sameBytes
+            ? "These are the bytes the previous pin already holds, so there is nothing new to approve."
+            : "No capability added and no higher native-value ceiling. Users still approve the new " +
+                "pin explicitly, because its bytes are new.",
         );
         return lines.join("\n");
       }
@@ -510,6 +521,7 @@ async function compareWithPin(
   registry: Address,
   pinId: Hex,
   manifest: Manifest,
+  skillHash: Hex,
   publisher?: Address,
 ): Promise<Widening> {
   const pin = (await client.readContract({
@@ -517,7 +529,12 @@ async function compareWithPin(
     abi: registryAbi,
     functionName: "getPin",
     args: [pinId],
-  })) as { readonly publisher: Address; readonly maxValuePerBatch: bigint; readonly exists: boolean };
+  })) as {
+    readonly publisher: Address;
+    readonly skillHash: Hex;
+    readonly maxValuePerBatch: bigint;
+    readonly exists: boolean;
+  };
 
   if (!pin.exists) fail(`previous pin ${pinId} does not exist in registry ${registry}`);
   // A comparison against someone else's pin answers a question nobody asked, and would pass a
@@ -540,6 +557,7 @@ async function compareWithPin(
   const raised = manifest.maxValuePerBatch > pin.maxValuePerBatch;
   return {
     previousPinId: pinId,
+    sameBytes: pin.skillHash.toLowerCase() === skillHash.toLowerCase(),
     added,
     ...(raised ? { ceiling: { from: pin.maxValuePerBatch, to: manifest.maxValuePerBatch } } : {}),
   };
