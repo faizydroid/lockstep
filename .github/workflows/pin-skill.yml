@@ -5,54 +5,61 @@ name: Pin skill
 # hashes differently there — Linux CI is the only place a pin is reliably reproducible.
 #
 # Note the split: pull requests dry-run, which needs no key and makes a capability
-# change visible in review. Only a push to main publishes.
+# change visible in review. A push to main publishes, and so does a manual run:
+# `workflow_dispatch` takes the publish path, not the dry run.
 
-# Automatic triggers are off, and the reason has changed. Read this before re-enabling them.
+# ## Settings this workflow reads, all configured
 #
-# ## The two original blockers are resolved
+# Deployment settings live in GitHub's Actions variables and secrets rather than in the repository:
 #
-#   1. `publish` takes a struct since the version id became a derived value, and the registry
-#      then recorded in `vars.PIN_REGISTRY` predated that, so the selector differed and the
-#      call could not land. **Fixed by the redeploy**: the live registry is
-#      0xF0800974aE84F55508E3e31F72A52E09b19829B0, compiled from current source.
-#   2. Republishing the demo manifest under a version already on chain would have been the
-#      equivocation this action exists to refuse. **Fixed by the version bump**: the demo skill
-#      is kuru-quote 3.0.0, already published, and `action/src/main.ts` treats an identical byte
-#      set as a no-op — "already published: these exact bytes are pinned" — rather than a
-#      failure. So a push that changes nothing is green, not red.
+#   vars.PIN_REGISTRY              0xF0800974aE84F55508E3e31F72A52E09b19829B0, the live registry
+#   vars.CHAIN_ID                  10143
+#   vars.RPC_URL                   https://testnet-rpc.monad.xyz
+#   vars.PREVIOUS_PIN_ID           the pin the next release replaces; now kuru-quote 3.0.0,
+#                                  0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4
+#   secrets.PUBLISHER_PRIVATE_KEY  the SEPARATED publisher, 0xcc71E1f66CA325A9D3dEC74b2AA94CDF870194Dc.
+#                                  Deliberately not the account key: one address publishing,
+#                                  bonding and approving demonstrates no adversarial relationship.
 #
-# ## What still blocks it, and no commit can fix it
+# `PREVIOUS_PIN_ID` is what makes the widening check possible on Monad's public RPC, which refuses
+# any `eth_getLogs` over 100 blocks and so cannot serve the history lookup the action would
+# otherwise make. Without it a release of a skill this publisher already shipped fails closed.
 #
-# This workflow reads deployment settings from GitHub's Actions variables and secrets rather than
-# from the repository. The values that must be configured for automatic publishing are:
+# ## What a push does today, and what the next release needs
 #
-#   vars.PIN_REGISTRY              -> 0xF0800974aE84F55508E3e31F72A52E09b19829B0
-#   vars.CHAIN_ID                  -> 10143, or leave unset; the default below is correct
-#   vars.RPC_URL                   -> https://testnet-rpc.monad.xyz, or leave unset; the default below is correct
-#   secrets.PUBLISHER_PRIVATE_KEY  -> the key for the SEPARATED publisher,
-#                                     0xcc71E1f66CA325A9D3dEC74b2AA94CDF870194Dc, which holds
-#                                     the 1,150 mAUSD bond in the current registry
+# kuru-quote 3.0.0 is already published, and the action treats an identical byte set as a no-op
+# ("already published: these exact bytes are pinned"), so a push that does not touch the skill's
+# bytes is green and sends nothing.
 #
-# Until the registry variable and publisher secret are configured in GitHub, enabling `push` would
-# publish against an unset or stale registry on every merge and leave a permanent red check on main.
-# The publisher key matters most: it is deliberately no longer the account key, because one address
-# publishing, bonding and approving demonstrated no adversarial relationship at all.
+# A real release needs three things, in this order:
 #
-# Set those values, then restore the two triggers commented out below. Until then `workflow_dispatch`
-# allows a deliberate run, which is enough to prove the workflow works without making every merge
-# depend on an unverified repository setting.
+#   1. Bump `version` in demo/skills/kuru-quote/lockstep.json. Changing bytes under 3.0.0 is the
+#      equivocation the action refuses to help commit, and that refusal is a red check by design.
+#   2. Deposit enough bond first. All 1,150 mAUSD the publisher holds is locked against 3.0.0, so
+#      unlocked bond is zero and the publish would fail on `Insufficient unlocked bond`.
+#   3. After it lands, set `PREVIOUS_PIN_ID` to the new pin id from the run summary.
 #
-# The first run of this workflow found a real defect worth remembering: every hyphenated input
-# was unreachable, because the runner sets `INPUT_SKILL-DIR` and the action read
-# `INPUT_SKILL_DIR`. Fixed, and the e2e fixture now uses the runner's real convention rather
-# than the code's assumption.
+# ## History worth keeping
+#
+# The first run of this workflow found that every hyphenated input was unreachable, because the
+# runner sets `INPUT_SKILL-DIR` and the action read `INPUT_SKILL_DIR`. Then, before these triggers
+# were restored, the widening check turned out to scan logs from genesis, which Monad's RPC refuses,
+# so every real publish through v0.1.1 would have failed (FINDINGS.md §39). Both survived because
+# the workflow only ran when the skill changed. It now also runs when the action or this file
+# changes, so the action is exercised against the live registry whenever it is touched.
 on:
+  pull_request:
+    paths:
+      - "demo/skills/**"
+      - "action/**"
+      - ".github/workflows/pin-skill.yml"
+  push:
+    branches: [main]
+    paths:
+      - "demo/skills/**"
+      - "action/**"
+      - ".github/workflows/pin-skill.yml"
   workflow_dispatch:
-  # Restore both once the required settings above are updated.
-  #
-  # pull_request:
-  # push:
-  #   branches: [main]
 
 permissions:
   contents: read
@@ -91,6 +98,7 @@ jobs:
           pin-registry: ${{ vars.PIN_REGISTRY }}
           chain-id: ${{ vars.CHAIN_ID || '10143' }}
           rpc-url: ${{ vars.RPC_URL || 'https://testnet-rpc.monad.xyz' }}
+          previous-pin-id: ${{ vars.PREVIOUS_PIN_ID }}
           dry-run: "true"
 
       # Publish only from main. `fail-on-capability-change` stays at its default of
@@ -104,4 +112,5 @@ jobs:
           pin-registry: ${{ vars.PIN_REGISTRY }}
           chain-id: ${{ vars.CHAIN_ID || '10143' }}
           rpc-url: ${{ vars.RPC_URL || 'https://testnet-rpc.monad.xyz' }}
+          previous-pin-id: ${{ vars.PREVIOUS_PIN_ID }}
           publisher-private-key: ${{ secrets.PUBLISHER_PRIVATE_KEY }}
