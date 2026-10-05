@@ -269,8 +269,8 @@ pin, separated identities, delegation proof, successful `SkillExecuted` receipt 
 - `SUBMISSION.md` — current testnet state and evidence
 - `MASTER_AI_CONTEXT.md` — current addresses, status matrix and known-problem resolution
 - `HANDOVER.md` — task 4 is complete
-- `.github/workflows/pin-skill.yml` — source/on-chain blockers are resolved, but triggers remain
-  manual until GitHub's `PIN_REGISTRY` variable and separated `PUBLISHER_PRIVATE_KEY` secret exist
+- `.github/workflows/pin-skill.yml` — triggers restored once the GitHub settings existed and the
+  widening check could run on Monad's RPC (`v0.1.2`, `FINDINGS.md` §39)
 
 **The bond asset is still a freely mintable mock.** The redeploy does not change that, and the
 submission keeps saying so.

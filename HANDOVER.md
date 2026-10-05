@@ -12,7 +12,7 @@ Submission is **11 October 2026**. Today is **2 September 2026**.
 | 3 | [Record the video](#3-record-the-video) | ~3 hrs | after 1 | the submission |
 | 4 | [Redeploy the contracts](#4-redeploy-the-contracts--completed) | **DONE** | — | — |
 | 5 | [Envio Cloud](#5-envio-cloud-do-this-late-on-purpose) | ~15 min | **wait until October** | an Envio bounty |
-| 6 | [Marketplace listing](#6-marketplace-listing-optional) | ~15 min | optional | discovery only |
+| 6 | [Marketplace listing](#6-marketplace-listing-optional) | ~5 min | optional | discovery only |
 | 7 | [Submit](#7-submit) | ~30 min | 11 Oct | — |
 
 Task 2 has the longest lead time and the least to do. Start it before task 1.
@@ -37,6 +37,14 @@ The automatic deploy after each green CI run still **fails on one line**:
 
 Everything before that step passes on the runner: install, build, header generation, and the export
 check. The API token is the one credential I cannot create for you.
+
+**Pin publishing is automatic.** `pin-skill.yml` dry-runs on pull requests and publishes on pushes to
+`main` that touch the demo skill, the action, or the workflow. Its settings are configured:
+`PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL` and `PREVIOUS_PIN_ID` as variables, and the separated
+publisher's key as the `PUBLISHER_PRIVATE_KEY` secret, uploaded only after checking it derives
+`0xcc71…94Dc`. While kuru-quote's bytes are unchanged, a push is a no-op. The next real release
+needs a version bump, a bond deposit (all 1,150 mAUSD is locked against 3.0.0), and then
+`PREVIOUS_PIN_ID` set to the new pin. The workflow's header has the steps.
 
 ---
 
@@ -259,14 +267,21 @@ It cannot be done from this repository: the Marketplace requires exactly one act
 with its metadata at the repository **root**, and this is a monorepo with the metadata at
 `action/action.yml`. No configuration changes that.
 
-```powershell
-node scripts/publish-action-repo.mjs --dry-run --version v0.1.2   # inspect first
-gh repo create faizydroid/lockstep-action --public
-node scripts/publish-action-repo.mjs --version v0.1.2
-```
+**The standalone repository is done.** `faizydroid/lockstep-action` exists and carries `v0.1.2`,
+generated from `b92acd3` by `scripts/publish-action-repo.mjs`. Its `dist/index.js`, `action.yml`
+and `LICENSE` are byte-identical to the monorepo's `v0.1.2`, checked by blob hash.
 
-Then on that repository: **Releases** → **Draft a new release** → pick tag `v0.1.2` → tick
-**Publish this Action to the GitHub Marketplace** → accept the terms → publish.
+What is left is the part GitHub only offers to a human, because it includes accepting the
+Marketplace terms: on https://github.com/faizydroid/lockstep-action → **Releases** → **Draft a new
+release** → pick tag `v0.1.2` → tick **Publish this Action to the GitHub Marketplace** → accept the
+terms → publish.
+
+A later release repeats the generation step first:
+
+```powershell
+node scripts/publish-action-repo.mjs --dry-run --version v0.1.3   # inspect first
+node scripts/publish-action-repo.mjs --version v0.1.3
+```
 
 The script force-pushes `main` there, because it is a generated snapshot with no history worth
 keeping, but it pushes tags **without** force, so a released version can never move under someone

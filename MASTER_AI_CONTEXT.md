@@ -1009,8 +1009,8 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | OpenClaw plugin + `lockstep_send` | **IMPLEMENTED** | 55 tests; live dispatch verified both ways | `plugin/` |
 | Exec gate (shell pattern block) | **IMPLEMENTED**, explicitly not a boundary | `FINDINGS.md §10` | `plugin/src/index.ts` |
 | CLI (5 commands) | **IMPLEMENTED** | 48 tests | `cli/` |
-| GitHub Action | **IMPLEMENTED** | 10 e2e tests against a real chain | `action/` |
-| Action on GitHub Marketplace | **not possible from monorepo** | one action per repo, metadata at root | `scripts/publish-action-repo.mjs` |
+| GitHub Action | **IMPLEMENTED** | 22 e2e tests against a real chain, incl. a Monad-style capped RPC | `action/` |
+| Action on GitHub Marketplace | **PARTIAL** | standalone `faizydroid/lockstep-action@v0.1.2` published; the listing itself needs the maintainer to accept the terms | `scripts/publish-action-repo.mjs` |
 | Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 472 tests + export gate | `app/` |
 | Browser write boundary | **IMPLEMENTED** | 4 enforcement layers | `app/src/lib/policy.ts` |
 | Badge generator | **IMPLEMENTED** | 30 tests | `badge/` |
@@ -1025,7 +1025,7 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Mainnet | **not done** | deploy script refuses mock bond on 143 | — |
 | Real bond asset (AUSD) | **not done** | live bond asset is a freely mintable mock | `Deploy.s.sol` `MockBondAsset` |
 | Third-party pinned skill | **not done** | no publisher outside this repo has pinned | `HANDOVER.md` task 2 |
-| `pin-skill.yml` automatic triggers | **TEMPORARY: disabled** | `workflow_dispatch` only; source/on-chain blockers resolved, GitHub publishing settings still required | `.github/workflows/pin-skill.yml` |
+| `pin-skill.yml` automatic triggers | **IMPLEMENTED** | PR dry run and `main` publish; settings configured; a push with unchanged skill bytes is a no-op | `.github/workflows/pin-skill.yml` |
 | Indirect prompt injection defence | **out of scope, stated** | guard header + `skill/SKILL.md` | — |
 | Amount / rate limiting | **out of scope by design** | "belongs with the wallet that holds the funds" | `PinRegistry` header |
 | Video | **PLANNED** | shot list written | `VIDEO.md` |
@@ -1132,14 +1132,19 @@ Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The account
 
 **Why not Cloudflare's Git integration:** the build needs 8 baked-in `NEXT_PUBLIC_*` values and must pass `check-export.mjs` on the shipped artifact. A Cloudflare-side build duplicates the config in a place nobody reviews and skips the gate. "Building here means the bytes that are checked are the bytes that are uploaded."
 
-### `.github/workflows/pin-skill.yml` — `TEMPORARY: automatic triggers disabled`
+### `.github/workflows/pin-skill.yml` — `IMPLEMENTED`, automatic
 
-`workflow_dispatch` only. The redeploy and the manifest bump are complete: `vars.PIN_REGISTRY` must
-now resolve to `0xF0800974aE84F55508E3e31F72A52E09b19829B0`, and the demo pin is `kuru-quote 3.0.0`.
-Automatic publishing remains deliberately manual until the GitHub Actions variable and the separated
-`PUBLISHER_PRIVATE_KEY` secret are configured and verified. Enabling `pull_request` and `push` before
-that would make every merge depend on an unset or stale external setting. Design: PRs dry-run (no key,
-shows the capability diff in review); only a push to `main` publishes.
+`pull_request` (dry run, no key) and `push` to `main` (publish), both filtered to `demo/skills/**`,
+`action/**` and the workflow itself, plus `workflow_dispatch`, which takes the **publish** path. The
+action and workflow paths were added because the skill-only filter is why both Action defects
+(hyphenated inputs, the genesis log scan) went unexercised.
+
+Settings: variables `PIN_REGISTRY` (`0xF0800974aE84F55508E3e31F72A52E09b19829B0`), `CHAIN_ID`,
+`RPC_URL`, `PREVIOUS_PIN_ID` (now kuru-quote 3.0.0, `0x6520…2df4`); secret `PUBLISHER_PRIVATE_KEY`,
+the separated publisher `0xcc71…94Dc`. `PREVIOUS_PIN_ID` is what lets the widening check run on
+Monad's public RPC. With kuru-quote's bytes unchanged a push is a no-op ("already published"). The
+next release needs a version bump, a bond deposit (unlocked bond is zero; all 1,150 mAUSD is locked
+against 3.0.0), and `PREVIOUS_PIN_ID` updated to the new pin afterwards.
 
 ### Environment variables
 
@@ -1152,7 +1157,7 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 | Chain (secret) | `PUBLISHER_PRIVATE_KEY`, `ACCOUNT_PRIVATE_KEY`, `LOCKSTEP_EXECUTOR_KEY` |
 | Deploy | `BOND_ASSET`, `SLASH_RECIPIENT`, `ERC8004_IDENTITY`, `ERC8004_REPUTATION` |
 | Dashboard build | 8 × `NEXT_PUBLIC_*` (+ optional `NEXT_PUBLIC_ERC8004_AGENT_ID`) |
-| CI | repository vars `PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL`; secret `PUBLISHER_PRIVATE_KEY`; secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+| CI | repository vars `PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL`, `PREVIOUS_PIN_ID`; secret `PUBLISHER_PRIVATE_KEY`; secrets `CLOUDFLARE_API_TOKEN` (not yet set), `CLOUDFLARE_ACCOUNT_ID` |
 
 **Three keys, deliberately separate:** publisher (publishes and bonds), account (approves — must derive `ACCOUNT_ADDRESS` or the CLI refuses), executor (spends gas, holds no funds). "The executor spends gas, the account holds funds."
 
@@ -1419,7 +1424,7 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 4. **The `v0.1.0` tag points at a commit whose CI failed** (`3e65306`). `[KNOWN ISSUE]` That historical ref is intentionally unchanged, as is `v0.1.1`, whose Action cannot publish on Monad's public RPC. `v0.1.2` is the release to consume.
 
-5. **`pin-skill.yml` automatic triggers are disabled.** `[TEMPORARY]` The redeploy and version bump resolved the source and on-chain blockers. Automatic execution remains off until the GitHub `PIN_REGISTRY` variable and separated `PUBLISHER_PRIVATE_KEY` secret are configured and verified; `workflow_dispatch` remains available.
+5. **The demo publisher has no unlocked bond.** `[KNOWN ISSUE]` `pin-skill.yml` is automatic again, but all 1,150 mAUSD is locked against kuru-quote 3.0.0, so the next real release fails on `Insufficient unlocked bond` until more is deposited. The mock asset is mintable, so this is a step to remember, not a cost.
 
 6. **The Windows executable-bit divergence.** `[KNOWN ISSUE]` A skill with an executable script hashes differently on Windows than Linux. Mitigation: publish from Linux CI. Not fixable without dropping the executable bit from the hash, which would be a security regression.
 
@@ -1756,7 +1761,7 @@ Deployed on Monad testnet from the audited source, with separated publisher, acc
 2. `v0.1.0` tags a commit whose CI failed, and `v0.1.1`'s Action cannot publish on Monad's public RPC. Both are left in place; `v0.1.2` is current.
 3. Equivocation costs half the bond, not all of it — unavoidable with permissionless challenging, and stated.
 4. No third-party publisher has pinned a skill.
-5. `pin-skill.yml` triggers stay manual until a pull-request dry run passes against the configured repository settings.
+5. The demo publisher's bond is fully locked, so the next release needs a deposit first.
 
 ### Current plans (repository's own, not mine)
 
