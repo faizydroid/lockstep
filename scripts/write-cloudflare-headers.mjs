@@ -29,7 +29,8 @@
  * ## The cache rule is deliberate and is not a performance tweak
  *
  * Next fingerprints everything under `/_next/static/`, so those files are immutable by
- * construction and get a year. Everything else gets `no-store`.
+ * construction and get a year. Everything else gets `no-store`. The static rule has to detach the
+ * `/*` rule's value rather than just set its own, because Cloudflare merges every matching rule.
  *
  * That looks aggressive for a static site until you consider what this site is. The HTML inlines
  * `NEXT_PUBLIC_*` configuration at build time — the registry address, the guard address, the pin
@@ -50,9 +51,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "app", "out");
 const TARGET = join(OUT, "_headers");
 
-/** Cloudflare's format: a path pattern, then indented `Name: value` lines. */
-function rule(pattern, headers) {
-  const lines = Object.entries(headers).map(([name, value]) => `  ${name}: ${value}`);
+/**
+ * Cloudflare's format: a path pattern, then indented `Name: value` lines. `! Name` detaches a
+ * header that a broader rule already set.
+ */
+function rule(pattern, headers, detach = []) {
+  const lines = [
+    ...detach.map((name) => `  ! ${name}`),
+    ...Object.entries(headers).map(([name, value]) => `  ${name}: ${value}`),
+  ];
   return [pattern, ...lines].join("\n");
 }
 
@@ -68,10 +75,17 @@ const body = [
     "cache-control": "no-store",
   }),
   "",
-  rule("/_next/static/*", {
-    // Fingerprinted filenames, so the content cannot change under a given URL.
-    "cache-control": "public, max-age=31536000, immutable",
-  }),
+  rule(
+    "/_next/static/*",
+    {
+      // Fingerprinted filenames, so the content cannot change under a given URL.
+      "cache-control": "public, max-age=31536000, immutable",
+    },
+    // A request matching both rules inherits both, and Cloudflare joins a repeated header with a
+    // comma. Without the detach the first deploy served every asset as
+    // `no-store, public, max-age=31536000, immutable`, and `no-store` wins, so nothing was cached.
+    ["cache-control"],
+  ),
   "",
 ].join("\n");
 

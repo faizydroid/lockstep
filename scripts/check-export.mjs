@@ -792,6 +792,20 @@ function checkHostHeaders(problems) {
   if (!/^\/\*\s*$/m.test(raw)) {
     problems.push("_headers has no `/*` rule, so the headers apply to nothing");
   }
+
+  // Cloudflare applies every matching rule and joins a repeated header with a comma, so the static
+  // rule must detach the `/*` rule's `no-store` before setting its own. The first deploy did not,
+  // and served every fingerprinted asset as `no-store, public, max-age=31536000, immutable`, which
+  // browsers read as `no-store`.
+  const staticRule = /^\/_next\/static\/\*[ \t]*\r?\n((?:[ \t]+[^\r\n]*\r?\n?)*)/m.exec(raw);
+  const detaches = staticRule !== null && /^[ \t]*![ \t]*cache-control[ \t]*\r?$/im.test(staticRule[1] ?? "");
+  process.stdout.write(`  ${"static cache override".padEnd(22)} ${detaches ? "ok" : "MISSING"}\n`);
+  if (!detaches) {
+    problems.push(
+      "_headers does not detach cache-control on /_next/static/*, so Cloudflare merges in the /* " +
+        "rule's no-store and fingerprinted assets are never cached",
+    );
+  }
 }
 
 process.exit(main());
