@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| Dashboard | https://lockstep.dofolabs.space |
+| Dashboard | https://lockstep-e7m.pages.dev (custom domain `lockstep.dofolabs.space` once attached) |
 | Source | https://github.com/faizydroid/lockstep |
 | Chain | Monad testnet, 10143 |
 | Engineering log | [`FINDINGS.md`](FINDINGS.md) — 38 entries, including the four defects found in our own code |
@@ -105,8 +105,8 @@ showing a skill name shows the publisher beside it.
 
 ## Evidence
 
-**929 tests.** 175 Solidity across 13 suites including 7 invariants over 4,096 calls per campaign;
-678 off-chain unit tests; 76 end-to-end against a real chain, which includes every hand-written ABI
+**950 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
+678 off-chain unit tests; 85 end-to-end against a real chain, which includes every hand-written ABI
 fragment checked against the compiled artifacts.
 
 **Gas, measured, with the scope stated.** Enforcement overhead is **40,349 gas** on a call that would

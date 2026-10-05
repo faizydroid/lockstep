@@ -209,7 +209,7 @@ Ships as a GitHub Action. Two refusals: no self-slashing, no silent widening.
 We audited our own code and published what we found.
 4 exploitable defects. 3 free to exploit. All in mechanisms we had already called "working".
 Each fix verified by disabling it and watching the tests fail.
-929 tests. 175 Solidity, 7 invariants.
+950 tests. 187 Solidity, 7 invariants.
 AIR raised $50M to scan this. Lockstep enforces it at settlement.
 ```
 
