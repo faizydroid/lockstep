@@ -20034,6 +20034,7 @@ init_getAddress();
 init_isAddress();
 init_keccak256();
 init_toFunctionSelector();
+init_formatEther();
 
 // ../node_modules/viem/_esm/accounts/privateKeyToAccount.js
 init_secp256k1();
@@ -21296,6 +21297,11 @@ async function main() {
   const rpcUrl = input("rpc-url", chainIdRaw === "143" ? "https://rpc.monad.xyz" : "https://testnet-rpc.monad.xyz");
   const dryRun = bool("dry-run", false);
   const failOnChange = bool("fail-on-capability-change", true);
+  const previousPinRaw = input("previous-pin-id").trim();
+  if (previousPinRaw !== "" && !/^0x[0-9a-fA-F]{64}$/.test(previousPinRaw)) {
+    fail(`previous-pin-id must be a 32-byte hex pin id, got ${previousPinRaw}`);
+  }
+  const previousPin = previousPinRaw === "" ? void 0 : previousPinRaw.toLowerCase();
   const manifest = await loadManifest(skillDir);
   const hashed = await hashSkillDirectory(skillDir);
   const client = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -21313,10 +21319,7 @@ async function main() {
   await setOutput("skill-hash", hashed.skillHash);
   await setOutput("version-id", manifest.versionId);
   await setOutput("bond-required", bond.toString());
-  const rows = manifest.capabilities.map((c) => {
-    const risk = isHighRiskSelector(c.selector) ? `\u26A0\uFE0F ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}` : "";
-    return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
-  }).join("\n");
+  const rows = manifest.capabilities.map(capabilityRow).join("\n");
   await summary(
     [
       `## Lockstep pin: ${manifest.name} ${manifest.version}`,
@@ -21336,6 +21339,13 @@ async function main() {
     ].join("\n")
   );
   if (dryRun) {
+    if (previousPin === void 0) {
+      await summary(comparisonSummary({ kind: "skipped" }));
+    } else {
+      const widening = await compareWithPin(client, registryAddress, previousPin, manifest);
+      await summary(comparisonSummary({ kind: "compared", source: "input", widening }));
+      if (failOnChange && isWidened(widening)) failWidened(widening);
+    }
     process.stdout.write("dry-run: nothing published\n");
     return;
   }
@@ -21374,12 +21384,33 @@ async function main() {
       `Refusing to publish. ${manifest.name} ${manifest.version} already has ${existingClaims} pin(s) and these bytes differ. That is provable equivocation and anyone could take your bond. Bump the version and re-run.`
     );
   }
+  const baseline = await findBaseline(
+    client,
+    registryAddress,
+    account.address,
+    manifest.name,
+    previousPin
+  );
+  const comparison = baseline.kind === "pin" ? {
+    kind: "compared",
+    source: baseline.source,
+    widening: await compareWithPin(
+      client,
+      registryAddress,
+      baseline.pinId,
+      manifest,
+      account.address
+    )
+  } : baseline;
+  await summary(comparisonSummary(comparison));
   if (failOnChange) {
-    const previous = await previousCapabilityCount(client, registryAddress, account.address);
-    if (previous !== void 0 && manifest.capabilities.length > previous) {
+    if (comparison.kind === "unknown") {
       fail(
-        `Capability set widened: ${previous} declared previously, ${manifest.capabilities.length} now. Users must re-approve. Set fail-on-capability-change: false to allow it.`
+        `Cannot tell whether this release widens capability: the RPC could not serve this publisher's publish history (${comparison.reason}). Monad's public RPC caps eth_getLogs at 100 blocks, so history from genesis cannot be read there. Set previous-pin-id to the pin this release replaces, or set fail-on-capability-change: false to publish without the check.`
       );
+    }
+    if (comparison.kind === "compared" && isWidened(comparison.widening)) {
+      failWidened(comparison.widening);
     }
   }
   const unlocked = await client.readContract({
@@ -21459,18 +21490,144 @@ async function main() {
   process.stdout.write(`badge markdown: ${snippet.markdown}
 `);
 }
-async function previousCapabilityCount(client, registry, publisher) {
-  const logs = await client.getContractEvents({
+function isWidened(widening) {
+  return widening.added.length > 0 || widening.ceiling !== void 0;
+}
+function failWidened(widening) {
+  const parts = [];
+  if (widening.added.length > 0) {
+    parts.push(`adds ${widening.added.map((c) => `${c.label} on ${c.target}`).join(", ")}`);
+  }
+  if (widening.ceiling !== void 0) {
+    parts.push(
+      `raises the native value ceiling from ${formatEther2(widening.ceiling.from)} to ${formatEther2(widening.ceiling.to)} MON per batch`
+    );
+  }
+  fail(
+    `Capability set widened against pin ${widening.previousPinId}: this release ${parts.join(" and ")}. Users must approve it explicitly, and a wider blast radius should be a decision rather than a side effect. Set fail-on-capability-change: false to publish it anyway.`
+  );
+}
+function capabilityRow(c) {
+  const risk = isHighRiskSelector(c.selector) ? `\u26A0\uFE0F ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}` : "";
+  return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
+}
+function comparisonSummary(comparison) {
+  const heading = ["", "### Compared with the previous pin", ""];
+  switch (comparison.kind) {
+    case "skipped":
+      return [
+        ...heading,
+        "Not compared. Set `previous-pin-id` to the pin this release replaces to see what it adds."
+      ].join("\n");
+    case "first-release":
+      return [...heading, `Nothing to compare: ${comparison.why}.`].join("\n");
+    case "unknown":
+      return [...heading, `Not compared: ${comparison.reason}.`].join("\n");
+    case "compared": {
+      const { widening } = comparison;
+      const origin = comparison.source === "input" ? "given as `previous-pin-id`" : "the latest earlier pin of this skill";
+      const lines = [...heading, `Previous pin \`${widening.previousPinId}\`, ${origin}.`, ""];
+      if (!isWidened(widening)) {
+        lines.push(
+          "No capability added and no higher native-value ceiling. Users still approve the new pin explicitly, because its bytes are new."
+        );
+        return lines.join("\n");
+      }
+      if (widening.added.length > 0) {
+        lines.push(
+          `#### Added capabilities (${widening.added.length})`,
+          "",
+          "| target | function | risk |",
+          "|---|---|---|",
+          ...widening.added.map(capabilityRow),
+          ""
+        );
+      }
+      if (widening.ceiling !== void 0) {
+        lines.push(
+          `Native value per batch rises from ${formatEther2(widening.ceiling.from)} to ${formatEther2(widening.ceiling.to)} MON.`
+        );
+      }
+      return lines.join("\n");
+    }
+  }
+}
+async function compareWithPin(client, registry, pinId, manifest, publisher) {
+  const pin = await client.readContract({
     address: registry,
     abi: pinRegistryAbi,
-    eventName: "Published",
-    args: { publisher },
-    fromBlock: "earliest"
+    functionName: "getPin",
+    args: [pinId]
   });
-  if (logs.length === 0) return void 0;
-  const latest = logs.reduce((a, b) => (a.blockNumber ?? 0n) >= (b.blockNumber ?? 0n) ? a : b);
-  const count = latest.args.capabilityCount;
-  return count === void 0 ? void 0 : Number(count);
+  if (!pin.exists) fail(`previous pin ${pinId} does not exist in registry ${registry}`);
+  if (publisher !== void 0 && pin.publisher.toLowerCase() !== publisher.toLowerCase()) {
+    fail(`previous pin ${pinId} was published by ${pin.publisher}, not ${publisher}`);
+  }
+  const added = [];
+  for (const capability of manifest.capabilities) {
+    const allowed = await client.readContract({
+      address: registry,
+      abi: pinRegistryAbi,
+      functionName: "isAllowed",
+      args: [pinId, capability.target, capability.selector]
+    });
+    if (!allowed) added.push(capability);
+  }
+  const raised = manifest.maxValuePerBatch > pin.maxValuePerBatch;
+  return {
+    previousPinId: pinId,
+    added,
+    ...raised ? { ceiling: { from: pin.maxValuePerBatch, to: manifest.maxValuePerBatch } } : {}
+  };
+}
+async function findBaseline(client, registry, publisher, name, explicit) {
+  if (explicit !== void 0) return { kind: "pin", pinId: explicit, source: "input" };
+  const [floor, locked] = await Promise.all([
+    client.readContract({ address: registry, abi: pinRegistryAbi, functionName: "quoteBond", args: [0n, 0n, false] }),
+    client.readContract({ address: registry, abi: pinRegistryAbi, functionName: "lockedBond", args: [publisher] })
+  ]);
+  if (floor > 0n && locked === 0n) {
+    return { kind: "first-release", why: "this publisher has no live pins" };
+  }
+  try {
+    const logs = await client.getContractEvents({
+      address: registry,
+      abi: pinRegistryAbi,
+      eventName: "Published",
+      args: { publisher },
+      fromBlock: "earliest"
+    });
+    const mine = logs.filter((log) => log.args.name === name);
+    if (mine.length === 0) {
+      return { kind: "first-release", why: `no earlier pin of ${name} by this publisher` };
+    }
+    const latest = mine.reduce((a, b) => {
+      const ab = a.blockNumber ?? 0n;
+      const bb = b.blockNumber ?? 0n;
+      if (ab !== bb) return ab > bb ? a : b;
+      return (a.logIndex ?? 0) >= (b.logIndex ?? 0) ? a : b;
+    });
+    return { kind: "pin", pinId: latest.args.pinId, source: "history" };
+  } catch (error) {
+    return { kind: "unknown", reason: rpcReason(error) };
+  }
+}
+function rpcReason(error) {
+  const seen = /* @__PURE__ */ new Set();
+  let current = error;
+  while (current !== null && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const details = current.details;
+    if (typeof details === "string" && details !== "") {
+      const range = /limited to a \d+ range/i.exec(details);
+      if (range !== null) return `eth_getLogs is ${range[0]}`;
+      const quoted = /"message"\s*:\s*"([^"]{1,200})"/.exec(details);
+      if (quoted?.[1] !== void 0) return quoted[1];
+      if (!/https?:\/\//i.test(details)) return details.slice(0, 200);
+    }
+    current = current.cause;
+  }
+  return "the RPC refused the query";
 }
 
 // src/entry.ts
