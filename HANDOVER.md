@@ -7,7 +7,7 @@ Submission is **11 October 2026**. Today is **2 September 2026**.
 
 | # | Task | Time | Deadline pressure | Blocks |
 |---|------|------|-------------------|--------|
-| 1 | [Cloudflare Pages + domain](#1-cloudflare-pages-and-the-domain) | ~20 min | do now | the dashboard link in every doc |
+| 1 | [Cloudflare token + domain](#1-cloudflare-pages-and-the-domain) | ~10 min | do now | automatic deploys, the custom domain |
 | 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr to start | **start now, 4+ week lead** | three demo claims |
 | 3 | [Record the video](#3-record-the-video) | ~3 hrs | after 1 | the submission |
 | 4 | [Redeploy the contracts](#4-redeploy-the-contracts--completed) | **DONE** | — | — |
@@ -21,72 +21,67 @@ Task 2 has the longest lead time and the least to do. Start it before task 1.
 
 ## Current state, so you can trust the rest of this
 
-CI is green on `58b84fe`, which is `main`. 941 tests: 187 contract across 14 suites including 7
-invariants, 678 unit, 76 end-to-end against a real chain. The dashboard export gate also passed.
+CI is green on `main`. 950 tests: 187 contract across 14 suites including 7 invariants, 678 unit,
+85 end-to-end against a real chain. The dashboard export gate also passed.
 
-The deploy workflow **fires correctly and fails on one line**, which is the honest state of task 1:
+**The dashboard is live at https://lockstep-e7m.pages.dev.** It was deployed from this machine with
+the same eight public values CI builds with, and the security headers were checked on the live
+response rather than in the generated file. `CLOUDFLARE_ACCOUNT_ID` is set as a repository secret.
+
+The automatic deploy after each green CI run still **fails on one line**:
 
 ```
 ✘ [ERROR] In a non-interactive environment, it's necessary to set a
   CLOUDFLARE_API_TOKEN environment variable for wrangler to work.
 ```
 
-Everything before that step passed on the runner: install, build, header generation, and the export
-check. The only missing input is a credential I cannot create for you.
+Everything before that step passes on the runner: install, build, header generation, and the export
+check. The API token is the one credential I cannot create for you.
 
 ---
 
 ## 1. Cloudflare Pages and the domain
 
-Target: `https://lockstep.dofolabs.space`.
+Target: `https://lockstep.dofolabs.space`. Two steps are left and both are yours: the API token
+that lets CI deploy, and attaching the domain.
 
-### 1a. Find your account ID
+### Already done
 
-```powershell
-npx --yes wrangler@4 login
-npx --yes wrangler@4 whoami
-```
+- Pages project `lockstep` with production branch `main`. The production branch can only be set at
+  creation, and without it every deploy registers as a preview that the custom domain never serves.
+- The first production deploy, from this machine with `npm run deploy:dashboard` and the eight
+  `NEXT_PUBLIC_*` values from `.github/workflows/ci.yml`. The export gate passed before upload.
+- Response headers checked on the live site: all seven below, plus the long cache on hashed assets.
+  That second check found a real defect, now fixed: Cloudflare merges every matching `_headers`
+  rule, so assets were served as `no-store, public, max-age=31536000, immutable` and never cached.
+- The `CLOUDFLARE_ACCOUNT_ID` repository secret.
 
-`whoami` prints the account ID. It is also on the right-hand side of any domain's overview page in
-the Cloudflare dashboard. It is an identifier, not a secret, but treat it as one anyway.
+**The project's address is `lockstep-e7m.pages.dev`, not `lockstep.pages.dev`.** That name was
+already taken by an unrelated site, so Cloudflare added a suffix. Never point anything at
+`lockstep.pages.dev`: it serves someone else's page.
 
-### 1b. Create the Pages project — production branch matters here
-
-```powershell
-npx --yes wrangler@4 pages project create lockstep --production-branch main
-```
-
-**The production branch can only be set at creation.** If you omit it, Cloudflare picks a default,
-and every deploy the workflow makes will register as a *preview* rather than production. The site
-will exist, look right, and the custom domain will not serve it. If that happens, delete the project
-and create it again with the flag.
-
-The name must be exactly `lockstep`, because that is what
-`.github/workflows/deploy-dashboard.yml` passes to `--project-name`.
-
-### 1c. Mint an API token
+### 1a. Mint an API token
 
 Cloudflare dashboard → **My Profile** → **API Tokens** → **Create Token** → **Create Custom Token**.
 
 - Permission: **Account** → **Cloudflare Pages** → **Edit**
 - Account resources: include your account only
-- No zone permission is needed for deploying. You only need one if you want the token to manage the
-  DNS record too, and step 1e does that by hand instead.
+- No zone permission is needed for deploying. The domain step below is done in the dashboard.
 
 Copy it once; Cloudflare will not show it again.
 
 Use a custom token, not the "Edit Cloudflare Workers" template. The template grants far more than
 uploading static files, and this token lives in a public repository's secret store.
 
-### 1d. Add the two repository secrets
+### 1b. Add it as a repository secret
 
 ```powershell
 gh secret set CLOUDFLARE_API_TOKEN --repo faizydroid/lockstep
-gh secret set CLOUDFLARE_ACCOUNT_ID --repo faizydroid/lockstep
 ```
 
-Each prompts for the value and does not echo it. Or use the web UI: **Settings** → **Secrets and
-variables** → **Actions** → **New repository secret**. The names must match exactly.
+It prompts for the value and does not echo it. Or use the web UI: **Settings** → **Secrets and
+variables** → **Actions** → **New repository secret**. The name must match exactly. Do not paste
+the token into a chat, an issue, or a command argument.
 
 Then trigger a deploy without waiting for a push:
 
@@ -96,31 +91,23 @@ gh run watch --repo faizydroid/lockstep
 ```
 
 `workflow_dispatch` is allowed deliberately, so you can retry this step without pushing a commit.
+From then on every green CI run on `main` deploys the exact commit it tested.
 
-A successful run prints the deployment URL and the site is live at `https://lockstep.pages.dev`
-before any DNS exists. Confirm that URL works before touching the domain — it separates "the upload
-failed" from "the DNS is wrong", and those have completely different fixes.
-
-### 1e. Point the domain at it
+### 1c. Point the domain at it
 
 In the Pages project → **Custom domains** → **Set up a domain** → enter `lockstep.dofolabs.space`.
 
-**If `dofolabs.space` uses Cloudflare nameservers**, accept the prompt and Cloudflare writes the
-CNAME itself. Done.
-
-**If it does not**, add this record at your DNS provider:
-
-| Type | Name | Value | Proxy |
-|------|------|-------|-------|
-| CNAME | `lockstep` | `lockstep.pages.dev` | n/a |
+`dofolabs.space` is on Cloudflare nameservers (`marek` and `ullis`), so accept the prompt and
+Cloudflare writes the record itself. If you ever add it by hand, it is a CNAME from `lockstep` to
+`lockstep-e7m.pages.dev`.
 
 Certificate issuance usually takes a few minutes and can take up to ~15. Until it finishes you may
 see a TLS warning; that is normal and not a misconfiguration.
 
-### 1f. Verify the headers actually arrive
+### 1d. Verify the headers arrive on the domain
 
-This is the step worth not skipping. The whole point of generating `_headers` is that a static host
-sends only what it is told, and three of these cannot be expressed in markup.
+Already verified on `lockstep-e7m.pages.dev`. Repeat it on the domain once it resolves, because a
+static host sends only what it is told, and three of these cannot be expressed in markup.
 
 ```powershell
 curl.exe -sSI https://lockstep.dofolabs.space | Select-String -Pattern "content-security-policy|x-frame-options|referrer-policy|x-content-type-options|cross-origin-opener-policy|permissions-policy|cache-control"
@@ -169,8 +156,13 @@ None of that exists. `SUBMISSION.md` says so plainly, which is the right call, b
 someone who is not you is worth more than any code you could add in the same time.
 
 **What to do today:** pick 3–5 maintainers of agent skills, MCP servers, or OpenClaw plugins. Send a
-short message with: the problem in one sentence, the dashboard link once it is live, and one concrete
-ask — add `faizydroid/lockstep/action@v0.1.1` to their release workflow.
+short message with: the problem in one sentence, the dashboard link, and one concrete ask — add
+`faizydroid/lockstep/action@v0.1.2` to their release workflow as a pull-request dry run.
+
+Ask for `v0.1.2` specifically. In `v0.1.1` every real publish failed on Monad's public RPC, because
+the widening check scanned logs from genesis and that RPC caps a log query at 100 blocks. A
+maintainer's first experience of the Action being a red check for that reason would end the
+conversation.
 
 The Action is the ask, not the contracts. It is a dozen lines of YAML in a repository they already
 control, and it needs no wallet, no bond and no chain interaction to try.
@@ -225,11 +217,9 @@ Evidence kept in `.scratch/evidence.json` and `.scratch/m10.txt`:
   (block 62009032; the account balance changed from 10,000 to 9,750 mAUSD)
 - refusal: `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`
   (`SkillHashMismatch`, reverted, zero logs, no balance change)
-- verification: CI is green on `58b84fe`, and `npm run verify:dashboard` passed with exit 0.
+- verification: CI was green on `58b84fe`, and `npm run verify:dashboard` passed with exit 0.
 
-The bond asset remains a freely mintable mock on testnet. Cloudflare deployment and automatic pin
-publishing still need repository credentials/settings owned by the maintainer; neither is a source
-change that can be completed honestly from this checkout.
+The bond asset remains a freely mintable mock on testnet.
 
 ---
 
@@ -262,7 +252,7 @@ deletion. `indexer/README.md` has the full detail.
 ## 6. Marketplace listing (optional)
 
 **The Action already works without this.** `uses:` accepts a subdirectory, so
-`faizydroid/lockstep/action@v0.1.1` is a complete, valid reference today. A listing adds a searchable
+`faizydroid/lockstep/action@v0.1.2` is a complete, valid reference today. A listing adds a searchable
 page and nothing else. Skip it if time is short.
 
 It cannot be done from this repository: the Marketplace requires exactly one action per repository
@@ -270,12 +260,12 @@ with its metadata at the repository **root**, and this is a monorepo with the me
 `action/action.yml`. No configuration changes that.
 
 ```powershell
-node scripts/publish-action-repo.mjs --dry-run --version v0.1.1   # inspect first
+node scripts/publish-action-repo.mjs --dry-run --version v0.1.2   # inspect first
 gh repo create faizydroid/lockstep-action --public
-node scripts/publish-action-repo.mjs --version v0.1.1
+node scripts/publish-action-repo.mjs --version v0.1.2
 ```
 
-Then on that repository: **Releases** → **Draft a new release** → pick tag `v0.1.1` → tick
+Then on that repository: **Releases** → **Draft a new release** → pick tag `v0.1.2` → tick
 **Publish this Action to the GitHub Marketplace** → accept the terms → publish.
 
 The script force-pushes `main` there, because it is a generated snapshot with no history worth
@@ -298,8 +288,17 @@ Track 04, Monad Metropolis, deadline 11 October 2026.
 
 ## The tag decision, resolved
 
-**`v0.1.0` stays where it is. `v0.1.1` marks the stable release.** Reasoning, because the
-alternative was tempting and wrong.
+**No tag has been moved. `v0.1.2` is the release to consume.** `v0.1.0` and `v0.1.1` stay where
+they are, for the reasons below.
+
+`v0.1.2` is the first release whose `action/` differs from `v0.1.0`. It fixes the widening check,
+which scanned this publisher's `Published` logs from genesis: Monad's public RPC refuses any log
+query over 100 blocks, so every real publish through `v0.1.1` failed there, and the check compared
+capability *counts* against the publisher's latest pin of *any* skill. `v0.1.2` compares the actual
+`(target, selector)` set and the value ceiling against the same skill's previous pin, read from
+chain state, and takes that pin as `previous-pin-id` when the RPC cannot serve history.
+`FINDINGS.md` §39 has the detail. Correcting it under a new tag, rather than moving `v0.1.1`, is
+the same decision as the one below.
 
 `v0.1.0` points at `3e65306`, whose CI failed on the missing `_headers` step. Force-moving it to a
 green commit was the obvious tidy-up, and I decided against it for one reason that outweighs the
@@ -313,12 +312,10 @@ So the history stays intact and `v0.1.1` marks the finalized redeployed release 
 verified `58b84fe` source. The release commit contains only the documentation and workflow hygiene
 needed to make that state reproducible; it does not move `v0.1.0`.
 
-`action/` is byte-identical between `v0.1.0` and the new release, so nothing pinned to the old tag
-breaks. Every recommendation in this repository now points at `v0.1.1`, because the tree around the
-Action is materially better even where the Action itself is unchanged.
+`action/` is byte-identical between `v0.1.0` and `v0.1.1`, so nothing pinned to the old tag broke.
 
 Consume the Action as:
 
 ```yaml
-- uses: faizydroid/lockstep/action@v0.1.1
+- uses: faizydroid/lockstep/action@v0.1.2
 ```

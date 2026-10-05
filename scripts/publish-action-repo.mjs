@@ -3,7 +3,7 @@
  * GitHub Marketplace.
  *
  *   node scripts/publish-action-repo.mjs --dry-run
- *   node scripts/publish-action-repo.mjs --version v0.1.1
+ *   node scripts/publish-action-repo.mjs --version v0.1.2
  *
  * ## Why a second repository is unavoidable
  *
@@ -14,7 +14,7 @@
  *
  * Worth being precise about what is and is not blocked, because the README previously gave the
  * wrong reason. **The action is fully usable from this repository today** — `uses:` accepts a
- * subdirectory, so `faizydroid/lockstep/action@v0.1.1` works and needs nothing from the
+ * subdirectory, so `faizydroid/lockstep/action@v0.1.2` works and needs nothing from the
  * Marketplace. What a listing adds is discovery: a searchable page. That is worth having and it is
  * not worth restructuring a monorepo for.
  *
@@ -54,7 +54,7 @@ function arg(name, fallback) {
   return at === -1 || process.argv[at + 1] === undefined ? fallback : process.argv[at + 1];
 }
 const DRY_RUN = process.argv.includes("--dry-run");
-const VERSION = arg("version", "v0.1.1");
+const VERSION = arg("version", "v0.1.2");
 
 function run(command, args, options = {}) {
   process.stdout.write(`$ ${command} ${args.join(" ")}\n`);
@@ -119,10 +119,18 @@ Generated from commit \`${sha}\`.
     skill-dir: skills/my-skill
     pin-registry: \${{ vars.PIN_REGISTRY }}
     publisher-private-key: \${{ secrets.PUBLISHER_PRIVATE_KEY }}
+    # The pin this release replaces. Omit it for a first release.
+    previous-pin-id: \${{ vars.PREVIOUS_PIN_ID }}
 \`\`\`
 
-On a pull request, set \`dry-run: true\` and omit the key. The job then prices the pin and prints the
-capability diff without publishing, which is what makes a widened manifest visible in review.
+On a pull request, set \`dry-run: true\` and omit the key. The job then prices the pin, and with
+\`previous-pin-id\` set it prints what the release adds over that pin without publishing, which is
+what makes a widened manifest visible in review.
+
+\`previous-pin-id\` matters on Monad's public RPC, which refuses any \`eth_getLogs\` over 100 blocks.
+Without it the action can still recognise a publisher's first release from bond state, but finding
+the previous pin of a later release means reading history, and when the RPC refuses that the job
+fails closed rather than skipping the check.
 
 ## The two refusals
 
@@ -133,9 +141,11 @@ under a name and version you already published is provable equivocation: two sig
 one release is two different byte sets. Anyone can then take your bond. The overwhelmingly likely
 cause is a forgotten version bump, so the action stops rather than asking.
 
-**It fails the job when a manifest widens capability.** A new \`(target, selector)\` pair, or a higher
-native-value ceiling, means every user must approve again. That should be a decision, not a
-side effect of a release. Set \`fail-on-capability-change: false\` to allow it deliberately.
+**It fails the job when a manifest widens capability.** A \`(target, selector)\` pair the previous pin
+did not allow, or a higher native-value ceiling, is checked against that pin's on-chain state, the
+same lookup the guard enforces. Users approve every new pin explicitly anyway; a wider one should be
+a decision, not a side effect of a release. Set \`fail-on-capability-change: false\` to allow it
+deliberately.
 
 ## Inputs
 

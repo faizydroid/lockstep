@@ -397,29 +397,29 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 418 tests across seven packages
+npm run test:unit          # 678 tests across seven packages
 npm run typecheck
 
 cd contracts
-forge test -vv             # 175 tests, gas and bond-velocity figures in the output
+forge test -vv             # 187 tests, gas and bond-velocity figures in the output
 
 cd ..
-npm run test:e2e           # 76 tests against a live Anvil chain
+npm run test:e2e           # 85 tests against a live Anvil chain
 ```
 
-**621 tests total**, counted by running all three: 418 unit, 127 contract, 76 end-to-end.
+**950 tests total**, counted by running all three: 678 unit, 187 contract, 85 end-to-end.
 
 | package | tests |
 |---|---|
 | `runtime` | 41 |
 | `plugin` | 55 |
-| `cli` | 38 |
+| `cli` | 48 |
 | `sandbox` | 17 |
 | `watcher` | 15 |
-| `badge` | 28 |
-| `app` | 224 |
-| `contracts` (Foundry) | 127 |
-| `e2e` | 76 |
+| `badge` | 30 |
+| `app` | 472 |
+| `contracts` (Foundry) | 187 |
+| `e2e` | 85 |
 
 The e2e suites skip with a message rather than failing if Anvil is not present. They cover
 the full flow with real EIP-7702 delegation, the `ChainAdapter` that submits transactions,
@@ -461,7 +461,8 @@ been verified against Monad testnet with `source.kind` returning `chain`, one bo
 one approval, and the Lens reporting the delegated account as an eligible reviewer. Without
 configuration the pages still render from fixtures, and the banner says so.
 
-Copy `.env.example` to `app/.env.local` and set the five `NEXT_PUBLIC_*` values recorded there;
+Set the eight `NEXT_PUBLIC_*` values in `app/.env.local`. The exact set CI builds with is in
+`.github/workflows/ci.yml`, and `.env.example` records the same addresses without the prefix.
 `NEXT_PUBLIC_DEPLOY_BLOCK` is the one people miss, and without it log queries start at genesis, the
 public RPC refuses, and the dashboard falls back to samples while looking correctly configured.
 
@@ -839,12 +840,12 @@ exists at all — and it is also why the enforcement has to be free.
 | CLI, with self-slash refusal | Done, 48 tests. Also refuses a confusable skill name before spending gas, using the registry's own rule |
 | Watcher | Done, 15 tests. Detection is pure and node-free |
 | Sandbox draft manifests | Done, 17 tests |
-| Badge | Done, 28 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
-| GitHub Action | Done, 13 tests against a live chain. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.1`** — `uses:` accepts a subdirectory. Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
+| Badge | Done, 30 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
+| GitHub Action | Done, 22 tests against a live chain, including an RPC that refuses `eth_getLogs` the way Monad's does. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.2`** — `uses:` accepts a subdirectory. `v0.1.1` and earlier could not publish on Monad's public RPC; see [FINDINGS §39](FINDINGS.md#39-the-actions-widening-check-could-not-run-where-the-action-runs). Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
 | `ChainAdapter` | Done, 12 tests against a live chain |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Codegen runs and the handlers typecheck**, verified on Linux CI. Migrated from the v2 API to v3 |
-| End-to-end on a live chain | Done, 76 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
+| End-to-end on a live chain | Done, 85 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock. Honest run emitted `SkillExecuted`; the same prompt with swapped bytes was refused with `NOT_PINNED`. See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
@@ -896,11 +897,15 @@ monorepo — contracts, a dashboard, a CLI, a watcher, an indexer — and the me
 **The Action works today regardless.** `uses:` accepts a subdirectory, so this is enough:
 
 ```yaml
-- uses: faizydroid/lockstep/action@v0.1.1
+- uses: faizydroid/lockstep/action@v0.1.2
   with:
     skill-dir: skills/my-skill
     pin-registry: ${{ vars.PIN_REGISTRY }}
     publisher-private-key: ${{ secrets.PUBLISHER_PRIVATE_KEY }}
+    # The pin this release replaces. Omit it for a first release. Needed on RPCs that cap
+    # eth_getLogs, Monad's public one included, because the widening check fails closed when it
+    # cannot find the previous pin.
+    previous-pin-id: ${{ vars.PREVIOUS_PIN_ID }}
 ```
 
 What a listing adds is discovery — a searchable page — and that is worth having but not worth

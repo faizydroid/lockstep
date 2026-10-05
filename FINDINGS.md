@@ -696,8 +696,9 @@ publishing paths **refuse** rather than confirm:
 
 - `lockstep publish` checks `versionPinCount` and stops with an explanation.
 - The GitHub Action does the same, and additionally fails the job when the manifest
-  declares more capabilities than the previous pin — a widened blast radius becomes a
-  red check instead of a silent release.
+  widens the previous pin — a widened blast radius becomes a red check instead of a
+  silent release. (This originally compared capability counts by scanning logs from
+  genesis, which failed on Monad and missed same-count swaps. See §39.)
 - Identical bytes already pinned is reported as a no-op, not an error.
 
 The Action exists because publishing belongs in CI: the executable bit is not
@@ -1298,3 +1299,50 @@ challenger set reintroduces a committee, and dropping the reward removes the onl
 watcher has. So the figure is stated instead, and a test pins it.
 
 The same permissionlessness is what gives an honest publisher a way out of defect 4.
+
+---
+
+## 39. The Action's widening check could not run where the Action runs
+
+Found while preparing automatic publishing, by asking what the first *real* publish through
+`pin-skill.yml` would do rather than what the tests said.
+
+**Every real publish failed on Monad's public RPC.** The check found the previous pin by calling
+`getContractEvents` from `"earliest"`. Monad's public endpoint refuses any `eth_getLogs` wider than
+100 blocks — `HTTP 413`, `{"code":-32614,"message":"eth_getLogs is limited to a 100 range"}`,
+reproduced against the live registry — and the registry is millions of blocks old. Nothing caught
+it because Anvil has no range cap, and the two paths that were exercised against the real chain,
+the dry run and the already-published no-op, both return before the scan. `v0.1.1` shipped with it.
+
+**It also checked the wrong thing twice over.** It compared capability *counts*, so replacing a
+swap with an `approve` at the same count passed. And it took the publisher's latest pin of *any*
+skill as the baseline, so an unchanged release of a wide skill read as a widening if a narrow one
+had shipped in between.
+
+Fixed in `v0.1.2`:
+
+- The baseline is the same skill's previous pin, and the comparison reads chain state:
+  `isAllowed(previous, target, selector)` for every declared pair, the same lookup the guard
+  enforces, plus the pin's `maxValuePerBatch`. A swap, an added pair and a higher value ceiling
+  are all widenings now; a lower ceiling is not.
+- A new input, `previous-pin-id`, names the baseline directly, which works on any RPC.
+- A publisher with nothing locked has no live pin, so a first release needs no history at all.
+  That holds while every publish locks bond (`quoteBond(0, 0, false)` is the base bond, checked
+  nonzero) and because both ways bond is released, reclaim and slash, revoke the pin.
+- Otherwise one history query, never a loop. Paging 100-block windows would cost tens of thousands
+  of requests. If the RPC refuses, the job **fails closed** and says to pass `previous-pin-id`,
+  because publishing on "could not check" would make the default setting a promise kept only on
+  lenient RPCs.
+- RPC errors are reduced to the server's own reason before printing. viem's messages carry the
+  request URL, and RPC URLs often carry an API key.
+
+The end-to-end suite now runs the history path through a proxy that refuses `eth_getLogs` exactly
+the way Monad does, and counts the refusals, so "did not read logs" is asserted rather than
+assumed. Nine new cases; each fails against the old code.
+
+**A second defect, in the same pass, found by reading the live response.** The dashboard's
+`_headers` gave `/_next/static/*` a year-long cache, but Cloudflare applies every matching rule and
+joins a repeated header with a comma, so the `/*` rule's `no-store` was merged in. Hashed assets
+were served as `no-store, public, max-age=31536000, immutable`, and `no-store` wins. The static
+rule now detaches the inherited value (`! cache-control`) before setting its own, verified on a
+preview deployment, and `scripts/check-export.mjs` fails a build whose static rule does not.

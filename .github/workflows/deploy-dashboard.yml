@@ -9,7 +9,7 @@ name: Deploy dashboard
 #
 # The dashboard's configuration is compiled in. `NEXT_PUBLIC_*` values are inlined at build
 # time, so the registry address, the guard address and the pin ids are properties of the
-# artifact rather than of the runtime. A Cloudflare-side build means those seven values live
+# artifact rather than of the runtime. A Cloudflare-side build means those eight values live
 # in a second place, in a dashboard nobody reviews, and an unset one leaves no trace -- it
 # produces a site that silently shows sample data and never reads the chain.
 #
@@ -68,7 +68,7 @@ jobs:
 
       - run: npm ci
 
-      # The same seven values CI builds with, kept in step with `.github/workflows/ci.yml`.
+      # The same eight values CI builds with, kept in step with `.github/workflows/ci.yml`.
       # Every one is public by construction: `NEXT_PUBLIC_*` is compiled into the client bundle,
       # so nothing secret can be passed this way even by mistake. They are also in .env.example
       # and in the README.
@@ -119,5 +119,6 @@ jobs:
       - name: Where it went
         run: |
           echo "Production: https://lockstep.dofolabs.space"
-          echo "Pages URL:  https://lockstep.pages.dev"
+          # Suffixed by Cloudflare: lockstep.pages.dev belongs to an unrelated site.
+          echo "Pages URL:  https://lockstep-e7m.pages.dev"
           echo "Commit:     ${{ github.event.workflow_run.head_sha || github.sha }}"

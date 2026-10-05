@@ -518,17 +518,21 @@ Selectors are written as human-readable signatures and derived, not transcribed.
 
 **`node24` is date-critical, not cosmetic.** Recorded in the file: Node 20 reached EOL April 2026, GitHub began forcing JavaScript actions onto Node 24 by default 2 June 2026, and **Node 20 is removed from the runners on 16 September 2026** — before the submission deadline. The action previously declared `node20`.
 
-**Inputs:** `skill-dir` (required), `rpc-url` (default `https://testnet-rpc.monad.xyz`), `chain-id` (default `10143`), `pin-registry` (required), `publisher-private-key`, `dry-run` (default `false`), `fail-on-capability-change` (default `true`).
+**Inputs:** `skill-dir` (required), `rpc-url` (default `https://testnet-rpc.monad.xyz`), `chain-id` (default `10143`), `pin-registry` (required), `publisher-private-key`, `dry-run` (default `false`), `fail-on-capability-change` (default `true`), `previous-pin-id` (optional, since `v0.1.2`).
 
 **Outputs:** `skill-hash`, `version-id`, `pin-id`, `bond-required`.
 
-**The Action's value is two refusals** (per `e2e/test/action.test.ts`): it will not publish a second conflicting claim about one version (which would be self-slashing), and it fails the job when a manifest widens capability.
+**The Action's value is two refusals** (per `e2e/test/action.test.ts`, 22 tests): it will not publish a second conflicting claim about one version (which would be self-slashing), and it fails the job when a manifest widens capability.
+
+**"Widens" means, since `v0.1.2`:** a declared `(target, selector)` pair the same skill's previous pin does not allow (`isAllowed`, the guard's own lookup), or a higher `maxValuePerBatch`. The baseline is `previous-pin-id` if given; otherwise a publisher with nothing locked is a first release (sound because the base bond is nonzero and both ways bond is released revoke the pin); otherwise one `Published` log query. If the RPC refuses that query — Monad's public RPC caps `eth_getLogs` at 100 blocks — the job **fails closed** and names `previous-pin-id`. A dry run given `previous-pin-id` shows the diff in the job summary.
 
 **`dist/index.js` (728 KB) is committed deliberately** — "A published action is fetched and executed without an install step, so `dist/index.js` has to be in the tree. That is the one place in this project where a build artifact belongs in version control."
 
-**Marketplace is structurally impossible from here:** the Marketplace requires exactly one action per repository with metadata at the repository **root**. This is a monorepo with metadata at `action/action.yml`. But **the Action is fully usable today** as `faizydroid/lockstep/action@v0.1.1` — `uses:` accepts a subdirectory. A listing adds discovery only. `scripts/publish-action-repo.mjs` generates a standalone repo (`faizydroid/lockstep-action`) for that purpose; it force-pushes `main` (a generated snapshot) but pushes tags **without** force.
+**Marketplace is structurally impossible from here:** the Marketplace requires exactly one action per repository with metadata at the repository **root**. This is a monorepo with metadata at `action/action.yml`. But **the Action is fully usable today** as `faizydroid/lockstep/action@v0.1.2` — `uses:` accepts a subdirectory. A listing adds discovery only. `scripts/publish-action-repo.mjs` generates a standalone repo (`faizydroid/lockstep-action`) for that purpose; it force-pushes `main` (a generated snapshot) but pushes tags **without** force.
 
 A real defect found by the first run of the Action: **every hyphenated input was unreachable** because the runner sets `INPUT_SKILL-DIR` and the action read `INPUT_SKILL_DIR`. Fixed; the e2e fixture now uses the runner's real convention.
+
+A second, found before automatic publishing was switched on (`FINDINGS.md` §39): **through `v0.1.1`, every real publish failed on Monad's public RPC**, because the widening check scanned `Published` logs from genesis. Anvil has no range cap, and the dry run and the already-published no-op both return before the scan, so nothing exercised it. It also compared counts against the publisher's latest pin of any skill. The e2e suite now routes the history path through a proxy that refuses `eth_getLogs` exactly as Monad does.
 
 ---
 
@@ -866,7 +870,7 @@ Runs a skill against a forked chain, records every call, emits a manifest coveri
 
 `maxValuePerBatch` in a draft is the largest value on any **single** observed call — knowingly not the same quantity the field means, because `ObservedCall` carries no transaction boundary. Narrow is the right default: too wide grants blast radius silently, too narrow fails loudly with `BatchValueExceedsCeiling`. A warning fires whenever more than one observed call carried value. Reverted calls are included deliberately — "A skill that tried to call `approve` and failed still intends to call `approve`."
 
-### `e2e/` — IMPLEMENTED (76 tests, 5 files)
+### `e2e/` — IMPLEMENTED (85 tests, 5 files)
 
 Runs against a **real chain** (anvil) with real EIP-7702 delegation and hashes computed from the actual demo directories.
 
@@ -1014,7 +1018,9 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Watcher | **IMPLEMENTED** | 15 tests | `watcher/` |
 | Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job green | `indexer/` |
 | Indexer **hosted** | **PLANNED** | free plan deletes after 30 days | see `indexer/README.md` |
-| Cloudflare Pages deploy workflow | **IMPLEMENTED**; blocked on secrets | fails only on missing `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy-dashboard.yml` |
+| Dashboard hosting | **DEPLOYED** at `lockstep-e7m.pages.dev` | deployed manually with CI's values; headers verified on the live response | `HANDOVER.md` task 1 |
+| Cloudflare Pages deploy workflow | **IMPLEMENTED**; blocked on one secret | fails only on missing `CLOUDFLARE_API_TOKEN`; `CLOUDFLARE_ACCOUNT_ID` is set | `.github/workflows/deploy-dashboard.yml` |
+| Custom domain `lockstep.dofolabs.space` | **not done** | needs the maintainer's Cloudflare dashboard | `HANDOVER.md` task 1 |
 | Live testnet deployment | **IMPLEMENTED (testnet)** | current audited deployment; separated identities, re-delegated account, and recorded success/refusal receipts | `.env.example` |
 | Mainnet | **not done** | deploy script refuses mock bond on 143 | — |
 | Real bond asset (AUSD) | **not done** | live bond asset is a freely mintable mock | `Deploy.s.sol` `MockBondAsset` |
@@ -1030,8 +1036,8 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 |---|---:|---|
 | Contracts | **187** (14 suites, incl. 7 invariants over 128 runs / 4096 calls) | `forge test` |
 | Unit — runtime 41, plugin 55, cli 48, watcher 15, sandbox 17, badge 30, app 472 | **678** (36 files) | `npm run test:unit` |
-| End-to-end | **76** (5 files) | `npm run test:e2e` |
-| **Total** | **941** | |
+| End-to-end | **85** (5 files) | `npm run test:e2e` |
+| **Total** | **950** | |
 
 ---
 
@@ -1110,7 +1116,7 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 
 **Ordering is deliberate:** `forge build` runs first because `contracts/out` is gitignored and two test files read it (`app/test/policy.test.ts`, `e2e/test/abi.test.ts`). With the old order they failed in CI on a missing directory while passing locally.
 
-**`app`** — `npm run verify:dashboard` with all 7 `NEXT_PUBLIC_*` values baked in, so CI checks the artifact that actually ships. Repository variables were considered and rejected: "a fork would build with them empty and fail the check for a reason that has nothing to do with the change."
+**`app`** — `npm run verify:dashboard` with all 8 `NEXT_PUBLIC_*` values baked in, so CI checks the artifact that actually ships. Repository variables were considered and rejected: "a fork would build with them empty and fail the check for a reason that has nothing to do with the change."
 
 **`indexer`** — `npm install` → `npx envio codegen` → `npm run typecheck`, all in `indexer/`. Contains a deliberately retained diagnostic step ("Show generated bindings"). Uses `npm run typecheck`, **not `npx tsc`** — a recorded supply-chain incident: the package had no typescript dependency, so `npx tsc` fetched a package literally named `tsc` from the public registry and ran it. "npx silently fetching an unrelated package because a local binary is missing is a supply-chain hazard, and a sharp one to have shipped in a project about supply-chain provenance."
 
@@ -1122,9 +1128,9 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 
 Deploys via `cloudflare/wrangler-action@v3` with `wranglerVersion: "4"` — pinned to match the npm script. Left unset, the action installed 3.90.0, a major version behind, with four advisories.
 
-Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. **Currently fails on exactly one line** — the missing token. Every prior step (install, build, header generation, export check) passes on the runner. Target domain: `lockstep.dofolabs.space`; Pages project name must be `lockstep`.
+Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The account id is set; **the workflow currently fails on exactly one line** — the missing token. Every prior step (install, build, header generation, export check) passes on the runner. The Pages project `lockstep` exists with production branch `main`, and the site is live at **`lockstep-e7m.pages.dev`** from a manual `npm run deploy:dashboard`. The suffix is Cloudflare's: `lockstep.pages.dev` belongs to an unrelated site, so nothing may point at it. Target domain: `lockstep.dofolabs.space`, not yet attached.
 
-**Why not Cloudflare's Git integration:** the build needs 7 baked-in `NEXT_PUBLIC_*` values and must pass `check-export.mjs` on the shipped artifact. A Cloudflare-side build duplicates the config in a place nobody reviews and skips the gate. "Building here means the bytes that are checked are the bytes that are uploaded."
+**Why not Cloudflare's Git integration:** the build needs 8 baked-in `NEXT_PUBLIC_*` values and must pass `check-export.mjs` on the shipped artifact. A Cloudflare-side build duplicates the config in a place nobody reviews and skips the gate. "Building here means the bytes that are checked are the bytes that are uploaded."
 
 ### `.github/workflows/pin-skill.yml` — `TEMPORARY: automatic triggers disabled`
 
@@ -1145,7 +1151,7 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 | Chain (public) | `CHAIN_ID`, `RPC_URL`, `PIN_REGISTRY`, `LOCKSTEP_LENS`, `LOCKSTEP_GUARD`, `ACCOUNT_ADDRESS`, `DEPLOY_BLOCK`, `PIN_IDS` |
 | Chain (secret) | `PUBLISHER_PRIVATE_KEY`, `ACCOUNT_PRIVATE_KEY`, `LOCKSTEP_EXECUTOR_KEY` |
 | Deploy | `BOND_ASSET`, `SLASH_RECIPIENT`, `ERC8004_IDENTITY`, `ERC8004_REPUTATION` |
-| Dashboard build | 7 × `NEXT_PUBLIC_*` (+ optional `NEXT_PUBLIC_ERC8004_AGENT_ID`) |
+| Dashboard build | 8 × `NEXT_PUBLIC_*` (+ optional `NEXT_PUBLIC_ERC8004_AGENT_ID`) |
 | CI | repository vars `PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL`; secret `PUBLISHER_PRIVATE_KEY`; secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
 
 **Three keys, deliberately separate:** publisher (publishes and bonds), account (approves — must derive `ACCOUNT_ADDRESS` or the CLI refuses), executor (spends gas, holds no funds). "The executor spends gas, the account holds funds."
@@ -1170,10 +1176,10 @@ the carried-over ERC-7201 state was cleaned, and the live success/refusal eviden
 `SkillExecuted` `0xc372dfb6e82eaf372f347973ad76af6c0186b69870c5e893e4b3184f8a6fb5e8` and zero-log
 `SkillHashMismatch` refusal `0x8136418764098f33307db27cd78663f8674a86054d759b3c9e99b8c6db4889f4`.
 
-Versioning: root `package.json` is `0.0.1`; `v0.1.0` remains at its original commit, and `v0.1.1`
-marks this finalized redeployed release. `action/` and `LICENSE` are byte-identical between the two
-references, so consumers of the Action are not broken by the non-destructive tag decision. See
-`HANDOVER.md`.
+Versioning: root `package.json` is `0.0.1`; `v0.1.0` remains at its original commit, `v0.1.1`
+marks the finalized redeployed release, and `v0.1.2` is the first release whose `action/` differs:
+it fixes the widening check (`FINDINGS.md` §39). No tag has ever been moved. Consume
+`faizydroid/lockstep/action@v0.1.2`. See `HANDOVER.md`.
 
 ---
 
@@ -1411,7 +1417,7 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 ### Medium
 
-4. **The `v0.1.0` tag points at a commit whose CI failed** (`3e65306`). `[KNOWN ISSUE]` That historical ref is intentionally unchanged; `v0.1.1` is the non-destructive release for the redeployed, documented state. `action/` and `LICENSE` remain byte-identical to the old tag.
+4. **The `v0.1.0` tag points at a commit whose CI failed** (`3e65306`). `[KNOWN ISSUE]` That historical ref is intentionally unchanged, as is `v0.1.1`, whose Action cannot publish on Monad's public RPC. `v0.1.2` is the release to consume.
 
 5. **`pin-skill.yml` automatic triggers are disabled.** `[TEMPORARY]` The redeploy and version bump resolved the source and on-chain blockers. Automatic execution remains off until the GitHub `PIN_REGISTRY` variable and separated `PUBLISHER_PRIVATE_KEY` secret are configured and verified; `workflow_dispatch` remains available.
 
@@ -1455,7 +1461,7 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 From `HANDOVER.md` — the remaining operator tasks, ordered by lead time:
 
-1. Cloudflare Pages project + API token + 2 repo secrets + custom domain `lockstep.dofolabs.space`
+1. Cloudflare API token secret + custom domain `lockstep.dofolabs.space` (the project, the first deploy and `CLOUDFLARE_ACCOUNT_ID` are done)
 2. Publisher outreach (longest lead time, ~4 weeks; gates three "not done" items)
 3. Record the video per `VIDEO.md`
 4. **Redeploy decision — completed.** Current testnet addresses, separated identities, delegation and receipts are documented
@@ -1661,7 +1667,7 @@ Three distinct keys with a stated invariant: the **executor holds no funds**; th
 4. **Do not exclude `node_modules` from hashing.** It is the supply-chain attack this project exists to stop.
 5. **Do not add an `approvePin`, `publish` or `execute` ABI fragment to `app/`.** Four independent layers will fail, and the boundary is the product's central claim.
 6. **If you add a state-changing contract function, classify it in `app/src/lib/policy.ts`.** `policy.test.ts` will fail until you do — that is intentional.
-7. **Keep the 7 `NEXT_PUBLIC_*` values identical in `ci.yml`, `deploy-dashboard.yml` and `.env.example`.** Divergence here has already caused a CI failure.
+7. **Keep the 8 `NEXT_PUBLIC_*` values identical in `ci.yml`, `deploy-dashboard.yml` and `.env.example`.** Divergence here has already caused a CI failure.
 8. **Do not commit `app/out/_headers`.** It is generated. A second copy of a security policy drifts.
 9. **Write "attested", not "proven", about the skill hash.** And do not describe `weightedScore` as exposure-weighted.
 10. **Do not add a `RugPullBlocked` event** or a `BlockedAttempt` indexer entity. Both were removed for measured reasons.
@@ -1686,7 +1692,6 @@ Genuinely unanswerable from the repository.
 
 | Question | Why it matters | Area | Evidence of uncertainty |
 |---|---|---|---|
-| Is `dofolabs.space` on Cloudflare nameservers? | Determines whether the custom domain auto-creates its CNAME or needs a manual record | deployment | `HANDOVER.md` branches on this; nothing in the repo records it |
 | What are the ERC-8004 registry addresses on chain 143? | Needed for a mainnet Lens | contracts | `.env.example`: "Chain 143 still unchecked" |
 | What is the real AUSD address to use as `BOND_ASSET`? | The deploy script requires it on 143 | contracts | `BOND_ASSET=` is empty |
 | Is `NO_RUN_CONTEXT` actually produced, and where? | Documented to agents but absent from `BlockCode` | plugin | `skill/SKILL.md` vs `policy.ts` |
@@ -1741,27 +1746,27 @@ HANDOVER.md                       what is actually left to do
 
 ### Current state
 
-941 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 678 unit, 76 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
+950 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 678 unit, 85 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
 
-Deployed on Monad testnet — but **those addresses predate the security pass, and the live guard carries a privilege escalation that source has since fixed.** The bond asset there is a freely mintable mock. Not on mainnet. Indexer not hosted. Dashboard deploy workflow is complete and fails on exactly one missing Cloudflare secret. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
+Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. Indexer not hosted. The dashboard is live at `lockstep-e7m.pages.dev`; its automatic deploy workflow fails on exactly one missing Cloudflare secret, and the custom domain is not attached. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
 
 ### Most important known problems
 
-1. Live testnet contracts lack the four security fixes present in source (disclosed everywhere).
-2. Testnet bonds are economically meaningless (mock asset).
-3. `v0.1.0` tags a commit whose CI failed (the Action subtree is byte-identical to `main`).
-4. Equivocation costs half the bond, not all of it — unavoidable with permissionless challenging, and stated.
-5. `pin-skill.yml` triggers are disabled, correctly, until the redeploy.
+1. Testnet bonds are economically meaningless (mock asset).
+2. `v0.1.0` tags a commit whose CI failed, and `v0.1.1`'s Action cannot publish on Monad's public RPC. Both are left in place; `v0.1.2` is current.
+3. Equivocation costs half the bond, not all of it — unavoidable with permissionless challenging, and stated.
+4. No third-party publisher has pinned a skill.
+5. `pin-skill.yml` triggers stay manual until a pull-request dry run passes against the configured repository settings.
 
 ### Current plans (repository's own, not mine)
 
-`HANDOVER.md`'s seven tasks, in its order: Cloudflare, publisher outreach (start first — 4-week lead), video, redeploy decision (open), Envio in October (30-day deletion), Marketplace (optional), submit. Plus two deferred engineering items recorded in source: an insurance pool for slashed remainders, and true exposure weighting for reviewer scores.
+`HANDOVER.md`'s tasks, in its order: Cloudflare token and domain, publisher outreach (start first — 4-week lead), video, Envio in October (30-day deletion), Marketplace (optional), submit. The redeploy is done. Plus two deferred engineering items recorded in source: an insurance pool for slashed remainders, and true exposure weighting for reviewer scores.
 
 ### Things to be careful about
 
 - Changing the hash breaks every pin. Bump `SCHEME_ID`.
 - Adding a contract write fails `policy.test.ts` until classified. That is the design.
-- The 7 `NEXT_PUBLIC_*` values must move in three files together.
+- The 8 `NEXT_PUBLIC_*` values must move in three files together.
 - Changing the guard address orphans every approval **silently** — delegation replaces code, not storage.
 - Source comments contain explicit prohibitions. Read them.
 - `forge` is not on PATH; `indexer/` typecheck fails on Windows by design.
