@@ -830,7 +830,7 @@ UNKNOWN ROUTE → not-found.tsx (server component, zero JS)
 
 Envio Cloud settings: root directory `indexer`, config file `config.yaml`, deployment branch **`envio`**, not `main`. Every push to the deployment branch is a new deployment, a full re-index and a new URL, and the free plan allows three deployments per indexer, so docs commits to `main` must not trigger one. Deploy with `git push origin main:envio`.
 
-**Hosted since 12 October 2026.** The current endpoint and an example query are in `indexer/README.md` (Status), the one place the URL is maintained. It answers POST only; a browser GET returns `PersistedQueryNotSupported`. The free plan deletes a deployment 30 days after creation.
+**Hosted since 12 October 2026**, redeployed the same day from `c1be57d` with the §41 fixes and checked against the chain. The endpoint and an example query are in `indexer/README.md` (Status); `README.md` and `SUBMISSION.md` quote the same URL, so a redeploy updates all three. It answers POST only; a browser GET returns `PersistedQueryNotSupported`. The free plan deletes a deployment 30 days after creation.
 
 **Three read-model defects, found in the first deployment's data and fixed** (`FINDINGS.md` §41): `Execution` ids were `undefined-<logIndex>` because `config.yaml` selected no transaction fields (Envio typed the field `FieldNotSelected<…>`, and a template literal accepted it); `Global.totalPublishers` stayed 0 because `BondDeposited` writes the publisher row before the first `Published`; and `Capability.selector` held the whole 32-byte indexed topic. `test/handlers.test.ts` replays the live deployment's seven events through the real handlers with Envio's `createTestIndexer` and `node:test`, in the CI `indexer` job.
 
@@ -1199,7 +1199,7 @@ it fixes the widening check (`FINDINGS.md` §39). No tag has ever been moved. Co
 | File | Size | Purpose |
 |---|---:|---|
 | `README.md` | 81 KB / 1350 lines | The full technical + commercial document. Sections: problem, gap, how it works, proven-vs-attested, Gator comparison, why Monad, layout, running it, design decisions, distribution, monetisation, status, license |
-| `FINDINGS.md` | 75 KB / 1438 lines | **Engineering log across 6 sessions, §1–41.** The single best source for *why* something is the way it is, and what was tried and rejected |
+| `FINDINGS.md` | 76 KB / 1444 lines | **Engineering log across 6 sessions, §1–41.** The single best source for *why* something is the way it is, and what was tried and rejected |
 | `PLAN.md` | 31 KB / 409 lines | Original build plan v2. **Partly stale** — see §22 |
 | `SUBMISSION.md` | 13 KB / 210 lines | Standalone 5-minute read for a judge |
 | `VIDEO.md` | 10 KB / 238 lines | Timed 3-minute shot list, voiceover, captions, and two corrections to `PLAN.md` §8 |

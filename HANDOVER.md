@@ -257,9 +257,13 @@ The bond asset remains a freely mintable mock on testnet.
 
 ## 5. Envio Cloud — done
 
-Hosted since 12 October on the free development plan. The current endpoint, a query to check it with,
-and the deployment's limits are in [`indexer/README.md`](indexer/README.md#status). That is the one
-place the URL is kept, because on the free plan every deployment gets a new one.
+Hosted since 12 October on the free development plan, and redeployed the same day with the fixes in
+`FINDINGS.md` §41. The current endpoint, a query to check it with, and the deployment's limits are in
+[`indexer/README.md`](indexer/README.md#status). `README.md` and `SUBMISSION.md` quote the same URL,
+and on the free plan every deployment gets a new one, so a redeploy means updating all three.
+
+Optional: the first deployment, built before those fixes, is still running and no doc points at it.
+Deleting it in the Envio dashboard frees one of the three deployments the free plan allows.
 
 The settings it was created with, three of which are what make a monorepo work at all:
 

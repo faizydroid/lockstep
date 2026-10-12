@@ -10,7 +10,7 @@
 | Dashboard | https://lockstep.dofolabs.space (also served at https://lockstep-e7m.pages.dev) |
 | Source | https://github.com/faizydroid/lockstep |
 | GitHub Action | `faizydroid/lockstep/action@v0.1.2` — [source at that tag](https://github.com/faizydroid/lockstep/tree/v0.1.2/action) |
-| Indexer | https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql — Envio HyperIndex, GraphQL over POST ([example query](#sponsor-bounties-claimed)) |
+| Indexer | https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql — Envio HyperIndex, GraphQL over POST ([example query](#sponsor-bounties-claimed)) |
 | Chain | Monad testnet, 10143 |
 | Engineering log | [`FINDINGS.md`](FINDINGS.md) — 41 entries, including the four defects found in our own code |
 
@@ -198,7 +198,7 @@ returns the live pin, `kuru-quote` 3.0.0 with a 1,150 mAUSD bond (`requiredBond`
 6-decimal units):
 
 ```bash
-curl -s https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql \
+curl -s https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql \
   -H 'content-type: application/json' \
   -d '{"query":"{ Pin { id name version requiredBond live } }"}'
 ```
@@ -206,7 +206,7 @@ curl -s https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql \
 Reading the first deployment back against the chain found three wrong fields: every execution keyed
 `undefined-1`, a publisher count of zero, and capability selectors stored as 32-byte topics. All three
 are fixed and covered by those tests ([`FINDINGS.md` §41](FINDINGS.md#41-the-hosted-indexers-read-model-was-wrong-in-three-fields)).
-The endpoint above is that first deployment; the fixed one replaces it.
+The endpoint above is the redeployment with the fixes, and its data matches the chain.
 
 We are not claiming the others. An earlier plan mapped roughly $10,500 across directories that do not
 exist and an auth provider that is not a dependency. Half-wiring a sponsor's SDK to claim a bounty

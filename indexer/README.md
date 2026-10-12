@@ -24,19 +24,19 @@ correct choices for a hot path, and both mean the readable view has to be recons
 **Hosted on Envio Cloud**, on the free development plan:
 
 ```
-https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql
+https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql
 ```
 
-This deployment was built on 12 October from `a1ef4a7`, before the three fixes described below, so
-its `Execution` ids, `totalPublishers` and capability selectors still show the old values. It
-indexes chain 10143 from block 61714758, where the registry was deployed, and `_meta` showed it at
-chain head and ready. A deployment of the fixed handlers replaces it, with a new URL.
+Deployed on 12 October from `c1be57d`, which has the three fixes described below. It indexes chain
+10143 from block 61714758, where the registry was deployed. Read back against the chain the same day,
+it was at chain head with all 7 events processed, and every entity matched, including the three
+fields the first deployment got wrong.
 
 **Query it with POST.** A plain GET, which is what opening the URL in a browser sends, returns
 `PersistedQueryNotSupported`. That means the endpoint is working; it only runs queries sent with POST.
 
 ```bash
-curl -s https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql \
+curl -s https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql \
   -H 'content-type: application/json' \
   -d '{"query":"{ Pin { id name version requiredBond live } }"}'
 ```

@@ -1436,3 +1436,9 @@ the old publisher check fails 2 of the 3 tests, the raw selector fails 1, and re
 selection fails the typecheck with 8 errors. That one cannot fail a test, because a simulated event
 carries whatever hash it is given, so the typecheck now covers the tests as well as the handlers. All
 of it runs in CI's `indexer` job; codegen does not run on Windows, so it was first run under WSL.
+
+Redeployed the same day from `c1be57d` and read back the same way: at chain head with all 7 events
+processed, and every entity matched the chain, including the three fields. The execution is keyed by
+its transaction hash and log index, `totalPublishers` is 1, and the selectors are `0x095ea7b3` and
+`0xa9059cbb`. The same check against the first deployment still failed on exactly those fields, which
+rules out a check that passes whatever it is given.
