@@ -43,15 +43,22 @@ import { spawn, spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync, openSync, readFileSync, writeSync } from "node:fs";
 import { connect } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
+import { pathDisplay } from "./display-paths.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const FOUNDRY = join(ROOT, ".tools", "foundry");
 const IS_WIN = process.platform === "win32";
+/**
+ * Applied to everything `out` and `die` print. Every path shown here is under the temp directory,
+ * which on Windows is inside the user's profile, and this output is what gets filmed.
+ */
+const shown = pathDisplay({ tmp: tmpdir(), home: homedir(), windows: IS_WIN });
 const ANVIL = join(FOUNDRY, IS_WIN ? "anvil.exe" : "anvil");
 const FORGE = join(FOUNDRY, IS_WIN ? "forge.exe" : "forge");
 const PROBE = join(ROOT, ".scratch", "probe");
@@ -154,7 +161,7 @@ if (envFile.loaded > 0) {
  * truncated that way, which matters most for the one line a human actually reads.
  */
 function out(text) {
-  writeSync(1, text);
+  writeSync(1, shown(text));
 }
 
 /** Resolves true once something is listening on a loopback port. */
@@ -181,7 +188,7 @@ function canConnect(port) {
 let gatewayProcess;
 
 function die(message) {
-  writeSync(2, `\nlive-dispatch: ${message}\n`);
+  writeSync(2, `\nlive-dispatch: ${shown(message)}\n`);
   process.exit(1);
 }
 
