@@ -143,9 +143,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 24, not 22 like the other jobs: indexer/package.json requires it, Envio Cloud recommends
+      # it, and the handler tests below were verified on it.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: indexer/package-lock.json
 
@@ -196,4 +198,12 @@ jobs:
       # so it can only ever run the local binary.
       - name: Typecheck handlers
         run: npm run typecheck
+        working-directory: indexer
+
+      # The handlers, run in process by Envio's createTestIndexer against the events the live
+      # deployment received. Written after that deployment showed three wrong fields. Two of them
+      # fail these tests against the old handlers; the third, an unselected transaction field,
+      # cannot show up in a simulated event and fails the typecheck above instead.
+      - name: Handler tests
+        run: npm test
         working-directory: indexer

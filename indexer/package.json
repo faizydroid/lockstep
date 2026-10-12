@@ -7,7 +7,8 @@
     "codegen": "envio codegen",
     "dev": "envio dev",
     "start": "envio start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
   },
   "//": [
     "envio is a runtime dependency, not a dev one, and the distinction is a deployment requirement",
@@ -20,7 +21,10 @@
     "root directory configured for the indexer, so this package has to resolve on its own. Being a",
     "workspace member would put its dependency tree in the repository root, where the hosted build",
     "would not look for it. That is also why src/EventHandlers.ts imports nothing outside this",
-    "directory, which Envio's monorepo guidance requires."
+    "directory, which Envio's monorepo guidance requires.",
+    "",
+    "Tests use node:test rather than a test framework, so nothing is added to what Envio Cloud",
+    "installs. Envio's createTestIndexer works with any runner."
   ],
   "dependencies": {
     "envio": "3.9.0"

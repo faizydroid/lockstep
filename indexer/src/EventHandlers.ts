@@ -18,6 +18,29 @@ import { indexer, type Pin, type Publisher } from "envio";
 const GLOBAL_ID = "global";
 const ZERO = 0n;
 
+/**
+ * The id of a row that records one log: `<txHash>-<logIndex>`.
+ *
+ * Takes a string on purpose. `event.transaction.hash` exists only if config.yaml selects it, and
+ * when it is not selected Envio types it as `FieldNotSelected<…>`, which a template literal accepts
+ * without complaint. That is how every `Execution` id on the first hosted deployment became
+ * `undefined-1`. Passing the hash through a string parameter makes the same mistake a type error.
+ */
+function logId(transactionHash: string, logIndex: number): string {
+  return `${transactionHash}-${logIndex}`;
+}
+
+/**
+ * A 4-byte function selector, from an indexed `bytes4` as HyperIndex delivers it.
+ *
+ * An indexed topic is always 32 bytes, with a `bytesN` value left-aligned in it, and the hosted
+ * indexer passes the whole topic through: `0x095ea7b3` followed by 56 zeros. Keeping the first four
+ * bytes is the ABI's own layout for the type, and it leaves a value that is already 4 bytes alone.
+ */
+function selectorOf(indexedBytes4: string): string {
+  return indexedBytes4.slice(0, 10).toLowerCase();
+}
+
 async function loadPublisher(context: any, address: string): Promise<Publisher> {
   const id = address.toLowerCase();
   const existing = await context.Publisher.get(id);
@@ -55,7 +78,10 @@ indexer.onEvent(
 
   async ({ event, context }) => {
   const publisher = await loadPublisher(context, event.params.publisher);
-  const isNew = (await context.Publisher.get(publisher.id)) === undefined;
+  // New on its first pin, not when its row first appears. A publisher has to deposit a bond before
+  // it can publish, and `BondDeposited` writes the row, so "no row yet" was never true here and
+  // `totalPublishers` stayed at 0 on the live deployment.
+  const isNew = publisher.pinCount === 0;
 
   const pin: Pin = {
     id: event.params.pinId,
@@ -96,11 +122,13 @@ indexer.onEvent(
   { contract: "PinRegistry", event: "CapabilityDeclared" },
 
   async ({ event, context }) => {
+  const target = event.params.target.toLowerCase();
+  const selector = selectorOf(event.params.selector);
   context.Capability.set({
-    id: `${event.params.pinId}-${event.params.target.toLowerCase()}-${event.params.selector}`,
+    id: `${event.params.pinId}-${target}-${selector}`,
     pin_id: event.params.pinId,
-    target: event.params.target.toLowerCase(),
-    selector: event.params.selector,
+    target,
+    selector,
     highRisk: event.params.highRisk,
   });
 });
@@ -139,7 +167,7 @@ indexer.onEvent(
   }
 
   context.Slash.set({
-    id: `${event.transaction.hash}-${event.logIndex}`,
+    id: logId(event.transaction.hash, event.logIndex),
     pin_id: event.params.pinId,
     publisher_id: publisher.id,
     challenger: event.params.challenger.toLowerCase(),
@@ -287,7 +315,7 @@ indexer.onEvent(
 
   async ({ event, context }) => {
   context.Execution.set({
-    id: `${event.transaction.hash}-${event.logIndex}`,
+    id: logId(event.transaction.hash, event.logIndex),
     account: event.srcAddress.toLowerCase(),
     pin_id: event.params.pinId,
     skillHash: event.params.skillHash,

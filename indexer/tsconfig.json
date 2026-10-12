@@ -24,5 +24,9 @@
   // The file cannot exist on Windows, since Envio ships linux and darwin binaries only. `tsc` treats a
   // missing include pattern as empty rather than an error, so a local run degrades to checking only
   // `src` and the real verification happens in the indexer CI job.
-  "include": ["src/**/*.ts", "envio-env.d.ts"]
+  //
+  // `test` is in the program because its simulated events are typed by the same generated bindings:
+  // a transaction field the config does not select is a type error there, which is the only place a
+  // simulated test can notice it.
+  "include": ["src/**/*.ts", "test/**/*.ts", "envio-env.d.ts"]
 }

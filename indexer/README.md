@@ -21,9 +21,64 @@ correct choices for a hot path, and both mean the readable view has to be recons
 
 ## Status
 
-**Codegen and handlers verified in CI; not yet running as a hosted deployment.** Envio ships linux
-and darwin binaries only, so `envio codegen` cannot run on the Windows machine most of this was
-written on — the `indexer` job in `.github/workflows/ci.yml` is where it is actually exercised.
+**Hosted on Envio Cloud**, on the free development plan:
+
+```
+https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql
+```
+
+This deployment was built on 12 October from `a1ef4a7`, before the three fixes described below, so
+its `Execution` ids, `totalPublishers` and capability selectors still show the old values. It
+indexes chain 10143 from block 61714758, where the registry was deployed, and `_meta` showed it at
+chain head and ready. A deployment of the fixed handlers replaces it, with a new URL.
+
+**Query it with POST.** A plain GET, which is what opening the URL in a browser sends, returns
+`PersistedQueryNotSupported`. That means the endpoint is working; it only runs queries sent with POST.
+
+```bash
+curl -s https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql \
+  -H 'content-type: application/json' \
+  -d '{"query":"{ Pin { id name version requiredBond live } }"}'
+```
+
+That returns the one live pin: `0x6520d020…2df4`, `kuru-quote` 3.0.0, `requiredBond` 1150000000
+(1,150 mAUSD at 6 decimals), `live: true`. Its two capabilities, the account's approval, the
+publisher's bond and the successful execution are indexed too.
+
+**The deployment is temporary.** The free plan deletes a deployment 30 days after it is created,
+around 11 November for this one, and seven days with no queries starts deletion sooner. The free plan
+also has no fixed production URL. Each push to `envio` creates a new deployment with its own URL and
+re-indexes from `start_block`, and an indexer can hold only three deployments at a time.
+
+**Codegen, the typecheck and the handler tests run on Linux only**, in the `indexer` job in
+`.github/workflows/ci.yml`. Envio ships linux and darwin binaries, so `envio codegen` cannot run on
+the Windows machine most of this was written on.
+
+### Three defects found in the first deployment's data, and fixed
+
+Querying the first deployment and comparing it with the chain showed the pins, approvals and bond
+totals right, and three fields wrong. `FINDINGS.md` §41 has the full account.
+
+**`Execution` ids read `undefined-1`.** `Execution` and `Slash` rows are keyed
+`<txHash>-<logIndex>`, and HyperIndex only delivers the transaction fields `config.yaml` selects.
+This config selected none, so every id was `undefined-<logIndex>`, and two executions in different
+blocks that share a log index would have written the same row. `config.yaml` now selects the hash,
+and the handlers build these ids through `logId(transactionHash: string, …)`, because Envio types an
+unselected field as `FieldNotSelected<…>` and a template literal accepts that silently.
+
+**`Global.totalPublishers` read 0 next to a publisher with a live pin.** The `Published` handler
+counted a publisher as new when no `Publisher` row existed. A publisher has to deposit a bond before
+publishing, and `BondDeposited` writes that row, so the check never passed. A publisher is now new on
+its first pin, `pinCount === 0`.
+
+**Capability selectors were the whole 32-byte topic**, `0x095ea7b3` and 56 zeros, in both the
+`selector` field and the id. An indexed `bytes4` is left-aligned in its topic and HyperIndex passes
+the topic through. Selectors now keep their first four bytes.
+
+`test/handlers.test.ts` replays the first deployment's seven events, with the values read back from
+Monad testnet, through the real handlers using Envio's `createTestIndexer`. Disabling each fix fails
+it: the old publisher check fails 2 of the 3 tests, the raw selector 1, and dropping the field
+selection fails the typecheck, since a simulated event carries whatever hash it is given.
 
 ## Deploying to Envio Cloud
 
@@ -51,7 +106,12 @@ single-package repository and this is a monorepo, so two of them must be changed
 |---|---|
 | Root directory | `indexer` |
 | Config file | `config.yaml` |
-| Deployment branch | `main` |
+| Deployment branch | `envio` |
+
+Deploy from a dedicated `envio` branch, not `main`. Every push to the deployment branch creates a new
+deployment and re-indexes from scratch, and the free plan allows three deployments per indexer.
+Pointing it at `main` would spend one on every docs commit. To deploy, push to that branch:
+`git push origin main:envio`.
 
 Multiple indexers per repository are supported precisely by these three fields, which is why the
 monorepo layout is not a problem here — unlike the GitHub Marketplace, which requires an action's
@@ -96,19 +156,21 @@ included it, and none of this code is served to a reader.
 
 ## Local development
 
-Requires Docker and, on Windows, WSL.
+`npm run dev` requires Docker and, on Windows, WSL. The tests do not need Docker.
 
 ```bash
 cd indexer
 npm ci
 npm run codegen     # linux/darwin only
+npm run typecheck
+npm test            # the handlers, in process, against the live deployment's events
 npm run dev         # GraphQL at http://localhost:8080
 ```
 
 ## After the contracts are redeployed
 
-`config.yaml` pins both the registry address and `start_block`, and the current values point at a
-deployment that **predates the security pass** described in the root README. When the registry is
+`config.yaml` pins both the registry address and `start_block`. The current values point at the
+deployment the root README lists, registry `0xF080…29B0` from block 61714758. When the registry is
 redeployed, three things in this directory change together:
 
 - `chains[0].start_block` — the block the new registry was created in
@@ -116,7 +178,8 @@ redeployed, three things in this directory change together:
 - the `0xef0100 || guard` comment in `config.yaml`, which names the guard the demo account delegates
   to
 
-Then push to the deployment branch, which triggers a full re-index. Nothing in `schema.graphql` or
+Then push to the deployment branch (`git push origin main:envio`), which triggers a full re-index
+and gives the new deployment a new URL. Nothing in `schema.graphql` or
 the handlers needs to change: the `Published` event already carries `versionId`, `name` and
 `version`, which is what lets a consumer group pins by version and render a human label instead of a
 digest.

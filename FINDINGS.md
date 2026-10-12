@@ -1398,3 +1398,41 @@ nothing to object to; only the pin can refuse it. Rehearsed once: approved
 `NOT_PINNED` before sending any transaction, and the balance stayed at 1000.000000. That is the
 plugin layer. The guard's own refusal, `SkillHashMismatch` on chain, is the second layer and is
 evidenced separately by the testnet receipt `0x8136…f4`.
+
+---
+
+## 41. The hosted indexer's read model was wrong in three fields
+
+Found on 12 October by querying the first Envio Cloud deployment and comparing every entity with the
+chain. It was the first time anything had read what these handlers write: CI proved they compile,
+and nothing consumed the output.
+
+Pins, approvals and bond totals matched. Three fields did not:
+
+- **Every `Execution` id was `undefined-<logIndex>`.** `Execution` and `Slash` rows are keyed
+  `<txHash>-<logIndex>`, and HyperIndex delivers only the transaction fields `config.yaml` selects.
+  This config selected none, so `event.transaction.hash` was undefined in every handler. The one
+  execution on chain was stored as `undefined-1`, and a second at log index 1 in any later block
+  would have replaced it while `totalExecutions`, a counter, went on counting. Envio's generated
+  types did say so: the field is typed `FieldNotSelected<"Field 'hash' is not selected … Add it
+  under field_selection.transaction_fields in config.yaml.">`. A template literal accepts any type,
+  so the typecheck CI runs passed.
+- **`Global.totalPublishers` was 0** beside a publisher with a live pin. `Published` counted a
+  publisher as new when no `Publisher` row existed yet. A publisher must deposit a bond before it can
+  publish, and `BondDeposited` writes that row, so the condition was never true.
+- **`Capability.selector` held the whole 32-byte topic**, `0x095ea7b3` followed by 56 zeros, and so
+  did every capability id. An indexed `bytes4` is left-aligned in its topic and HyperIndex passes the
+  topic through, so no query for an actual selector could match.
+
+Fixed: `field_selection` selects the hash, and both ids are built by
+`logId(transactionHash: string, …)`, so an unselected field is a type error rather than the string
+`"undefined"`. A publisher is new on its first pin, `pinCount === 0`. A selector keeps its first four
+bytes, which leaves a value that is already four bytes unchanged.
+
+`indexer/test/handlers.test.ts` replays the seven events behind the live deployment through the real
+handlers, using Envio's `createTestIndexer`, with block numbers, log indexes, transaction hashes and
+the padded selectors read back from Monad testnet, plus two edge cases. Each fix was disabled in turn:
+the old publisher check fails 2 of the 3 tests, the raw selector fails 1, and removing the field
+selection fails the typecheck with 8 errors. That one cannot fail a test, because a simulated event
+carries whatever hash it is given, so the typecheck now covers the tests as well as the handlers. All
+of it runs in CI's `indexer` job; codegen does not run on Windows, so it was first run under WSL.

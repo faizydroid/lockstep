@@ -29,6 +29,18 @@ description: Skill provenance, pins, bonds, and slashing on Monad.
 
 rollback_on_reorg: true
 
+# The transaction hash, for the two entities keyed `<txHash>-<logIndex>`: Execution and Slash.
+#
+# HyperIndex delivers only the transaction fields listed here, and until this list existed
+# `event.transaction.hash` was undefined in every handler. The first hosted deployment keyed its
+# one execution `undefined-1`, and a second execution at the same log index in a later block would
+# have replaced it. Envio's generated types did mark the field as not selected, but a template
+# literal accepts any type, so nothing complained. The handlers now build those ids through a
+# function that takes a string, which turns the same omission into a type error.
+field_selection:
+  transaction_fields:
+    - hash
+
 chains:
   - id: 10143 # Monad testnet
     # The block PinRegistry was created in, from
