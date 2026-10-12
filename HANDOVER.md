@@ -3,22 +3,23 @@
 Everything that can be done from the repository is done. What is left needs an account you own, a
 credential only you can mint, a wallet only you can sign with, or your face and voice.
 
-Submission is **11 October 2026**. Updated **5 October 2026**, six days out. An earlier version of
-this file said 2 September and timed tasks 2 and 5 from that; both are corrected below.
+Submissions close **13 October 2026 at 23:59 US Eastern**: 14 October 03:59 UTC, 09:29 in India.
+That is the `submissionDeadline` in hackathon.monad.xyz's own page code, and the signed-in page
+shows each account's deadline, so confirm it there. Updated **12 October 2026**. Earlier versions of
+this file said 11 October, which was `PLAN.md`'s two-day buffer, and before that 2 September.
 
 | # | Task | Time | Deadline pressure | Blocks |
 |---|------|------|-------------------|--------|
-| 1 | [Cloudflare token + domain](#1-cloudflare-pages-and-the-domain) | ~10 min | do now | automatic deploys, the custom domain |
-| 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr | send now; will not merge before 11 Oct | three demo claims |
-| 3 | [Record the video](#3-record-the-video) | ~3 hrs | **this week**, rehearsed and ready | the submission |
+| 1 | [Cloudflare token + domain](#1-cloudflare-pages-and-the-domain--done) | **DONE** | — | — |
+| 2 | [Publisher outreach](#2-publisher-outreach-start-this-first) | 1 hr | optional; nothing sent now merges before the deadline | three demo claims |
+| 3 | [Record the video](#3-record-the-video) | ~3 hrs | **before the deadline**, rehearsed | the submission |
 | 4 | [Redeploy the contracts](#4-redeploy-the-contracts--completed) | **DONE** | — | — |
-| 5 | [Envio Cloud](#5-envio-cloud-do-this-now) | ~15 min | **do it now** | an Envio bounty |
+| 5 | [Envio Cloud](#5-envio-cloud--done) | **DONE** | — | — |
 | 6 | [Marketplace listing](#6-marketplace-listing-optional) | ~5 min | optional | discovery only |
-| 7 | [Submit](#7-submit) | ~30 min | 11 Oct | — |
+| 7 | [Submit](#7-submit) | ~30 min | 13 Oct, 23:59 US Eastern | — |
 
-With six days left, the order that protects the submission is: 1 (so the video and the write-up can
-show the real domain), 5 (it needs time to index), 3, 7. Task 2 is an hour and worth sending, but
-it cannot change what the submission can claim.
+What is left before the deadline is 3, then 7. Tasks 2 and 6 are optional, and neither changes
+what the submission can claim.
 
 ---
 
@@ -27,19 +28,13 @@ it cannot change what the submission can claim.
 CI is green on `main`. 950 tests: 187 contract across 14 suites including 7 invariants, 678 unit,
 85 end-to-end against a real chain. The dashboard export gate also passed.
 
-**The dashboard is live at https://lockstep-e7m.pages.dev.** It was deployed from this machine with
-the same eight public values CI builds with, and the security headers were checked on the live
-response rather than in the generated file. `CLOUDFLARE_ACCOUNT_ID` is set as a repository secret.
+**The dashboard is live** at https://lockstep.dofolabs.space, and also served at
+https://lockstep-e7m.pages.dev. The first deploy was from this machine with the same eight public
+values CI builds with, and the security headers were checked on the live response rather than in the
+generated file.
 
-The automatic deploy after each green CI run still **fails on one line**:
-
-```
-✘ [ERROR] In a non-interactive environment, it's necessary to set a
-  CLOUDFLARE_API_TOKEN environment variable for wrangler to work.
-```
-
-Everything before that step passes on the runner: install, build, header generation, and the export
-check. The API token is the one credential I cannot create for you.
+**Automatic deploys work.** `CLOUDFLARE_API_TOKEN` was set on 12 October and both deploys run since
+then finished green, so every green CI run on `main` now deploys the commit it tested.
 
 **Pin publishing is automatic.** `pin-skill.yml` dry-runs on pull requests and publishes on pushes to
 `main` that touch the demo skill, the action, or the workflow. Its settings are configured:
@@ -51,12 +46,13 @@ needs a version bump, a bond deposit (all 1,150 mAUSD is locked against 3.0.0), 
 
 ---
 
-## 1. Cloudflare Pages and the domain
+## 1. Cloudflare Pages and the domain — done
 
-Target: `https://lockstep.dofolabs.space`. Two steps are left and both are yours: the API token
-that lets CI deploy, and attaching the domain.
+Done on 12 October: the API token is a repository secret, `lockstep.dofolabs.space` serves the
+dashboard, and the headers below arrive on it. Kept as a record, and as the procedure for replacing
+the token if it is ever rotated.
 
-### Already done
+### Done before that
 
 - Pages project `lockstep` with production branch `main`. The production branch can only be set at
   creation, and without it every deploy registers as a preview that the custom domain never serves.
@@ -117,8 +113,9 @@ see a TLS warning; that is normal and not a misconfiguration.
 
 ### 1d. Verify the headers arrive on the domain
 
-Already verified on `lockstep-e7m.pages.dev`. Repeat it on the domain once it resolves, because a
-static host sends only what it is told, and three of these cannot be expressed in markup.
+Verified on the domain on 12 October: all seven headers below arrive, and a hashed asset is served
+with `public, max-age=31536000, immutable`. To repeat the check, because a static host sends only
+what it is told, and three of these cannot be expressed in markup:
 
 ```powershell
 curl.exe -sSI https://lockstep.dofolabs.space | Select-String -Pattern "content-security-policy|x-frame-options|referrer-policy|x-content-type-options|cross-origin-opener-policy|permissions-policy|cache-control"
@@ -178,8 +175,8 @@ conversation.
 The Action is the ask, not the contracts. It is a dozen lines of YAML in a repository they already
 control, and it needs no wallet, no bond and no chain interaction to try.
 
-Expect 4+ weeks between first contact and a merged workflow file, so nothing sent this week will
-merge before 11 October. Send anyway: a reply or an open PR thread is still evidence someone outside
+Expect 4+ weeks between first contact and a merged workflow file, so nothing sent now will merge
+before the deadline. Send anyway: a reply or an open PR thread is still evidence someone outside
 this repository looked, and the messages are drafted. The shortlist, checked on 5 October, is
 `pareen/monad-mcp` (best fit: its tools move money on Monad and it already scopes signing with
 session keys), `mcpdotdirect/evm-mcp-server` (379 stars, active) and `ColinkaMir/monad-mcp` (an x402
@@ -224,9 +221,15 @@ with `NOT_PINNED` before sending any transaction, and the balance did not move. 
 layer; label it as such, and show the guard's on-chain `SkillHashMismatch` from the testnet receipt
 as the second layer. `VIDEO.md` has the updated beat.
 
-If the model is flaky on the day, `VIDEO.md` gives a deterministic fallback:
-`cd contracts && forge test --match-test test_theSilentReplacementIsNowSlashable -vvv`. Say on camera
-that it is the deterministic path. Do not pretend a test run is a live agent.
+If the model is flaky on the day, use the deterministic fallback. `forge` is not on `PATH` on this
+machine, so from PowerShell in the repository root, with the toolchain in `.tools` (passing as of
+12 October):
+
+```powershell
+cd contracts; ..\.tools\foundry\forge.exe test --match-test test_theSilentReplacementIsNowSlashable -vvv; cd ..
+```
+
+Say on camera that it is the deterministic path. Do not pretend a test run is a live agent.
 
 Record it. Do not perform it live.
 
@@ -252,20 +255,23 @@ The bond asset remains a freely mintable mock on testnet.
 
 ---
 
-## 5. Envio Cloud (do this now)
+## 5. Envio Cloud — done
 
-**Now is the window this section was waiting for.** The free development plan **hard-deletes
-deployments after 30 days**, which is why it was deferred. A deployment made this week outlives
-11 October. One made after about 9 October leaves no time to notice a failed first index.
+Hosted since 12 October on the free development plan. The current endpoint, a query to check it with,
+and the deployment's limits are in [`indexer/README.md`](indexer/README.md#status). That is the one
+place the URL is kept, because on the free plan every deployment gets a new one.
 
-When you do: install the Envio GitHub App on the repository, add an indexer, and set these three,
-which are what make a monorepo work at all:
+The settings it was created with, three of which are what make a monorepo work at all:
 
 | Setting | Value |
 |---------|-------|
 | Root directory | `indexer` |
 | Config file | `config.yaml` |
-| Deployment branch | `main` |
+| Deployment branch | `envio` |
+
+`envio`, not `main`: every push to the deployment branch is a new deployment and a full re-index, the
+free plan allows three per indexer, and `main` takes docs commits. Deploy with
+`git push origin main:envio`, and expect a new URL each time.
 
 The directory is already deployable — `envio` is in `dependencies` (a hard requirement it previously
 failed), `engines.node` is `>= 24`, `src/EventHandlers.ts` imports nothing outside the directory, and
@@ -316,7 +322,12 @@ paste from it.
 Before you submit, check every link resolves — the dashboard, the repository, the video, and the
 Action reference. Dead links are the cheapest possible way to lose points.
 
-Track 04, Monad Metropolis, deadline 11 October 2026.
+Give the indexer endpoint with the `curl` from `SUBMISSION.md` beside it. Opened in a browser it
+answers `PersistedQueryNotSupported`, which looks broken and is not: it only runs queries sent with
+POST.
+
+Track 04, Monad Metropolis. Submissions close 13 October 2026 at 23:59 US Eastern (14 October
+03:59 UTC).
 
 ---
 

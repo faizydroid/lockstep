@@ -7,10 +7,12 @@
 
 | | |
 |---|---|
-| Dashboard | https://lockstep-e7m.pages.dev (custom domain `lockstep.dofolabs.space` once attached) |
+| Dashboard | https://lockstep.dofolabs.space (also served at https://lockstep-e7m.pages.dev) |
 | Source | https://github.com/faizydroid/lockstep |
+| GitHub Action | `faizydroid/lockstep/action@v0.1.2` — [source at that tag](https://github.com/faizydroid/lockstep/tree/v0.1.2/action) |
+| Indexer | https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql — Envio HyperIndex, GraphQL over POST ([example query](#sponsor-bounties-claimed)) |
 | Chain | Monad testnet, 10143 |
-| Engineering log | [`FINDINGS.md`](FINDINGS.md) — 38 entries, including the four defects found in our own code |
+| Engineering log | [`FINDINGS.md`](FINDINGS.md) — 41 entries, including the four defects found in our own code |
 
 ---
 
@@ -107,7 +109,8 @@ showing a skill name shows the publisher beside it.
 
 **950 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
 678 off-chain unit tests; 85 end-to-end against a real chain, which includes every hand-written ABI
-fragment checked against the compiled artifacts.
+fragment checked against the compiled artifacts. The indexer adds 3 more, which run its handlers
+against the events behind the live deployment.
 
 **Gas, measured, with the scope stated.** Enforcement overhead is **40,349 gas** on a call that would
 otherwise cost 27,113 — the `execute` call alone, warm, excluding the 21,000 intrinsic cost. A whole
@@ -125,7 +128,7 @@ accounts instead, with the executor as a separate address.
 
 ### We audited our own work and published what we found
 
-The strongest evidence of rigour we can offer is [`FINDINGS.md` §38](FINDINGS.md): a first-principles
+The strongest evidence of rigour we can offer is [`FINDINGS.md` §38](FINDINGS.md#38-a-first-principles-security-pass-found-four-exploitable-defects): a first-principles
 security review of our own code that found **four exploitable defects, three of them free to
 exploit, every one in a mechanism this repository already described as working.**
 
@@ -176,8 +179,9 @@ Stated because the gap between a demo and a product is where credibility is won 
   says so on the page where the figures appear, and a build gate keeps that disclosure there.
 - **No third-party skills pinned yet.** The demo pins our own. Distribution is the real moat and it
   is the open work.
-- **The indexer is not hosted yet.** Config and handlers are verified by CI on Linux; deployment
-  settings and the free plan's 30-day deletion policy are documented in `indexer/README.md`.
+- **The indexer is hosted on a temporary plan.** Envio's free development plan deletes a deployment
+  30 days after it is created, around 11 November and after winners are announced. Seven days with
+  no queries starts deletion sooner. Keeping it needs a paid plan.
 
 ## Sponsor bounties claimed
 
@@ -186,7 +190,23 @@ Two, both with something real behind them.
 | Bounty | What exists |
 |---|---|
 | **MetaMask** — Best Agent Wallet Plugin | `integrations/metamask/`, laid out in MetaMask's own `domains/<domain>/skills/<name>/skill.md` structure, plus `contracts/test/GatorComparison.t.sol` — a differential against a model of the real `functionCall` caveat, and five tests on EIP-7702 delegation exclusivity |
-| **Envio** — HyperIndex | `indexer/`, 11 event handlers over `PinRegistry` and the guard accounts. Guard events are matched by signature rather than address, because under EIP-7702 the guard's code runs at each account's own address |
+| **Envio** — HyperIndex | `indexer/`, 11 event handlers over `PinRegistry` and the guard accounts, hosted on Envio Cloud, with tests that replay the live deployment's events through the real handlers. Guard events are matched by signature rather than address, because under EIP-7702 the guard's code runs at each account's own address |
+
+The indexer indexes from the registry's deploy block, 61714758. It accepts POST only, so opening the
+URL in a browser shows `PersistedQueryNotSupported`: the endpoint answering, not failing. This
+returns the live pin, `kuru-quote` 3.0.0 with a 1,150 mAUSD bond (`requiredBond` is in the token's
+6-decimal units):
+
+```bash
+curl -s https://indexer.dev.hyperindex.xyz/98a3638/v1/graphql \
+  -H 'content-type: application/json' \
+  -d '{"query":"{ Pin { id name version requiredBond live } }"}'
+```
+
+Reading the first deployment back against the chain found three wrong fields: every execution keyed
+`undefined-1`, a publisher count of zero, and capability selectors stored as 32-byte topics. All three
+are fixed and covered by those tests ([`FINDINGS.md` §41](FINDINGS.md#41-the-hosted-indexers-read-model-was-wrong-in-three-fields)).
+The endpoint above is that first deployment; the fixed one replaces it.
 
 We are not claiming the others. An earlier plan mapped roughly $10,500 across directories that do not
 exist and an auth provider that is not a dependency. Half-wiring a sponsor's SDK to claim a bounty
@@ -201,7 +221,7 @@ reads as exactly what it is.
 | `contracts/test/Adversarial.t.sol` | The four attacks, run end to end against a real delegated account |
 | `runtime/src/canonical.ts` | `lockstep-skill-hash/v2`, with a locked golden vector |
 | `action/` | The GitHub Action. Two refusals: no self-slashing, no silent capability widening |
-| `FINDINGS.md` | 38 engineering findings, written as they were found |
+| `FINDINGS.md` | 41 engineering findings, written as they were found |
 | `README.md` | The long-form technical account |
 
 ---

@@ -4,7 +4,7 @@
 
 > A lockfile for agent money. Your agent can only move funds through the exact skill bytes you approved — enforced on-chain, backed by the publisher's bond.
 
-- Build window: 1 Sep – 13 Oct 2026 · **Submit 11 Oct** (2-day buffer)
+- Build window: 1 Sep – 13 Oct 2026 · **Submissions close 13 Oct, 23:59 US Eastern** (14 Oct 03:59 UTC). This plan aimed for 11 Oct, a 2-day buffer.
 - Judging 14–27 Oct · Winners 3 Nov
 - Target: $30,000 track + $25,000 grand champion + stacked sponsor bounties
 
@@ -235,7 +235,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 ### Week 3 · Sep 16–22 — Adoption removal
 - [x] Sandbox replay on forked Monad → draft capability sets — `sandbox/`.
 - [x] `lockstep-action` GitHub Action written and green in CI — `action/action.yml`. **Usable now as `faizydroid/lockstep/action@v0.1.2`**; `uses:` accepts a subdirectory. **Not listed on the Marketplace, and "needs the repo public" was the wrong reason** — the repo is public and it still cannot be listed, because the Marketplace requires one action per repository with its metadata at the repository *root*. `scripts/publish-action-repo.mjs` generates the standalone repo that satisfies that; ticking the listing box is a web-UI step. See [README](README.md#why-the-action-is-not-on-the-marketplace).
-- [~] Envio indexer — config points at the live registry from block 61714758, 13 events. Codegen cannot run on Windows, so it is verified by the Linux CI job, **not yet running as a hosted deployment**.
+- [x] Envio indexer — config points at the live registry from block 61714758, 11 events. Codegen cannot run on Windows, so it is verified by the Linux CI job, which also runs the handlers against the live deployment's events. Hosted on Envio Cloud since 12 Oct, on the free plan; the endpoint is in [`indexer/README.md`](indexer/README.md#status).
 - [x] Invariants — `contracts/test/Invariants.t.sol`, seven of them: locked never exceeds balance, locked equals the sum of live pin bonds, the registry holds what it owes, a bond is never paid twice, live pins stay fully bonded, revoked pins are never live, and `versionPinCount` equals the number of unslashed claims per version. The seventh was added with the fix for a bond that stayed frozen after a successful challenge — too high strands honest collateral forever, too low is revoke-and-run.
 - [ ] **Sep 18–19 NYC Metropolis Lounge — go.** Judges and mentors are physically present. SF/London Sep 25, Singapore Oct 6 as alternates.
 
@@ -259,7 +259,7 @@ The entire thesis rests on one unproven assumption: that you can get a trustwort
 - [ ] Mainnet deploy with real pins and real bonds
 - [ ] 3-minute rehearsed, captioned video
 - [ ] Write-up
-- [ ] **Submit Oct 11.** Non-negotiable.
+- [ ] **Submit before 13 Oct, 23:59 US Eastern.** Non-negotiable. (This said Oct 11, the 2-day buffer.)
 
 ---
 
@@ -308,7 +308,7 @@ ERC-8004 is co-authored by Marco De Rossi at MetaMask. Spec fidelity is directly
 | **Mechanism copied by a competitor** | Distribution over invention. CI integration is the priority, not contract elegance. |
 | **Scope blowout** | Three contracts. One runtime. No cross-chain. No TEE. No vault. No custom manifest format. |
 
-**Non-negotiables:** the live rug-pull block, the auto/explicit approval ratio, gas + bond-velocity numbers, mainnet deployment, third-party pinned skills, and submitting Oct 11.
+**Non-negotiables:** the live rug-pull block, the auto/explicit approval ratio, gas + bond-velocity numbers, mainnet deployment, third-party pinned skills, and submitting before the 13 Oct deadline.
 
 ---
 

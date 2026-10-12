@@ -29,8 +29,8 @@ put a number on screen that nothing measured.
 - [ ] AWS credentials in `.env.local` still work — beat 3 uses a real model.
 - [ ] Do one full `--rug-pull` rehearsal run. First runs are slow: it installs OpenClaw into an
       isolated state directory.
-- [ ] Terminal at a large font, dark theme, window ~100 columns. Hide any path with your username in
-      it.
+- [ ] Terminal at a large font, dark theme, window ~100 columns. The harness prints temp paths as
+      `%TEMP%\…`, so its output carries no username; hide any other path that does.
 - [ ] Browser at 1440×900, no bookmarks bar, no extensions visible.
 - [ ] Captions burned in or as an uploaded `.srt`. Judges watch on mute more often than anyone admits.
 
@@ -148,9 +148,14 @@ Layer 2, on chain: SkillHashMismatch(attested, pinned) — zero logs. Nothing mo
 seconds — it is the single most convincing frame in the video.
 
 **Fallback if the model call is flaky on the day:** use the deterministic path instead and say so.
-`cd contracts && forge test --match-test test_theSilentReplacementIsNowSlashable -vvv` shows the same
-refusal without a model in the loop. An honest fallback beats a re-shot take that implies a live
-model when there wasn't one.
+From PowerShell in the repository root (`forge` is not on `PATH`; this uses the copy in `.tools`):
+
+```powershell
+cd contracts; ..\.tools\foundry\forge.exe test --match-test test_theSilentReplacementIsNowSlashable -vvv; cd ..
+```
+
+It shows the same refusal without a model in the loop. An honest fallback beats a re-shot take that
+implies a live model when there wasn't one.
 
 ---
 

@@ -22,7 +22,7 @@ Every factual claim below was read out of the repository. Where a claim is deriv
 | Repository | `github.com/faizydroid/lockstep` (public) |
 | Type | npm workspaces monorepo + Foundry contracts + Envio indexer + Next.js static export |
 | Target chain | Monad testnet, chain id `10143`. Mainnet `143` is supported in code paths but not deployed |
-| Purpose of the build | Hackathon submission, Monad Metropolis Track 04, deadline 11 October 2026 |
+| Purpose of the build | Hackathon submission, Monad Metropolis Track 04. Submissions close 13 October 2026, 23:59 US Eastern (14 October 03:59 UTC) |
 | Node requirement | `>=22.18.0` (root `engines`) |
 | Package manager | npm (root `package-lock.json`); the indexer has its own lockfile and is **not** a workspace member |
 
@@ -66,7 +66,7 @@ Three roles, evidenced by `app/src/lib/settings.ts` (`PROFILE_ROLES`), the CLI's
 
 ### Maturity
 
-`PARTIAL` overall. Contracts, off-chain packages, CLI, dashboard, Action and indexer config are implemented and tested. The live testnet deployment now matches the current contracts and has separated identities plus recorded success/refusal evidence. Not on mainnet. Indexer not hosted. No third-party publisher has pinned a skill. See §17.
+`PARTIAL` overall. Contracts, off-chain packages, CLI, dashboard, Action and indexer config are implemented and tested. The live testnet deployment now matches the current contracts and has separated identities plus recorded success/refusal evidence. Not on mainnet. The indexer is hosted on Envio Cloud's free plan, which is temporary. No third-party publisher has pinned a skill. See §17.
 
 ---
 
@@ -810,7 +810,7 @@ UNKNOWN ROUTE → not-found.tsx (server component, zero JS)
 
 ---
 
-## 12. `indexer/` — Envio HyperIndex (PARTIAL: configured and CI-verified, NOT hosted)
+## 12. `indexer/` — Envio HyperIndex (IMPLEMENTED: CI-verified, handler-tested, hosted on the free plan)
 
 `name: lockstep`, `rollback_on_reorg: true`, chain `10143`, `start_block: 61714758`.
 
@@ -828,7 +828,11 @@ UNKNOWN ROUTE → not-found.tsx (server component, zero JS)
 3. `src/EventHandlers.ts` has exactly **one** import, `from "envio"` — nothing outside the directory
 4. The package is **not a root workspace member**, so it resolves its own tree
 
-Envio Cloud settings: root directory `indexer`, config file `config.yaml`, deployment branch `main`.
+Envio Cloud settings: root directory `indexer`, config file `config.yaml`, deployment branch **`envio`**, not `main`. Every push to the deployment branch is a new deployment, a full re-index and a new URL, and the free plan allows three deployments per indexer, so docs commits to `main` must not trigger one. Deploy with `git push origin main:envio`.
+
+**Hosted since 12 October 2026.** The current endpoint and an example query are in `indexer/README.md` (Status), the one place the URL is maintained. It answers POST only; a browser GET returns `PersistedQueryNotSupported`. The free plan deletes a deployment 30 days after creation.
+
+**Three read-model defects, found in the first deployment's data and fixed** (`FINDINGS.md` §41): `Execution` ids were `undefined-<logIndex>` because `config.yaml` selected no transaction fields (Envio typed the field `FieldNotSelected<…>`, and a template literal accepted it); `Global.totalPublishers` stayed 0 because `BondDeposited` writes the publisher row before the first `Published`; and `Capability.selector` held the whole 32-byte indexed topic. `test/handlers.test.ts` replays the live deployment's seven events through the real handlers with Envio's `createTestIndexer` and `node:test`, in the CI `indexer` job.
 
 **Two traps documented in `indexer/README.md`:**
 - **Scheduling.** The free development plan **hard-deletes deployments after 30 days**, plus soft limits at 100k events / 5 GB / 7 days idle (soft breach → 7-day grace → 3 days read-only → deletion). Deploy close to when needed, not early.
@@ -1016,11 +1020,11 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Badge generator | **IMPLEMENTED** | 30 tests | `badge/` |
 | Sandbox draft manifests | **IMPLEMENTED** | 17 tests | `sandbox/` |
 | Watcher | **IMPLEMENTED** | 15 tests | `watcher/` |
-| Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job green | `indexer/` |
-| Indexer **hosted** | **PLANNED** | free plan deletes after 30 days | see `indexer/README.md` |
-| Dashboard hosting | **DEPLOYED** at `lockstep-e7m.pages.dev` | deployed manually with CI's values; headers verified on the live response | `HANDOVER.md` task 1 |
-| Cloudflare Pages deploy workflow | **IMPLEMENTED**; blocked on one secret | fails only on missing `CLOUDFLARE_API_TOKEN`; `CLOUDFLARE_ACCOUNT_ID` is set | `.github/workflows/deploy-dashboard.yml` |
-| Custom domain `lockstep.dofolabs.space` | **not done** | needs the maintainer's Cloudflare dashboard | `HANDOVER.md` task 1 |
+| Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job: codegen, typecheck, 3 handler tests | `indexer/` |
+| Indexer **hosted** | **DEPLOYED** (free plan, temporary) | Envio Cloud since 12 October; deleted 30 days after each deployment | `indexer/README.md` |
+| Dashboard hosting | **DEPLOYED** at `lockstep.dofolabs.space`, also `lockstep-e7m.pages.dev` | headers verified on the domain's live response | `HANDOVER.md` task 1 |
+| Cloudflare Pages deploy workflow | **IMPLEMENTED**, green | `CLOUDFLARE_API_TOKEN` set 12 October; deploys after every green CI run on `main` | `.github/workflows/deploy-dashboard.yml` |
+| Custom domain `lockstep.dofolabs.space` | **DONE** | attached 12 October; all seven security headers verified on it | `HANDOVER.md` task 1 |
 | Live testnet deployment | **IMPLEMENTED (testnet)** | current audited deployment; separated identities, re-delegated account, and recorded success/refusal receipts | `.env.example` |
 | Mainnet | **not done** | deploy script refuses mock bond on 143 | — |
 | Real bond asset (AUSD) | **not done** | live bond asset is a freely mintable mock | `Deploy.s.sol` `MockBondAsset` |
@@ -1128,7 +1132,7 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 
 Deploys via `cloudflare/wrangler-action@v3` with `wranglerVersion: "4"` — pinned to match the npm script. Left unset, the action installed 3.90.0, a major version behind, with four advisories.
 
-Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The account id is set; **the workflow currently fails on exactly one line** — the missing token. Every prior step (install, build, header generation, export check) passes on the runner. The Pages project `lockstep` exists with production branch `main`, and the site is live at **`lockstep-e7m.pages.dev`** from a manual `npm run deploy:dashboard`. The suffix is Cloudflare's: `lockstep.pages.dev` belongs to an unrelated site, so nothing may point at it. Target domain: `lockstep.dofolabs.space`, not yet attached.
+Requires secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, both set; the token was added on 12 October, and the two runs since then deployed green. The Pages project `lockstep` exists with production branch `main`. The site is live at **`lockstep.dofolabs.space`** and at **`lockstep-e7m.pages.dev`**. The suffix is Cloudflare's: `lockstep.pages.dev` belongs to an unrelated site, so nothing may point at it.
 
 **Why not Cloudflare's Git integration:** the build needs 8 baked-in `NEXT_PUBLIC_*` values and must pass `check-export.mjs` on the shipped artifact. A Cloudflare-side build duplicates the config in a place nobody reviews and skips the gate. "Building here means the bytes that are checked are the bytes that are uploaded."
 
@@ -1157,7 +1161,7 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 | Chain (secret) | `PUBLISHER_PRIVATE_KEY`, `ACCOUNT_PRIVATE_KEY`, `LOCKSTEP_EXECUTOR_KEY` |
 | Deploy | `BOND_ASSET`, `SLASH_RECIPIENT`, `ERC8004_IDENTITY`, `ERC8004_REPUTATION` |
 | Dashboard build | 8 × `NEXT_PUBLIC_*` (+ optional `NEXT_PUBLIC_ERC8004_AGENT_ID`) |
-| CI | repository vars `PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL`, `PREVIOUS_PIN_ID`; secret `PUBLISHER_PRIVATE_KEY`; secrets `CLOUDFLARE_API_TOKEN` (not yet set), `CLOUDFLARE_ACCOUNT_ID` |
+| CI | repository vars `PIN_REGISTRY`, `CHAIN_ID`, `RPC_URL`, `PREVIOUS_PIN_ID`; secret `PUBLISHER_PRIVATE_KEY`; secrets `CLOUDFLARE_API_TOKEN` (set 12 October), `CLOUDFLARE_ACCOUNT_ID` |
 
 **Three keys, deliberately separate:** publisher (publishes and bonds), account (approves — must derive `ACCOUNT_ADDRESS` or the CLI refuses), executor (spends gas, holds no funds). "The executor spends gas, the account holds funds."
 
@@ -1195,7 +1199,7 @@ it fixes the widening check (`FINDINGS.md` §39). No tag has ever been moved. Co
 | File | Size | Purpose |
 |---|---:|---|
 | `README.md` | 81 KB / 1350 lines | The full technical + commercial document. Sections: problem, gap, how it works, proven-vs-attested, Gator comparison, why Monad, layout, running it, design decisions, distribution, monetisation, status, license |
-| `FINDINGS.md` | 66 KB / 1301 lines | **Engineering log across 6 sessions, §1–38.** The single best source for *why* something is the way it is, and what was tried and rejected |
+| `FINDINGS.md` | 75 KB / 1438 lines | **Engineering log across 6 sessions, §1–41.** The single best source for *why* something is the way it is, and what was tried and rejected |
 | `PLAN.md` | 31 KB / 409 lines | Original build plan v2. **Partly stale** — see §22 |
 | `SUBMISSION.md` | 13 KB / 210 lines | Standalone 5-minute read for a judge |
 | `VIDEO.md` | 10 KB / 238 lines | Timed 3-minute shot list, voiceover, captions, and two corrections to `PLAN.md` §8 |
@@ -1466,11 +1470,11 @@ None outstanding. Five exploitable defects are now fixed in source: four from th
 
 From `HANDOVER.md` — the remaining operator tasks, ordered by lead time:
 
-1. Cloudflare API token secret + custom domain `lockstep.dofolabs.space` (the project, the first deploy and `CLOUDFLARE_ACCOUNT_ID` are done)
+1. Cloudflare API token secret + custom domain `lockstep.dofolabs.space` — **done 12 October**
 2. Publisher outreach (longest lead time, ~4 weeks; gates three "not done" items)
 3. Record the video per `VIDEO.md`
 4. **Redeploy decision — completed.** Current testnet addresses, separated identities, delegation and receipts are documented
-5. Envio Cloud deployment — **due now** (the first week of October was the window; the free plan deletes after 30 days)
+5. Envio Cloud deployment — **done 12 October**, on the free plan, from the `envio` branch (§12)
 6. Marketplace listing (optional; the Action works without it)
 7. Submit
 
@@ -1666,7 +1670,7 @@ Three distinct keys with a stated invariant: the **executor holds no funds**; th
 
 ## 29. AI working rules for this repository
 
-1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 38 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
+1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 41 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
 2. **Source comments here are specifications, not chatter.** Several say "do not" explicitly — `Do not add token-amount parsing here`, `Do not describe this as exposure-weighted`, `production must not pass this`, `Never use this as a trust signal`, `Do not flatten this back`. Honour them or argue against them explicitly with evidence.
 3. **Never change `runtime/src/canonical.ts` without bumping `SCHEME_ID`.** The id is inside the preimage precisely so old pins stay verifiable.
 4. **Do not exclude `node_modules` from hashing.** It is the supply-chain attack this project exists to stop.
@@ -1745,7 +1749,7 @@ runtime/src/canonical.ts          the hash everything commits to
 plugin/src/policy.ts              decide() — the off-chain security decision
 app/src/lib/policy.ts             the browser write boundary
 app/src/lib/chain.ts              all chain reads + the three RPC constants
-FINDINGS.md                       why everything is the way it is (§1–38)
+FINDINGS.md                       why everything is the way it is (§1–41)
 HANDOVER.md                       what is actually left to do
 ```
 
@@ -1753,7 +1757,7 @@ HANDOVER.md                       what is actually left to do
 
 950 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 678 unit, 85 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
 
-Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. Indexer not hosted. The dashboard is live at `lockstep-e7m.pages.dev`; its automatic deploy workflow fails on exactly one missing Cloudflare secret, and the custom domain is not attached. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
+Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. The indexer is hosted on Envio Cloud's free plan, which is temporary. The dashboard is live at `lockstep.dofolabs.space` and redeploys after every green CI run on `main`. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
 
 ### Most important known problems
 
