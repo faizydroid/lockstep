@@ -1546,6 +1546,9 @@ drifted" over a chain read that never computes drift. They now say the check is 
 
 ### Not fixed, and why
 
+*Update, the next morning: most of what follows was fixed. [§43](#43-the-rest-of-the-second-audits-findings-fixed)
+says which, and what is still open. What is written below is the state at the end of the audit.*
+
 **The CLI's `approve`, `diff` and `status` and the watcher's slashing loop cannot run on Monad's public
 RPC.** They scan logs from the first block. Approving is CLI-only by design, so on testnet the approvals
 were made by scripts, and the watcher, the permissionless slasher, cannot find pins. The same defect §39
@@ -1606,6 +1609,9 @@ None can be changed from the code. The commands are in `HANDOVER.md`.
 
 ### Not re-verified with a real model
 
+*Update: re-run on 14 October with the modified plugin, both directions passing. See
+[§43](#43-the-rest-of-the-second-audits-findings-fixed).*
+
 The live-dispatch harness (Claude Sonnet 4.5 on Bedrock) was started twice after these changes and did
 not finish, and the cause is the machine and not the code. CPU was at 100% from unrelated processes
 (ten KiroCrew `python.exe` workers and several `bun.exe`, each near a full core), `npm` took 13 to 20
@@ -1641,3 +1647,152 @@ kept out of the repository: a test that passes only while a bug exists is not on
 The suite went from 950 to 996 tests (718 unit, 187 contract, 91 end-to-end): 14 for the plugin, 6 for
 the CLI, 20 for the dashboard and 6 for the adapter on a capped RPC. Each new group was checked by
 undoing its fix and watching it fail.
+
+
+---
+
+## 43. The rest of the second audit's findings, fixed
+
+§42 ended with a list of things that were found and not fixed. Most of that list was fixed the next
+morning, with a test for each that fails when the fix is undone. This section says what changed, what is
+still open, and what was and was not re-run against a real model.
+
+### Fixed
+
+**`lockstep approve`, `diff` and `status` now run on Monad's public RPC.** They used to replay logs from
+block zero, and that endpoint refuses any `eth_getLogs` over 100 blocks. They now take the publishers you
+trust (`--publisher`, repeatable, or `TRUSTED_PUBLISHERS`, the same list the plugin takes), compute
+`keccak256(abi.encode(publisher, skillHash))`, and ask the registry: `getPin`, then `isAllowed` for every
+pair in the manifest on disk, and `isPinApproved` on the account. No log is read. A log scan is still what
+happens when nobody is named, on a chain that allows one; on one that does not, the command says whose pin
+to name instead of failing with a raw RPC error. Tested in `cli/test/lookup.test.ts` behind a proxy that
+answers `eth_getLogs` with HTTP 413 and code -32614, as Monad does, and the test asserts the proxy saw none.
+
+**`approve` took whichever pin for the bytes had been published first, and never printed whose it was.**
+Anyone can pin public bytes before the honest publisher's CI has run, with a wider capability set, and that
+pin was the one a user approved. The publisher is now printed before the question. When several live pins
+exist for the same bytes the command refuses and lists them, and `--yes` does not get past that. It also
+refuses when the pin allows anything the manifest in the directory does not list (a pair the pin lacks, a
+higher native-value ceiling, or a larger `capabilityCount` than the manifest accounts for), because a pin
+that allows something the reader was not shown cannot be approved on what they saw. And it refuses to send
+an approval from an account with no EIP-7702 delegation, where the transaction succeeds and stores nothing.
+
+**The "what changed" baseline was the publisher's first approved pin of any skill.** A widened release of
+skill B was diffed against the same publisher's wider skill A and reported as "auto-approvable". The
+baseline is now the pin you name with `--previous`, and without one the output says it is showing
+everything the version can do, not what changed.
+
+**The watcher can scan on Monad's public RPC.** `loadPins` asked for `"earliest"` in one call. It now pages
+in windows of 100 blocks from a configured `fromBlock`, spends at most `maxLogRequests` per scan, reports
+`truncated` and `scannedTo`, resumes from where it stopped, halves its window if the endpoint allows fewer
+blocks than assumed, and accepts `knownPinIds` (for example from an indexer) that need no log at all.
+"Found no equivocation" is therefore only a statement about what was scanned, and `lastScan` says how much.
+
+**The watcher named the two pins to slash in the wrong order.** `slashEquivocation(A, B)` takes the later
+pin's bond, and when both have the same `publishedAt` it takes A's. Monad's blocks are 400 ms and timestamps
+are whole seconds, so two publishes landing together tie, and the watcher passed the earlier, honest pin
+first. On a tie it slashed the pin users had approved against. It now passes the guilty pin first, which is
+right whether the later claim is strictly later or tied. Tested with two publishes mined into one block.
+
+**`blockedAttempts` replayed a failed transaction without its sender**, so the guard's first check
+(`NotAuthorizedExecutor`) failed for every one of them and every refusal, a rug pull included, was reported
+under the same reason. It now replays as the sender, and a block it cannot read is returned in `unreadable`
+instead of being skipped without a word.
+
+**The indexer's read model after a slash** (`livePins` one too high, `revokedAt` null on the slashed pin,
+the slashed bond still counted in `totalBondLocked`). The contract emits `Slashed` first and the `Revoked`
+handler returns early for a pin that is no longer live, so the slash handler is the only place to fix it,
+and it now does, without counting a pin out twice when its publisher had already revoked it. Tested under
+Linux with `createTestIndexer`, including a bystander pin so the count cannot hide behind its floor at
+zero. **This is committed and not deployed.** The hosted endpoint still runs the earlier handlers, and
+deploying means a new deployment and a new URL that only the owner can read. Until then the old rows are
+what they were.
+
+**An RPC URL, with its API key, could appear in an error.** viem puts the URL and the request body in its
+messages, and the Action printed `::error::<message>` and the CLI printed the message. Both now go through
+`redactUrls`. The Action also escapes `%`, CR and LF as the runner expects, so a newline in a message can
+no longer end the `::error::` command and begin another.
+
+**A selector label could inject markdown into the job summary.** The manifest accepted any string containing
+`(` and ending in `)`, and viem hashes only the text up to the first closing parenthesis, so a label could
+carry `<!--` after a real signature and hide rows of the table from a reviewer. A label must now be exactly
+what was hashed (a name and types, no spaces, no parameter names, nothing after the closing parenthesis;
+checked by hashing it again), the table cell and heading are escaped as well, and the error no longer
+echoes the raw string. `action/dist` was rebuilt and is committed.
+
+**The export gate passed builds it claimed to refuse.** `check-export.mjs` looked for a forbidden write
+only as an ABI object (`name:"approvePin"`), so the same function as a human-readable fragment, as a bare
+4-byte selector in hand-built calldata, or as quoted JSON got through; and it accepted a `_headers` file
+that merely mentioned a header. It now matches all four forms of a forbidden function and requires each
+security header with its exact value under `/*`, once, outside comments, with the static cache detached.
+`serve-export.mjs` no longer crashes on `GET /%`. 23 tests, each checked by reverting its fix.
+
+**Two scripts and a workflow.** `pin-skill.yml` published from a manual run on any branch; a run from
+anywhere but `main` is now a dry run. `publish-action-repo.mjs` now refuses a dirty tree and a stale
+committed bundle, no longer rebuilds in a dry run, validates the version, and pushes the tag before it
+force-pushes `main`, so an existing tag stops the release before anything has moved.
+
+**The dashboard showed reassuring wrong answers whenever the log window missed events.**
+- A pin whose capability events fall outside the 4,000-block window read "0 capabilities", was priced as
+  nearly empty, and the badge preview said green for a pin that may call `approve`. The counts now come
+  from `getPin`, which does not depend on the window, and a partial list says it is partial.
+- An approval made after the window did not appear, and one withdrawn after it still did. Approvals are now
+  asked of the account (`isPinApproved`), with the logs as the fallback when it cannot answer.
+- Approvals and executions stored a block number where the model wants seconds, so the live Approvals page
+  printed an approval made at block 62,008,822 as a date in 1971. Block times are now read, and a time that
+  cannot be read says "time unknown".
+- The withdraw button sent `chain: null`, which switches off viem's check that the wallet is on the chain
+  being written to, and never asked whether the account carried a delegation. On a plain account a
+  withdrawal succeeds and changes nothing while the dialog says "sent". It now checks the delegation before
+  the wallet is asked to sign and passes the chain.
+- Read against the live deployment with these changes: one pin declaring 2 capabilities and 2 high risk,
+  one approval and one execution with real timestamps, in about 14 seconds.
+
+**The live-dispatch harness** started the agent turn as soon as the Gateway's port accepted connections.
+The Gateway loads every installed plugin first (68 seconds, on a busy machine), and the turn failed with
+"Opening handshake has timed out" before any model was called. That one condition is now retried, up to six
+times 20 seconds apart. Nothing else is retried, because a turn that got past the handshake may have sent a
+transaction.
+
+### Still not fixed
+
+- **The Envio endpoint runs the old handlers** until it is redeployed (above), and its guard events remain
+  unauthenticated: `PinApproved` and `SkillExecuted` are indexed with no address because the guard's code
+  runs at each delegated account, so any contract can emit them. Closing that means checking the emitter's
+  code for `0xef0100` followed by the guard's address from inside a handler, which was not attempted.
+  Treat indexer rows as hints and check them on chain.
+- **The dashboard is not built for thousands of visitors.** It sends about 100 requests per page load from
+  the visitor's browser (11 to 14 seconds). The honest fix is to read the chain at build time and ship the
+  snapshot, which changes how the whole app gets its data.
+- **`v0.1.2` of the Action is unchanged.** The hardening above is in the repository and in `action/dist`,
+  and reaches users only with a new tag, which was not cut.
+- Provenance can still be steered by skill descriptions that reach the model without a read; the contract
+  limits in §42 (arguments not inspected, a fixed high-risk list, a previous delegate seeding storage,
+  mainnet bond assets that can freeze the slash recipient) are design, and the contracts are immutable;
+  and the repository settings in `HANDOVER.md` need the owner.
+
+### Re-verified with a real model
+
+On 14 October the live-dispatch harness ran twice against Claude Sonnet 4.5 on AWS Bedrock
+(`us.anthropic.claude-sonnet-4-5-20250929-v1:0`), through a real OpenClaw 2026.8.2 Gateway with the
+modified plugin installed, on a local chain deploying the real contracts:
+
+- Honest run: the account's mAUSD went from 1000.000000 to 999.999900 and `SkillExecuted` was emitted.
+  `PASS: the approved skill executed.`
+- Silent update (`SKILL.md` and `lockstep.json` untouched, one payee address changed): approved
+  `0x9b68b339…0b80`, on disk `0xd9a7a45d…fbc9`. The balance stayed at 1000.000000, the model reported
+  `NOT_PINNED`, and the harness printed `PASS: the silent update was refused, and the agent was told why.`
+
+An earlier attempt the same night failed for the harness reason above and says nothing about the plugin.
+The `--rug-pull` run was not repeated; it exercises the same refusal and the model sometimes declines the
+visible injection on its own, which proves nothing.
+
+### Counts
+
+The suite is 1,115 tests: 836 unit (runtime 41, plugin 69, CLI 114, watcher 23, sandbox 17, badge 30,
+dashboard 542), 187 contract and 92 end-to-end. The indexer has 6 more, which run on Linux in CI. The
+end-to-end figure was 91 in earlier documents and is 92 when counted, including the unchanged files. New
+this round: 60 for the CLI, 8 for the watcher, 50 for the dashboard and 3 for the indexer. Each group was
+checked by reverting its fix and watching it fail: 6 of 6 for the sanitising helpers, 8 of 8 for the CLI
+lookup, 6 of 6 for the watcher, 4 of 4 for the indexer, 6 of 6 and 4 of 4 for the dashboard reads and
+writes, 5 of 5 for the export gate.

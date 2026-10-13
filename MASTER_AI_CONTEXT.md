@@ -6,7 +6,7 @@ Canonical context document for AI systems working on this repository.
 
 Every factual claim below was read out of the repository. Where a claim is derived rather than stated, it is marked `[INFERRED]`. Where the repository does not answer, it is marked `[UNKNOWN]` rather than guessed.
 
-**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (718 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
+**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (836 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
 
 **A confirmed privilege escalation was found and fixed during this document's lifetime.** An authorised executor could change account policy by routing `authorizeExecutor` or `approvePin` through `execute`, because a call made *from* the account *to* the account satisfies `onlySelf`. `execute` now refuses the account as a call target. See §5.2, §5.4, §17 and §23. Any statement below about the guard's guarantees reflects the fixed contract.
 
@@ -491,7 +491,9 @@ Exit codes: `0` ok, `1` no command / runtime error, `2` usage error. Errors prin
 
 `approve` refuses if `ACCOUNT_PRIVATE_KEY` does not derive `ACCOUNT_ADDRESS`, "because approvals live in the account's own storage and the CLI refuses a mismatch rather than sending a transaction that cannot take effect" (`.env.example`).
 
-Files: `index.ts`, `env.ts`, `abi.ts`, `manifest.ts`, `pins.ts`, `risk.ts`, `commands/{publish,approve,status,diff}.ts`. 54 tests (`diff.test.ts` 9, `manifest.test.ts` 39, `publish-badge.test.ts` 6).
+Files: `index.ts`, `env.ts`, `abi.ts`, `manifest.ts`, `pins.ts`, `lookup.ts`, `sanitize.ts`, `risk.ts`, `commands/{publish,approve,status,diff}.ts`. 114 tests (`diff.test.ts` 9, `manifest.test.ts` 54, `publish-badge.test.ts` 6, `sanitize.test.ts` 16, `lookup.test.ts` 29).
+
+`approve`, `diff` and `status` take `--publisher` (repeatable; or `TRUSTED_PUBLISHERS`), `--pin`, `--previous` and `--from-block`. `lookup.ts` computes `keccak256(abi.encode(publisher, skillHash))`, reads `getPin`, checks every pair in the local `lockstep.json` with `isAllowed` and the declared `capabilityCount`, and reads `isPinApproved` on the account, so no log is read on Monad's public RPC. `approve` prints the publisher and refuses (even with `--yes`) when several live pins exist for the bytes, when the pin allows anything the manifest does not list, or when the account has no EIP-7702 delegation. `sanitize.ts` redacts URLs from errors and escapes workflow-command and Markdown text (`FINDINGS.md` section 43).
 
 ### Manifest format (`lockstep.json`)
 
@@ -536,7 +538,7 @@ A second, found before automatic publishing was switched on (`FINDINGS.md` §39)
 
 ---
 
-## 10. `app/` — dashboard (IMPLEMENTED, 492 tests)
+## 10. `app/` — dashboard (IMPLEMENTED, 542 tests)
 
 Next.js **16.3.4**, React **19.2.8**, viem **2.56.3**, Tailwind **4.3.3**, framer-motion **13.2.0**, vitest 3.2.7. `output: "export"` (static), `images.unoptimized: true`, `typedRoutes: true`. Dev port 3210.
 
@@ -848,7 +850,7 @@ Envio Cloud settings: root directory `indexer`, config file `config.yaml`, deplo
 
 ## 13. Other packages
 
-### `watcher/` — IMPLEMENTED (15 tests)
+### `watcher/` — IMPLEMENTED (23 tests)
 
 Two jobs: (1) detect equivocation and submit the proof permissionlessly for the reward; (2) surface blocked rug-pull attempts by **reading reverted-transaction revert reasons**, because there is no event.
 
@@ -874,7 +876,7 @@ Runs a skill against a forked chain, records every call, emits a manifest coveri
 
 `maxValuePerBatch` in a draft is the largest value on any **single** observed call — knowingly not the same quantity the field means, because `ObservedCall` carries no transaction boundary. Narrow is the right default: too wide grants blast radius silently, too narrow fails loudly with `BatchValueExceedsCeiling`. A warning fires whenever more than one observed call carried value. Reverted calls are included deliberately — "A skill that tried to call `approve` and failed still intends to call `approve`."
 
-### `e2e/` — IMPLEMENTED (91 tests, 5 files)
+### `e2e/` — IMPLEMENTED (92 tests, 5 files)
 
 Runs against a **real chain** (anvil) with real EIP-7702 delegation and hashes computed from the actual demo directories.
 
@@ -1015,12 +1017,12 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | CLI (5 commands) | **IMPLEMENTED** | 48 tests | `cli/` |
 | GitHub Action | **IMPLEMENTED** | 22 e2e tests against a real chain, incl. a Monad-style capped RPC | `action/` |
 | Action on GitHub Marketplace | **PARTIAL** | standalone `faizydroid/lockstep-action@v0.1.2` published; the listing itself needs the maintainer to accept the terms | `scripts/publish-action-repo.mjs` |
-| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 492 tests + export gate | `app/` |
+| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 542 tests + export gate | `app/` |
 | Browser write boundary | **IMPLEMENTED** | 4 enforcement layers | `app/src/lib/policy.ts` |
 | Badge generator | **IMPLEMENTED** | 30 tests | `badge/` |
 | Sandbox draft manifests | **IMPLEMENTED** | 17 tests | `sandbox/` |
-| Watcher | **IMPLEMENTED** | 15 tests | `watcher/` |
-| Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job: codegen, typecheck, 3 handler tests | `indexer/` |
+| Watcher | **IMPLEMENTED** | 23 tests (8 against a real chain behind a proxy that refuses wide log queries) | `watcher/` |
+| Envio indexer config + handlers | **IMPLEMENTED**, CI-verified | `indexer` CI job: codegen, typecheck, 6 handler tests | `indexer/` |
 | Indexer **hosted** | **DEPLOYED** (free plan, temporary) | Envio Cloud since 12 October; deleted 30 days after each deployment | `indexer/README.md` |
 | Dashboard hosting | **DEPLOYED** at `lockstep.dofolabs.space`, also `lockstep-e7m.pages.dev` | headers verified on the domain's live response | `HANDOVER.md` task 1 |
 | Cloudflare Pages deploy workflow | **IMPLEMENTED**, green | `CLOUDFLARE_API_TOKEN` set 12 October; deploys after every green CI run on `main` | `.github/workflows/deploy-dashboard.yml` |
@@ -1039,9 +1041,9 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Layer | Count | Command |
 |---|---:|---|
 | Contracts | **187** (14 suites, incl. 7 invariants over 128 runs / 4096 calls) | `forge test` |
-| Unit — runtime 41, plugin 69, cli 54, watcher 15, sandbox 17, badge 30, app 492 | **718** (39 files) | `npm run test:unit` |
-| End-to-end | **85** (5 files) | `npm run test:e2e` |
-| **Total** | **996** | |
+| Unit — runtime 41, plugin 69, cli 114, watcher 23, sandbox 17, badge 30, app 542 | **836** (45 files) | `npm run test:unit` |
+| End-to-end | **92** (5 files) | `npm run test:e2e` |
+| **Total** | **1,115** | |
 
 ---
 
@@ -1670,7 +1672,7 @@ Three distinct keys with a stated invariant: the **executor holds no funds**; th
 
 ## 29. AI working rules for this repository
 
-1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 42 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
+1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 43 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
 2. **Source comments here are specifications, not chatter.** Several say "do not" explicitly — `Do not add token-amount parsing here`, `Do not describe this as exposure-weighted`, `production must not pass this`, `Never use this as a trust signal`, `Do not flatten this back`. Honour them or argue against them explicitly with evidence.
 3. **Never change `runtime/src/canonical.ts` without bumping `SCHEME_ID`.** The id is inside the preimage precisely so old pins stay verifiable.
 4. **Do not exclude `node_modules` from hashing.** It is the supply-chain attack this project exists to stop.
@@ -1755,7 +1757,7 @@ HANDOVER.md                       what is actually left to do
 
 ### Current state
 
-996 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 718 unit, 91 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
+1,115 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 836 unit, 92 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
 
 Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. The indexer is hosted on Envio Cloud's free plan, which is temporary. The dashboard is live at `lockstep.dofolabs.space` and redeploys after every green CI run on `main`. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
 
@@ -1766,8 +1768,8 @@ Deployed on Monad testnet from the audited source, with separated publisher, acc
 3. Equivocation costs half the bond, not all of it — unavoidable with permissionless challenging, and stated.
 4. No third-party publisher has pinned a skill.
 5. The demo publisher's bond is fully locked, so the next release needs a deposit first.
-6. `lockstep approve`/`diff`/`status` and the watcher scan logs from the first block and cannot run on Monad's public RPC (`FINDINGS.md §42`). The plugin and the Action are fixed; these are not.
-7. The dashboard sends ~99 RPC requests (11-12 s) per page load from each visitor's browser. It is built for a handful of readers. The fix is a build-time snapshot.
+6. The watcher and the CLI's `approve`/`diff`/`status` now work without a log scan and are tested behind a proxy that refuses wide queries, but have not been run against Monad testnet itself (`FINDINGS.md` section 43). The Envio endpoint still runs the handlers from before the slash fix, because deploying makes a new URL.
+7. The dashboard sends ~100 RPC requests (11-14 s) per page load from each visitor's browser. It is built for a handful of readers. The fix is a build-time snapshot.
 8. A skill's description reaches the model without a `read`, and agent commands that run in the Gateway's own context can still reach the executor key. Both are bounded by the approved pin's capabilities and by sandboxing `exec`, not by the plugin.
 9. The Envio read model is unauthenticated: any contract can emit rows the indexer will accept. Nothing in the dashboard reads it.
 

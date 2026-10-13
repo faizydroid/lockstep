@@ -25,8 +25,8 @@ what the submission can claim.
 
 ## Current state, so you can trust the rest of this
 
-CI is green on `main`. 996 tests: 187 contract across 14 suites including 7 invariants, 718 unit,
-91 end-to-end against a real chain. The dashboard export gate also passed.
+CI is green on `main`. 1,115 tests: 187 contract across 14 suites including 7 invariants, 836 unit,
+92 end-to-end against a real chain. The dashboard export gate also passed.
 
 **The dashboard is live** at https://lockstep.dofolabs.space, and also served at
 https://lockstep-e7m.pages.dev. The first deploy was from this machine with the same eight public
@@ -236,12 +236,19 @@ Record it. Do not perform it live.
 **Before filming, run the live harness once, honest and `--silent-update`, and read the verdict lines.**
 The plugin changed on 13 October (it now hashes the skill at read time as well as at send time, finds
 approvals with `trustedPublishers`, and removes the executor key from the environment). Those changes are
-covered by unit and end-to-end tests, and OpenClaw's real host loads the plugin and reports it healthy,
-but the model-driven runs could not be completed that day: the machine was too starved to get through the
-Bedrock provider install (`FINDINGS.md` §42). Expect `PASS: the approved skill executed` for the honest
-run and `PASS: the silent update was refused` for the other. If either does not, the plugin change is the
-first suspect and it is one commit: `git log --oneline -- plugin/src` shows it, and `git revert` of that
-commit restores the behaviour you rehearsed on 5 October.
+covered by unit and end-to-end tests, and OpenClaw's real host loads the plugin and reports it healthy.
+The model-driven runs were completed on 14 October with Claude Sonnet 4.5 on Bedrock and both passed
+(`FINDINGS.md` §43): `PASS: the approved skill executed` for the honest run and `PASS: the silent update
+was refused` for the other. Run them once more before filming, because the take should not be the first
+time on the day, and a failure in either points first at the plugin commit: `git log --oneline --
+plugin/src` shows it, and `git revert` of that commit restores the behaviour you rehearsed on 5 October.
+
+**Node must be 24.15 or later for the harness** (OpenClaw requires 22.22.3 or 24.15; the copy bundled with
+some tools is older). Check `node --version` in the shell you run it from.
+
+**The Gateway is slow to answer after its port opens** (it loads every installed plugin first; 68 seconds
+on a busy machine). The harness now retries a turn that fails with "Opening handshake has timed out", up to
+six times, and nothing else, so a slow start is no longer a failed run.
 
 **The harness is slow when the machine is busy, and today it was.** On 13 October ten `python.exe`
 workers from KiroCrew (`kiro_crew mcp-…`, started 18:09) and several `bun.exe` processes from kiro-cli

@@ -114,10 +114,10 @@ showing a skill name shows the publisher beside it.
 
 ## Evidence
 
-**996 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
-718 off-chain unit tests; 91 end-to-end against a real chain, which includes every hand-written ABI
-fragment checked against the compiled artifacts. The indexer adds 3 more, which run its handlers
-against the events behind the live deployment.
+**1,115 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
+836 off-chain unit tests; 92 end-to-end against a real chain, which includes every hand-written ABI
+fragment checked against the compiled artifacts. The indexer adds 6 more, which run its handlers
+against the events behind the live deployment and against a slash.
 
 **Gas, measured, with the scope stated.** Enforcement overhead is **40,349 gas** on a call that would
 otherwise cost 27,113 — the `execute` call alone, warm, excluding the 21,000 intrinsic cost. A whole
@@ -175,6 +175,13 @@ the first never looked:
 - **The executor key was inherited by every command the agent ran**, so a skill script could bypass the
   plugin entirely. The key is now removed from the environment after it is read. That is the cheap half
   of a fix, and the README says what is left.
+- **`approve` took whichever pin for the bytes was published first, from anyone, and never printed the
+  publisher; it, `diff`, `status` and the watcher could not run on Monad's public RPC at all.** All four
+  now work without a log scan. `approve` shows whose pin it is, refuses when several publishers hold one
+  or when it cannot show everything the pin allows, and the watcher no longer slashes the honest earlier
+  pin when two claims share a timestamp ([`FINDINGS.md` §43](FINDINGS.md#43-the-rest-of-the-second-audits-findings-fixed)).
+  The model-driven runs were repeated on 14 October with the modified plugin: the honest skill executed,
+  and the silent update was refused with `NOT_PINNED`.
 
 The contracts held. The review found no way to exceed a pin and the deployed bytecode matches the source.
 Their limits are the ones this document already states: the guard does not look at arguments, and the
@@ -211,12 +218,13 @@ Stated because the gap between a demo and a product is where credibility is won 
   says so on the page where the figures appear, and a build gate keeps that disclosure there.
 - **No third-party skills pinned yet.** The demo pins our own. Distribution is the real moat and it
   is the open work.
-- **The CLI's `approve`, `diff` and `status`, and the watcher, cannot run on Monad's public RPC.** They
-  scan logs from the first block and that endpoint refuses ranges over 100 blocks. The testnet approvals
-  were made by script. The fix is known (compute the pin id from `--publisher` and check the manifest
-  with `isAllowed`, as the plugin now does) and was not safe to ship the day before the deadline.
-- **The dashboard is not built for thousands of visitors.** Each page load sends about 99 requests to
-  the public RPC from the visitor's browser and takes 11 to 12 seconds, and one failed request drops the
+- **The watcher has not been run against Monad testnet itself, and the Envio endpoint runs the earlier
+  handlers.** The watcher and the CLI's `approve`, `diff` and `status` now work without a log scan and are
+  tested behind a proxy that refuses wide queries the way Monad's RPC does, but only against a local
+  chain. The indexer's fix for the counts after a slash is committed and not deployed: deploying makes a
+  new URL. Its guard events are also unauthenticated, so treat its rows as hints and check them on chain.
+- **The dashboard is not built for thousands of visitors.** Each page load sends about 100 requests to
+  the public RPC from the visitor's browser and takes 11 to 14 seconds, and one failed request drops the
   page to sample data. The static site itself scales; the live read does not. The fix is to read once at
   build time and ship the snapshot.
 - **The executor key is only as safe as the place the agent's commands run.** It is out of the

@@ -111,7 +111,8 @@ node scripts/live-dispatch.mjs --provider bedrock \
 
 It changes one line after approval: the address the quote script pays. `SKILL.md`, `lockstep.json`
 and every declared capability stay identical, so the model has nothing to object to and an
-allowlist of `(target, selector)` pairs would permit the call. Rehearsed on 5 October: the model
+allowlist of `(target, selector)` pairs would permit the call. Rehearsed on 5 October, and again on
+14 October with the plugin that also hashes at read time: the model
 followed the unchanged instructions, Lockstep's plugin refused with `NOT_PINNED` before sending any
 transaction, and the balance did not move.
 
@@ -233,7 +234,7 @@ Ships as a GitHub Action. Two refusals: no self-slashing, no silent widening.
 We audited our own code and published what we found.
 4 exploitable defects. 3 free to exploit. All in mechanisms we had already called "working".
 Each fix verified by disabling it and watching the tests fail.
-996 tests. 187 Solidity, 7 invariants.
+1,115 tests. 187 Solidity, 7 invariants.
 AIR raised $50M to scan this. Lockstep enforces it at settlement.
 ```
 
