@@ -60,7 +60,8 @@ hash off-chain and reports it. A compromised runtime can report an honest hash
 while executing something else. What the chain provides is a non-repudiable record
 binding a transaction to a claimed version, which converts a false claim into
 provable fraud against a bond. That is an economic guarantee, not a cryptographic
-one.
+one. *(Corrected in §42: a false attestation is not slashable. The bond is forfeited
+for equivocation only, so it prices dishonest publishing and nothing else.)*
 
 **Out of scope entirely:** indirect prompt injection from content the agent reads,
 and any harm that does not move funds. Lockstep bounds financial blast radius. It
@@ -1442,3 +1443,189 @@ processed, and every entity matched the chain, including the three fields. The e
 its transaction hash and log index, `totalPublishers` is 1, and the selectors are `0x095ea7b3` and
 `0xa9059cbb`. The same check against the first deployment still failed on exactly those fields, which
 rules out a check that passes whatever it is given.
+
+---
+
+## 42. A second audit, of the whole system: what it found, what was fixed, and what was not
+
+Run on 13 October 2026, the day before the deadline, by four parallel reviews (contracts, agent runtime,
+publisher tooling, dashboard and CI) that were each required to prove a claim with a test or a
+measurement, followed by a check of the headline claims by hand. Everything against the live chain and
+the live site was read-only: no transaction was sent and no fork or pull request was opened.
+
+Some of what it found is serious, and two of the worst were not in any code the earlier audit (§38)
+covered: the deploy pipeline and the plugin's behaviour on the real network.
+
+### Fixed, each with a test that fails without the fix
+
+**The production deploy gate admitted a fork pull request.** `deploy-dashboard.yml` runs after CI on
+`workflow_run`, holds the Cloudflare token, and was gated on a green conclusion and
+`head_branch == 'main'`. GitHub gives a `workflow_run` job secrets even when an unprivileged
+`pull_request` run started it; `head_branch` is the pull request's own branch name, so a fork can call
+its branch `main`; and the pull request supplies its own `ci.yml`, so it can make CI pass. The job would
+then have checked out the fork's commit and run its `npm ci` and build with the token in scope for a
+later step. The gate now also requires the triggering event to be a push and the head repository to be
+this one, manual runs are only accepted from `main`, and the actions in the two workflows that hold
+secrets are pinned to commits. Needs a first-time contributor's workflow run to be approved, or a prior
+merged contribution, so it is High and not Critical. I did not try it, by design. `app/test/deploy-gate.test.ts`
+evaluates the real expression against both payload shapes: 5 of its 10 cases fail against the old one.
+
+**The dashboard read the live deployment through a window that missed all of it, and said nothing.** It
+scans 4,000 blocks from a configured start, and the start was the registry's deploy block, 61,714,758.
+Nothing happened until 62,008,806, 294,048 blocks later. So the live pin read as a chain snapshot with no
+capabilities (the badge rule called it green, though both of its powers are high risk), no approval, so no
+Withdraw control, and no executions. The `truncated` flag the scan computed was dropped. Measured against
+the live RPC, same 99 requests either way: the old start returns 0 capabilities, 0 approvals, 0
+executions; 62,008,806 returns both high-risk capabilities, 1 approval and 1 execution. The start is
+corrected, a window that stops short of the head now shows in the source bar, and
+`app/test/scan-window.test.ts` fails if the shipped start stops covering the live deployment's events.
+The same pass makes the reader check `eth_chainId`: it trusted whatever URL it was given, including one
+typed into Settings, and reported it as chain 10143.
+
+**The plugin could not find an approval on Monad's public RPC.** Its only way to discover approvals was to
+replay the account's logs from the first block, which that endpoint refuses (HTTP 413,
+`eth_getLogs is limited to a 100 range`), so on the real network every guarded send would throw. It
+worked in every test because the test chain has no range cap, the same class of defect as §39. A pin id is
+`keccak256(abi.encode(publisher, skillHash))`, so with `trustedPublishers` configured the plugin computes
+the candidates and asks the account `isPinApproved`: three `eth_call`s for a hit, one per listed
+publisher for a miss, no logs. Checked against the live account (true for the live pin, false for any
+other publisher), and in `e2e/test/chainAdapter.test.ts` behind a proxy that refuses `eth_getLogs`: the
+old path throws, the new one finds the pin with zero refused queries and exactly three calls. A failed
+read also used to escape as a raw RPC error naming the RPC URL, which often carries an API key; it is now
+a refusal in words with the URL removed.
+
+**The executor key was inherited by every command the agent ran.** The key reaches the plugin as an
+environment variable of the Gateway, and OpenClaw builds each `exec` child's environment from the
+Gateway's `process.env`; its sanitiser removes loader and `PATH` overrides, not secrets (verified in
+its source, and by calling its sanitiser). A skill script holding the key could call
+`execute(pinId, <approved hash>, calls)` itself, with both values public on chain, bypassing the plugin,
+the provenance check and the exec gate. The plugin now removes the variable after reading it. That closes
+the default path and nothing more; the README says what remains.
+
+**The skill was hashed only when `lockstep_send` ran.** A skill that was hostile when the agent read it,
+and put the approved bytes back before the send, was attested as the approved version. The directory is
+now also hashed when the manifest is read and every observation has to equal the one at send time
+(`SKILL_CHANGED`). This closes a swap between read and send. It does not close one that a persistent
+process makes between the read and a script's execution, which is the "compromised runtime" case the
+README already calls attested, not proven.
+
+**`lockstep publish` broke its own pin.** It wrote the badge into the skill directory it had just pinned,
+and the canonical hash covers every file there, so the pin described bytes that were no longer on disk,
+`approve` found no pin, and republishing was refused as equivocation. The README told publishers to
+commit the SVG. The badge now goes next to the skill (the current directory, or `--badge-dir`), and is
+refused inside it.
+
+Also: HSTS is sent, and the export gate fails a build that drops it. Four statements in the README were
+stronger than the code and are corrected: "the set of skills in context is exactly the set read" (skill
+descriptions reach the model without a read), "provable fraud against a bond" (a false attestation is
+not slashable), "the real boundary is key custody: the executor holds no funds" (it can direct the
+account's funds within an approved pin), and the number of dashboard sinks and writable functions.
+
+The "provable fraud" sentence was also in the live dashboard's own copy (the Limits page and the
+landing page's threat model, which said the penalty for a false claim "is a slash"), in the
+SUBMISSION, the MetaMask skill document, and in `check-export.mjs`, which pinned the phrase so a later
+edit could not soften it. All are corrected, and the gate now pins the accurate sentence instead. One
+copy remains: a comment in `LockstepGuard.sol`. It was left alone on purpose, because editing a
+comment changes the contract's metadata hash, after which the deployed bytecode could no longer be
+matched to its source by hash.
+
+The dashboard's `/drift` page and the landing page's "0 skills diverged" panel also said "nothing has
+drifted" over a chain read that never computes drift. They now say the check is not made there.
+
+### Not fixed, and why
+
+**The CLI's `approve`, `diff` and `status` and the watcher's slashing loop cannot run on Monad's public
+RPC.** They scan logs from the first block. Approving is CLI-only by design, so on testnet the approvals
+were made by scripts, and the watcher, the permissionless slasher, cannot find pins. The same defect §39
+fixed in the Action. Paging 100-block windows would cost hundreds of thousands of requests for one
+`approve`. The fix is the plugin's: take `--publisher`, compute the pin id, and check the local manifest
+against the registry with `isAllowed` and `capabilityCount`, which needs no logs and also ends `approve`
+taking the first pin for a hash from any publisher without showing which. It is a rewrite of three
+commands and was not safe to ship the day before the deadline. Use a local chain or an endpoint that
+serves wide log ranges until then.
+
+**The Envio read model can be forged and is slightly wrong after a slash.** The guard's events are
+indexed by signature with no address, because under EIP-7702 the guard's code runs at each account, so
+any contract that emits `PinApproved` or `SkillExecuted` creates rows. After a slash, `livePins` stays
+one too high and `revokedAt` stays null. Nothing in the dashboard reads the indexer, so this affects only
+people querying the public endpoint. Fixing the handlers means a new deployment and a new URL, so it is
+documented instead: treat indexer rows as hints and check them on chain.
+
+**Provenance can still be steered by skill descriptions** that reach the model with no read. The pin's
+declared capabilities bound the damage; the plugin cannot see the text.
+
+**Small tooling defects, all Low.** An RPC URL, which can carry an API key, appears in Action and CLI
+error messages (the plugin's path is fixed; theirs is not). A selector label in a manifest can inject
+markdown into the Action's job summary, enough to hide a high-risk row, and a newline in an error
+message can inject a runner command after `::error::`. `serve-export.mjs` crashes on `GET /%`
+(all path-traversal variants are refused). `check-export.mjs` passes a build with a forbidden write
+path and one whose `_headers` is gutted, though the README says it does not. When two equivocating pins
+share a timestamp, whoever calls slash chooses which bond is taken; Monad's blocks are 400 ms and its
+timestamps whole seconds, so most consecutive blocks share one (10 of 14 gaps in a sample of 15).
+
+**The contracts hold, with limits that are design, not defects.** The review found no way to exceed a pin,
+and the deployed bytecode matches the source for all three contracts. What it found instead: the
+guard does not inspect arguments, so a pin with `transfer` can send the account's whole balance of that
+token to anyone (stated in the README, now stated more plainly); the high-risk list is fixed at 14
+selectors, so swaps with a recipient argument, ERC-1155 and Permit2 transfers, `multicall` and
+`transferOwnership` price as ordinary capabilities; a previous 7702 delegate can pre-seed the guard's
+storage without an event; a lookalike ASCII version string avoids equivocation slashing; and on mainnet a
+bond asset that can freeze the immutable slash recipient would make slashing impossible. The contracts
+are immutable, unaudited by anyone but us, and not deployed to mainnet.
+
+**Scale.** Gas is flat: with 1,000 delegated accounts and 1,000 pins `execute` costs 54,122, `approvePin`
+45,202, `publish` about 209,000, and none moves with the count. The static site is fine: 60 requests, 6
+at a time, from one machine, all 200, p50 69 ms, p90 0.9 s, p99 1.3 s. The dashboard is not built for thousands of visitors:
+every page load sends 99 requests to the public RPC from the visitor's browser and takes 11 to 12
+seconds, a single failed request drops the page to sample data, and the public RPC documents 20 requests
+per second. A thousand simultaneous visitors is on the order of nine thousand requests per second against
+a shared endpoint we do not control. Reading the indexer would not fix it: the free plan allows 100
+queries a minute, and the indexer's rows can be forged. The honest fix is to read the chain once at build
+time and ship the snapshot, refreshing it on a schedule. That changes the data flow of a 16,000-line app
+and was not done.
+
+**`/drift` says no skill has drifted when it cannot tell.** On a chain read the list of drifted skills is
+always empty, because drift is a comparison with the user's files and a browser cannot see them. The page
+should say the plugin does that check on the user's machine.
+
+**Repository settings that need the owner.** Secret scanning, push protection and Dependabot security
+updates are off; `main` has no branch protection; the deploy job has no required-reviewer environment.
+None can be changed from the code. The commands are in `HANDOVER.md`.
+
+### Not re-verified with a real model
+
+The live-dispatch harness (Claude Sonnet 4.5 on Bedrock) was started twice after these changes and did
+not finish, and the cause is the machine and not the code. CPU was at 100% from unrelated processes
+(ten KiroCrew `python.exe` workers and several `bun.exe`, each near a full core), `npm` took 13 to 20
+seconds per call, and OpenClaw's own watchdogs fired during the Bedrock provider install
+(`npm install failed: termination timeout`, then `extract tar timed out after 120000ms`) before an agent
+turn began. Those runs say nothing about Lockstep either way.
+
+What was verified against the real host instead, without a model: OpenClaw 2026.8.2 loads the modified
+plugin, reports it loaded with `after_tool_call` and `agent_end` bound, accepts the new
+`trustedPublishers` field, and logs the guarded account and the executor address derived from the key it
+claimed from the environment. The unit tests drive the real tracker, policy and hashing with a fake host,
+and the end-to-end suite drives the adapter against a real chain. The one thing none of that covers is a
+model reading a skill through the real `read` tool and then calling `lockstep_send` with the read-time
+hash in play. **The honest and silent-update runs need doing once more before filming**, and the first
+take should be a throwaway.
+
+### What held up
+
+No private key or token, and no value that derives to the publisher, executor, account or treasury
+address, appears in any of the 83 commits across all refs (every 32-byte value in the full history was
+derived and compared; the three Anvil test keys are public by design). The deployed contracts match the
+compiled source including the metadata hash. The tool schema really has one parameter. Private keys never
+reach a log, a step output or a job summary. The http-to-https redirect, the security headers and TLS 1.3
+with a valid certificate are as documented. The dashboard has no path from RPC data to a script sink.
+`action/dist` rebuilds from `action/src` to an identical blob.
+
+### How the audit's own proofs are kept
+
+The proofs of concept that asserted a defect (they pass while the defect exists) were turned into tests
+that assert the fix, or removed once the fix made them false. The remainder, and the full reports, are
+kept out of the repository: a test that passes only while a bug exists is not one to commit.
+
+The suite went from 950 to 996 tests (718 unit, 187 contract, 91 end-to-end): 14 for the plugin, 6 for
+the CLI, 20 for the dashboard and 6 for the adapter on a capped RPC. Each new group was checked by
+undoing its fix and watching it fail.

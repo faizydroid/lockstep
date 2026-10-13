@@ -64,10 +64,18 @@ The tool exposed to the model takes **one** parameter: `calls`. There is no
 `skillHash`, no `pinId`, no `skill` field, and `additionalProperties: false`. A
 poisoned `SKILL.md` has nothing to instruct the model to fill in.
 
-Provenance comes from what the plugin observed. OpenClaw loads skills lazily — the
-model calls `read` on a `SKILL.md` when it decides to use one — so the set of
-skills in context for a run is exactly the set of manifests read during it. The
-plugin watches those reads and hashes the directory itself, from disk.
+Provenance comes from what the plugin observed. OpenClaw loads a skill's body lazily — the
+model calls `read` on a `SKILL.md` when it decides to use one — so the skills whose
+instructions are in context for a run are the manifests read during it. The plugin watches
+those reads and hashes the directory itself, from disk: once when the manifest is read and
+again when `lockstep_send` runs, and the two have to match. A skill that was hostile when the
+agent read it and had the approved bytes put back before the send is refused (`SKILL_CHANGED`).
+
+One qualification, because it limits the claim above. OpenClaw also puts every installed
+skill's name and description (up to 1,024 characters each) in the system prompt without any
+read, so a skill the agent never opened can still put text in front of the model. That text
+cannot name a skill or a pin to the tool, but it can steer the calls. What bounds it is the
+approved pin's declared capabilities, not the provenance check.
 
 A lying agent gains nothing. Misattributing provenance confines it to *some other
 approved pin's* declared capabilities; it can never exceed a pin, and it can never
@@ -84,9 +92,20 @@ act with no pin, because the policy blocks on absent and ambiguous provenance.
 - the publisher has not revoked it
 
 **Attested, not proven:** which skill produced the call. A compromised runtime can
-report an honest hash while executing something else. What the chain provides is a
-non-repudiable record binding a transaction to a claimed version, turning a false
-claim into provable fraud against a bond. Economic, not cryptographic.
+report an honest hash while executing something else, and nothing on chain can tell.
+What the chain provides is a non-repudiable record binding a transaction to a claimed
+version. It does **not** make a false attestation slashable. The bond is forfeited for
+one offence only: a publisher committing two different byte sets under one name and
+version. A malicious update published under a *new* version is not equivocation, and a
+user who approved it has no claim on the bond. So the economic layer is narrower than
+"backed by the publisher's bond" might suggest: the bond prices dishonest *publishing*
+and covers nothing else. Economic, not cryptographic, and limited to that one offence.
+
+**Not constrained: arguments.** The guard compares target, selector and value, never
+calldata arguments. A pin that allows `transfer(address,uint256)` on a token allows a
+transfer of any amount to any address, so whoever can sign as the executor can move the
+account's whole balance of that token. A pin bounds *which functions can be called*, not
+*where the money goes*. The Gator comparison below says the same about Gator.
 
 **Out of scope:** indirect prompt injection from content the agent reads, and any
 harm that does not move funds. Lockstep bounds financial blast radius. It is not a
@@ -127,7 +146,9 @@ So the boundary is now a rule rather than a blanket ban:
 > **A browser may send a transaction whose correctness the contract can check from its
 > own state. It may not send one that asserts a fact about bytes on a disk.**
 
-That classifies all eleven state-changing functions in the system:
+That classifies all eleven state-changing functions in the system. The "where" column is what the
+policy *permits*; the dashboard today has a control for only two of the browser rows,
+`unapprovePin` (Approvals) and `slashEquivocation` (Publishers). The rest are allowed but have no UI.
 
 | function | where | why |
 |---|---|---|
@@ -182,8 +203,8 @@ validated to a 32-byte hex id. That last one fixed no live bug: a bogus id alrea
 was changed because holding an unbounded attacker-supplied string in state that several components
 read is the shape a real bug grows from.
 
-**One HTML sink, and it takes no input.** The only `dangerouslySetInnerHTML` in the app is the
-pre-paint theme script, which is a module constant.
+**Two HTML sinks, and neither takes input.** The only `dangerouslySetInnerHTML` uses in the app are the
+pre-paint theme script and the rail script in `layout.tsx`, both module constants.
 
 **`href` is the vector React does not close for you.** Text is escaped; URLs are not, and
 `javascript:` in an anchor is a working script. `Button` accepts an `href` and renders an anchor, so it
@@ -401,30 +422,30 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 678 tests across seven packages
+npm run test:unit          # 718 tests across seven packages
 npm run typecheck
 
 cd contracts
 forge test -vv             # 187 tests, gas and bond-velocity figures in the output
 
 cd ..
-npm run test:e2e           # 85 tests against a live Anvil chain
+npm run test:e2e           # 91 tests against a live Anvil chain
 ```
 
-**950 tests total**, counted by running all three: 678 unit, 187 contract, 85 end-to-end. The indexer
+**996 tests total**, counted by running all three: 718 unit, 187 contract, 91 end-to-end. The indexer
 has 3 more, which need `envio codegen` and so run only on Linux, in CI's `indexer` job.
 
 | package | tests |
 |---|---|
 | `runtime` | 41 |
-| `plugin` | 55 |
-| `cli` | 48 |
+| `plugin` | 69 |
+| `cli` | 54 |
 | `sandbox` | 17 |
 | `watcher` | 15 |
 | `badge` | 30 |
-| `app` | 472 |
+| `app` | 492 |
 | `contracts` (Foundry) | 187 |
-| `e2e` | 85 |
+| `e2e` | 91 |
 
 The e2e suites skip with a message rather than failing if Anvil is not present. They cover
 the full flow with real EIP-7702 delegation, the `ChainAdapter` that submits transactions,
@@ -469,7 +490,12 @@ configuration the pages still render from fixtures, and the banner says so.
 Set the eight `NEXT_PUBLIC_*` values in `app/.env.local`. The exact set CI builds with is in
 `.github/workflows/ci.yml`, and `.env.example` records the same addresses without the prefix.
 `NEXT_PUBLIC_DEPLOY_BLOCK` is the one people miss, and without it log queries start at genesis, the
-public RPC refuses, and the dashboard falls back to samples while looking correctly configured.
+public RPC refuses, and the dashboard falls back to samples while looking correctly configured. Despite
+the name it is where the log scan starts, not necessarily where the registry was deployed: the scan
+covers 4,000 blocks from there, and this registry was deployed at block 61714758 but first used at
+62008806. A start at the deployment reached a "live" page with no capabilities, no approval and no
+executions, which is the failure `app/test/scan-window.test.ts` now guards against. When the window does
+not reach the head, the source bar says so.
 
 ### Try the hasher
 
@@ -494,6 +520,39 @@ forge script script/Deploy.s.sol --tc Deploy \
 BOND_ASSET=0x... forge script script/Deploy.s.sol --tc Deploy \
   --rpc-url monad --broadcast
 ```
+
+### Using the plugin on Monad's public RPC
+
+Monad's public endpoint refuses `eth_getLogs` over more than 100 blocks, and the plugin's default way of
+finding your approvals is to replay the account's logs, so on that endpoint it finds none and every
+guarded send is refused. Tell it which publishers you approve skills from instead:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "lockstep": {
+        "config": {
+          "registry": "0xF0800974aE84F55508E3e31F72A52E09b19829B0",
+          "account": "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2",
+          "chainId": 10143,
+          "trustedPublishers": ["0xcc71E1f66CA325A9D3dEC74b2AA94CDF870194Dc"]
+        }
+      }
+    }
+  }
+}
+```
+
+A pin id is `keccak256(abi.encode(publisher, skillHash))`, so with that list the plugin computes the
+candidates and asks the account `isPinApproved` for each: one `eth_call` per listed publisher, then two
+registry reads for the pin it finds, and no log is read. An approval by a publisher who is not on the list
+is not found, which is the point of listing the ones you trust. Without `trustedPublishers` the plugin
+scans logs, which works on a local chain or an archive endpoint. `scripts/live-dispatch.mjs` runs with it set.
+
+The executor key is read from the environment variable named by `executorPrivateKeyEnv` and then removed
+from the Gateway's environment. Read [what that does and does not protect](#why-the-agent-cannot-forge-provenance)
+before putting real funds behind an account: run the agent's `exec` in OpenClaw's sandbox.
 
 ## Design decisions worth knowing
 
@@ -529,8 +588,25 @@ and the dead emit made rejection cost *more* than a success. The revert reason
 carries the same data and survives in the trace.
 
 **The exec gate is not a security boundary.** It blocks `cast send`-shaped commands
-as defence in depth, and shell pattern matching is trivially evadable. The real
-boundary is key custody: the executor holds no funds.
+as defence in depth, and shell pattern matching is trivially evadable. The boundary
+that matters is where the executor key lives, and it is weaker than "the executor
+holds no funds" suggests. The executor cannot spend money of its own, but it can
+*direct the account's funds* inside any pin the account approved, to any recipient,
+because the guard does not inspect arguments. A process that holds the key can call
+`execute(pinId, <the approved hash>, calls)` itself, bypassing this plugin, the
+provenance check and the gate, and both the pin id and the approved hash are public on
+chain.
+
+The key has to reach the plugin as an environment variable of the Gateway, and OpenClaw
+builds every `exec` child's environment from the Gateway's. So until recently every
+command a skill told the agent to run started with the key in its environment. The
+plugin now removes the variable from the Gateway's environment right after reading it
+(`plugin/src/keyCustody.ts`), which closes that default path and nothing more: on Linux
+the original environment block is still readable at `/proc/<pid>/environ` by processes
+of the same user. The real boundary is to run the agent's commands where the key is not:
+OpenClaw's sandbox (`agents.defaults.sandbox.mode`, **off by default**) or a separate
+signing process. Until one of those is in place, treat any skill the agent can run
+through `exec` as able to spend whatever the approved pins allow.
 
 See [`FINDINGS.md`](./FINDINGS.md) for measured results, bugs the tests caught, and
 what remains unverified.
@@ -841,21 +917,21 @@ exists at all — and it is also why the enforcement has to be free.
 | **MetaMask Gator differential** | **Done, 7 tests** against a model of the real ERC-7710 `functionCall` caveat, not a straw man. Both layers enforce the same targets/selectors/value ceiling; only Lockstep refuses the poisoned bytes — see above |
 | **EIP-7702 exclusivity** | **Done, 5 tests.** An account carries one delegation indicator, so Gator and Lockstep cannot share an account. Approvals survive in storage while unenforced. The layers stack across accounts instead |
 | Bond-velocity benchmark | Done, 3 tests. 40x from 300ms vs 12s blocks |
-| OpenClaw plugin logic | Done, 55 tests |
-| CLI, with self-slash refusal | Done, 48 tests. Also refuses a confusable skill name before spending gas, using the registry's own rule |
-| Watcher | Done, 15 tests. Detection is pure and node-free |
+| OpenClaw plugin logic | Done, 69 tests. Finds approvals without log scans when `trustedPublishers` is set, which Monad's public RPC requires; hashes the skill when it is read and again when it is sent; removes the executor key from the Gateway's environment. See [FINDINGS §42](FINDINGS.md#42-a-second-audit-of-the-whole-system-what-it-found-what-was-fixed-and-what-was-not) |
+| CLI, with self-slash refusal | Done, 54 tests. Also refuses a confusable skill name before spending gas, using the registry's own rule. **`approve`, `diff` and `status` scan logs from the first block and so cannot run on Monad's public RPC** — they work on a local chain or an archive endpoint; see FINDINGS §42 for the fix and why it was not made |
+| Watcher | Done, 15 tests. Detection is pure and node-free. **Its scan has the same log-range limit as the CLI** and cannot run against Monad's public RPC |
 | Sandbox draft manifests | Done, 17 tests |
 | Badge | Done, 30 tests. Written by `lockstep publish` and surfaced in the Action's run summary. A committed file, never a hosted URL — see below |
 | GitHub Action | Done, 22 tests against a live chain, including an RPC that refuses `eth_getLogs` the way Monad's does. Both refusals verified. **Usable now as `faizydroid/lockstep/action@v0.1.2`** — `uses:` accepts a subdirectory. `v0.1.1` and earlier could not publish on Monad's public RPC; see [FINDINGS §39](FINDINGS.md#39-the-actions-widening-check-could-not-run-where-the-action-runs). Not listed on the Marketplace, and the reason is structural rather than pending: see [why the Action is not on the Marketplace](#why-the-action-is-not-on-the-marketplace) |
-| `ChainAdapter` | Done, 12 tests against a live chain |
+| `ChainAdapter` | Done, 18 tests against a live chain, 6 of them behind a proxy that refuses `eth_getLogs` the way Monad's public RPC does |
 | **CI** | **Green on all three jobs**, first run ever. It immediately found four defects nothing local could have caught — see below |
 | **Envio indexer** | **Hosted on Envio Cloud** at `https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql`, indexing from the registry's deploy block, on the free development plan and therefore temporary. Codegen, the handler typecheck and 3 handler tests run on Linux CI; migrated from the v2 API to v3. The first deployment's data showed three wrong fields, in `Execution` ids, `totalPublishers` and capability selectors, now fixed and tested ([FINDINGS §41](FINDINGS.md#41-the-hosted-indexers-read-model-was-wrong-in-three-fields)); the endpoint is the redeployment with the fixes, checked against the chain — see [`indexer/README.md`](indexer/README.md#status) |
-| End-to-end on a live chain | Done, 85 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
+| End-to-end on a live chain | Done, 91 tests. Includes every ABI fragment checked against the compiled artifacts, and each package's entry point run by plain Node |
 | OpenClaw plugin registration | **Verified against a live `openclaw@2026.8.2` Gateway.** Hooks bound, tool registered, trusted policy in the accepted surface, zero diagnostics |
-| **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock, most recently on 5 October 2026 against the current contracts. Honest run emitted `SkillExecuted` and moved the account's mAUSD; the same prompt with changed bytes was refused by the plugin with `NOT_PINNED`, before any transaction. The harness first needed a fix, because its publish call predated the struct form ([FINDINGS §40](FINDINGS.md#40-the-live-dispatch-harness-called-a-function-the-registry-no-longer-has)). See below |
+| **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock, on a local chain (Anvil as chain 10143, with the real contracts), most recently on 5 October 2026. Honest run emitted `SkillExecuted` and moved the account's mAUSD; the same prompt with changed bytes was refused by the plugin with `NOT_PINNED`, before any transaction. It has not been run against Monad testnet itself: the testnet receipts below were sent by script. The harness first needed a fix, because its publish call predated the struct form ([FINDINGS §40](FINDINGS.md#40-the-live-dispatch-harness-called-a-function-the-registry-no-longer-has)). See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured historically**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing was cheaper than settling. Enforcement *overhead* was 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. The Monad figures predate the redeploy; this release does not claim a fresh live gas measurement |
-| Dashboard (Next.js static export) | Done, 472 tests, **live** at https://lockstep.dofolabs.space, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below |
+| Dashboard (Next.js static export) | Done, 492 tests, **live** at https://lockstep.dofolabs.space, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below. **It reads logs through a fixed 4,000-block window and says so in the source bar; every page load sends about 99 requests to Monad's public RPC from the visitor's browser (11 to 12 seconds), so it is built for a handful of readers, not thousands** — see [FINDINGS §42](FINDINGS.md#42-a-second-audit-of-the-whole-system-what-it-found-what-was-fixed-and-what-was-not) |
 | Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
 | Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
 | Browser attack surface | Audited. Two gaps closed, CSP in headers and markup, zero production dependency vulnerabilities — see below |

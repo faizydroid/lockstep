@@ -6,7 +6,7 @@ Canonical context document for AI systems working on this repository.
 
 Every factual claim below was read out of the repository. Where a claim is derived rather than stated, it is marked `[INFERRED]`. Where the repository does not answer, it is marked `[UNKNOWN]` rather than guessed.
 
-**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (678 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
+**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (718 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
 
 **A confirmed privilege escalation was found and fixed during this document's lifetime.** An authorised executor could change account policy by routing `authorizeExecutor` or `approvePin` through `execute`, because a call made *from* the account *to* the account satisfies `onlySelf`. `execute` now refuses the account as a call target. See §5.2, §5.4, §17 and §23. Any statement below about the guard's guarantees reflects the fixed contract.
 
@@ -96,7 +96,7 @@ This distinction is stated in `LockstepGuard.sol`'s header and repeated in `READ
 - the pin has not been revoked by its publisher
 - no call in the batch targets the account itself, so a batch cannot reach the guard's own policy setters (added after a confirmed escalation — see §23)
 
-**Attested, not proven:** which skill actually produced the call. The runtime computes the hash off chain and reports it. A compromised runtime can report an honest hash while executing something else. What the chain provides is a non-repudiable record binding the transaction to a claimed version — turning a false claim into provable fraud against a bond. **This is an economic guarantee, not a cryptographic one.**
+**Attested, not proven:** which skill actually produced the call. The runtime computes the hash off chain and reports it. A compromised runtime can report an honest hash while executing something else. What the chain provides is a non-repudiable record binding the transaction to a claimed version — but it does **not** make a false attestation slashable: the bond is forfeited only for equivocation (two byte sets under one name and version by one publisher), so it prices dishonest publishing and nothing else. **This is an economic guarantee limited to that one offence, not a cryptographic one.** The guard also never inspects calldata arguments, so a pin allowing `transfer` allows any recipient (`FINDINGS.md §42`).
 
 **Out of scope entirely:** indirect prompt injection from content the agent reads, and any harm that does not move funds. "This contract bounds financial blast radius. It is not a general agent sandbox."
 
@@ -447,7 +447,7 @@ Files: `canonical.ts` (core, pure, no filesystem), `load.ts` (`loadSkillFiles`),
 
 ## 7. `plugin/` — OpenClaw integration (IMPLEMENTED)
 
-`openclaw.plugin.json`: id `lockstep`, `activation.onStartup: true`, contributes tool `lockstep_send` and trusted tool policy `lockstep-exec-gate`. Config schema requires `registry`, `account`, `chainId` (enum 143/10143); optional `rpcUrl`, `executorPrivateKeyEnv` (default `LOCKSTEP_EXECUTOR_KEY`), `skillRoots`.
+`openclaw.plugin.json`: id `lockstep`, `activation.onStartup: true`, contributes tool `lockstep_send` and trusted tool policy `lockstep-exec-gate`. Config schema requires `registry`, `account`, `chainId` (enum 143/10143); optional `rpcUrl`, `executorPrivateKeyEnv` (default `LOCKSTEP_EXECUTOR_KEY`), `skillRoots`, `trustedPublishers` (publisher addresses; with it set, approvals are found by `eth_call` and no log is scanned, which Monad's public RPC requires).
 
 ### Why the agent cannot forge provenance
 
@@ -463,7 +463,7 @@ Pure, every dependency injected, testable without a Gateway, filesystem or chain
 
 `TRANSACTION_SENDERS` regexes match `cast send`, `cast publish`, `mm tx|send|transfer|swap|bridge|perps|earn|predict`, `forge script --broadcast`. The source is blunt: "Shell-command pattern matching is trivially evadable: `c\"\"ast send`, `$(echo cast) send`, a renamed binary, or a wrapper script all slip past it, and no amount of regex tightening fixes that."
 
-**The actual boundary is key custody.** The executor holds no funds. The gate exists to catch misconfiguration and give a clear error. It errs toward blocking (`echo cast send` is refused — "a harmless false positive; missing a real send would not be"). Also documented in `FINDINGS.md §10`.
+**The actual boundary is where the executor key lives, and "the executor holds no funds" understates its reach.** The executor cannot spend its own money, but it can direct the account's funds inside any approved pin, to any recipient (the guard does not inspect arguments). The key reaches the plugin through the Gateway's environment, which OpenClaw hands to every `exec` child, so `plugin/src/keyCustody.ts` now removes it after reading. That closes the default path only: on Linux `/proc/<pid>/environ` stays readable by the same user. The real boundary is OpenClaw's sandbox (`agents.defaults.sandbox.mode`, off by default) or a separate signer (`FINDINGS.md §42`). The gate exists to catch misconfiguration and give a clear error. It errs toward blocking (`echo cast send` is refused — "a harmless false positive; missing a real send would not be"). Also documented in `FINDINGS.md §10`.
 
 ### Host-contract details learned the hard way
 
@@ -471,7 +471,7 @@ Pure, every dependency injected, testable without a Gateway, filesystem or chain
 - The host calls `register` **more than once** — three times in one observed Gateway start — and keys typed hooks by plugin id and hook name. So `sharedTracker` is process-wide; a per-registration tracker meant the surviving read hook and the bound tool belonged to different registrations. Tests may inject a tracker; **production must not.**
 - OpenClaw treats a thrown or timed-out `before_tool_call` handler as fail-closed. "That is the behaviour we want, so this code does not swallow errors to keep an agent running."
 
-Files: `index.ts` (17.9 KB wiring), `policy.ts`, `activeSkill.ts` (`SkillProvenanceTracker`, `expandHome`, `isInside`, `isSkillManifest`, `skillRootOf`), `chain.ts` (ChainAdapter), `abi.ts`, `plugin.ts`, `openclaw-sdk.d.ts`, `deposit-bond.mjs`. 55 tests in `test/policy.test.ts`.
+Files: `index.ts` (17.9 KB wiring), `policy.ts`, `activeSkill.ts` (`SkillProvenanceTracker`, `expandHome`, `isInside`, `isSkillManifest`, `skillRootOf`), `chain.ts` (ChainAdapter), `abi.ts`, `plugin.ts`, `openclaw-sdk.d.ts`, `deposit-bond.mjs`. 69 tests: 55 in `test/policy.test.ts`, 14 in `test/provenance-integrity.test.ts`.
 
 ---
 
@@ -491,7 +491,7 @@ Exit codes: `0` ok, `1` no command / runtime error, `2` usage error. Errors prin
 
 `approve` refuses if `ACCOUNT_PRIVATE_KEY` does not derive `ACCOUNT_ADDRESS`, "because approvals live in the account's own storage and the CLI refuses a mismatch rather than sending a transaction that cannot take effect" (`.env.example`).
 
-Files: `index.ts`, `env.ts`, `abi.ts`, `manifest.ts`, `pins.ts`, `risk.ts`, `commands/{publish,approve,status,diff}.ts`. 48 tests (`diff.test.ts` 9, `manifest.test.ts` 39).
+Files: `index.ts`, `env.ts`, `abi.ts`, `manifest.ts`, `pins.ts`, `risk.ts`, `commands/{publish,approve,status,diff}.ts`. 54 tests (`diff.test.ts` 9, `manifest.test.ts` 39, `publish-badge.test.ts` 6).
 
 ### Manifest format (`lockstep.json`)
 
@@ -536,7 +536,7 @@ A second, found before automatic publishing was switched on (`FINDINGS.md` §39)
 
 ---
 
-## 10. `app/` — dashboard (IMPLEMENTED, 472 tests)
+## 10. `app/` — dashboard (IMPLEMENTED, 492 tests)
 
 Next.js **16.3.4**, React **19.2.8**, viem **2.56.3**, Tailwind **4.3.3**, framer-motion **13.2.0**, vitest 3.2.7. `output: "export"` (static), `images.unoptimized: true`, `typedRoutes: true`. Dev port 3210.
 
@@ -874,7 +874,7 @@ Runs a skill against a forked chain, records every call, emits a manifest coveri
 
 `maxValuePerBatch` in a draft is the largest value on any **single** observed call — knowingly not the same quantity the field means, because `ObservedCall` carries no transaction boundary. Narrow is the right default: too wide grants blast radius silently, too narrow fails loudly with `BatchValueExceedsCeiling`. A warning fires whenever more than one observed call carried value. Reverted calls are included deliberately — "A skill that tried to call `approve` and failed still intends to call `approve`."
 
-### `e2e/` — IMPLEMENTED (85 tests, 5 files)
+### `e2e/` — IMPLEMENTED (91 tests, 5 files)
 
 Runs against a **real chain** (anvil) with real EIP-7702 delegation and hashes computed from the actual demo directories.
 
@@ -1015,7 +1015,7 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | CLI (5 commands) | **IMPLEMENTED** | 48 tests | `cli/` |
 | GitHub Action | **IMPLEMENTED** | 22 e2e tests against a real chain, incl. a Monad-style capped RPC | `action/` |
 | Action on GitHub Marketplace | **PARTIAL** | standalone `faizydroid/lockstep-action@v0.1.2` published; the listing itself needs the maintainer to accept the terms | `scripts/publish-action-repo.mjs` |
-| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 472 tests + export gate | `app/` |
+| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 492 tests + export gate | `app/` |
 | Browser write boundary | **IMPLEMENTED** | 4 enforcement layers | `app/src/lib/policy.ts` |
 | Badge generator | **IMPLEMENTED** | 30 tests | `badge/` |
 | Sandbox draft manifests | **IMPLEMENTED** | 17 tests | `sandbox/` |
@@ -1039,9 +1039,9 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Layer | Count | Command |
 |---|---:|---|
 | Contracts | **187** (14 suites, incl. 7 invariants over 128 runs / 4096 calls) | `forge test` |
-| Unit — runtime 41, plugin 55, cli 48, watcher 15, sandbox 17, badge 30, app 472 | **678** (36 files) | `npm run test:unit` |
+| Unit — runtime 41, plugin 69, cli 54, watcher 15, sandbox 17, badge 30, app 492 | **718** (39 files) | `npm run test:unit` |
 | End-to-end | **85** (5 files) | `npm run test:e2e` |
-| **Total** | **950** | |
+| **Total** | **996** | |
 
 ---
 
@@ -1174,7 +1174,7 @@ Templated in `.env.example`, three independent sections. `.env.local` is gitigno
 | `MockBondAsset` (mAUSD, 6dp) | `0xd80c19a863e4247B08f6152773820b87eE49a35C` | 61714754 |
 | `LockstepLens` | `0xEB0A033CfDD1e8393Ac512de0DEc36d6C9323Ebc` | 61714764 |
 | Delegated account | `0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2` | code `0xef0100 \|\| guard` |
-| `DEPLOY_BLOCK` (scan start) | 61714757 | |
+| `DEPLOY_BLOCK` (scan start) | 62008806 | not the deploy block (61714758): the dashboard scans 4,000 blocks from here, and the first event is at 62008806 |
 | Live pin id | `0x6520d020348ee7a8a91fcc071d0f62cf83762c47be749e6654c7ca31c0472df4` | kuru-quote 3.0.0, 2 capabilities, 2 high risk, 1150 mAUSD |
 | ERC-8004 Identity | `0x8004a818bfb912233c491871b3d84c89a494bd9e` | UUPS proxy |
 | ERC-8004 Reputation | `0x8004b663056a597dffe9eccc1965a193b7388713` | UUPS proxy |
@@ -1755,7 +1755,7 @@ HANDOVER.md                       what is actually left to do
 
 ### Current state
 
-950 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 678 unit, 85 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
+996 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 718 unit, 91 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
 
 Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. The indexer is hosted on Envio Cloud's free plan, which is temporary. The dashboard is live at `lockstep.dofolabs.space` and redeploys after every green CI run on `main`. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
 
@@ -1766,6 +1766,10 @@ Deployed on Monad testnet from the audited source, with separated publisher, acc
 3. Equivocation costs half the bond, not all of it — unavoidable with permissionless challenging, and stated.
 4. No third-party publisher has pinned a skill.
 5. The demo publisher's bond is fully locked, so the next release needs a deposit first.
+6. `lockstep approve`/`diff`/`status` and the watcher scan logs from the first block and cannot run on Monad's public RPC (`FINDINGS.md §42`). The plugin and the Action are fixed; these are not.
+7. The dashboard sends ~99 RPC requests (11-12 s) per page load from each visitor's browser. It is built for a handful of readers. The fix is a build-time snapshot.
+8. A skill's description reaches the model without a `read`, and agent commands that run in the Gateway's own context can still reach the executor key. Both are bounded by the approved pin's capabilities and by sandboxing `exec`, not by the plugin.
+9. The Envio read model is unauthenticated: any contract can emit rows the indexer will accept. Nothing in the dashboard reads it.
 
 ### Current plans (repository's own, not mine)
 

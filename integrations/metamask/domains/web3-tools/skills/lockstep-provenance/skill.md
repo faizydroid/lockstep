@@ -133,6 +133,7 @@ content read during a run. Neither does a delegation caveat. Neither is a sandbo
 And provenance is **attested, not proven**: the runtime computes the skill hash and
 reports it, so a fully compromised runtime can report an honest hash while executing
 something else. What the chain provides is a non-repudiable record binding a transaction
-to a claimed version, which turns a false claim into provable fraud against a bond.
-Economic, not cryptographic. Closing that gap needs TEE attestation, and anyone claiming
+to a claimed version. It does not make a false attestation slashable: the bond is forfeited
+for one offence only, a publisher committing two different byte sets under one name and
+version. Economic, limited to that offence, and not cryptographic. Closing that gap needs TEE attestation, and anyone claiming
 to have closed it without one is overclaiming.

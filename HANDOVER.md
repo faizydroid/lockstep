@@ -25,8 +25,8 @@ what the submission can claim.
 
 ## Current state, so you can trust the rest of this
 
-CI is green on `main`. 950 tests: 187 contract across 14 suites including 7 invariants, 678 unit,
-85 end-to-end against a real chain. The dashboard export gate also passed.
+CI is green on `main`. 996 tests: 187 contract across 14 suites including 7 invariants, 718 unit,
+91 end-to-end against a real chain. The dashboard export gate also passed.
 
 **The dashboard is live** at https://lockstep.dofolabs.space, and also served at
 https://lockstep-e7m.pages.dev. The first deploy was from this machine with the same eight public
@@ -233,6 +233,24 @@ Say on camera that it is the deterministic path. Do not pretend a test run is a 
 
 Record it. Do not perform it live.
 
+**Before filming, run the live harness once, honest and `--silent-update`, and read the verdict lines.**
+The plugin changed on 13 October (it now hashes the skill at read time as well as at send time, finds
+approvals with `trustedPublishers`, and removes the executor key from the environment). Those changes are
+covered by unit and end-to-end tests, and OpenClaw's real host loads the plugin and reports it healthy,
+but the model-driven runs could not be completed that day: the machine was too starved to get through the
+Bedrock provider install (`FINDINGS.md` §42). Expect `PASS: the approved skill executed` for the honest
+run and `PASS: the silent update was refused` for the other. If either does not, the plugin change is the
+first suspect and it is one commit: `git log --oneline -- plugin/src` shows it, and `git revert` of that
+commit restores the behaviour you rehearsed on 5 October.
+
+**The harness is slow when the machine is busy, and today it was.** On 13 October ten `python.exe`
+workers from KiroCrew (`kiro_crew mcp-…`, started 18:09) and several `bun.exe` processes from kiro-cli
+were each using close to a full core, so the machine sat at 100% CPU. `npm` took 13 to 20 seconds per
+call, and the Bedrock provider install, which makes dozens of them, ran past the harness's old
+ten-minute step limit and failed with a timeout that looked like a hang in the product. Install steps now
+get 45 minutes. Before you record: close whatever is saturating the CPU, do one throwaway run so the
+packages are cached, and only then film. Each take still spends most of its time installing.
+
 ---
 
 ## 4. Redeploy the contracts — completed
@@ -317,6 +335,38 @@ keeping, but it pushes tags **without** force, so a released version can never m
 consuming it.
 
 ---
+
+## 6b. Repository settings only the owner can change (5 minutes, recommended)
+
+The second audit (`FINDINGS.md` §42) found the repository itself under-protected. None of this can be
+done from the code, and all of it is free on a public repository. Run these from PowerShell, logged in
+as the repository owner:
+
+```powershell
+# Secret scanning and push protection: a leaked key is caught on push instead of after.
+gh api -X PATCH repos/faizydroid/lockstep -f "security_and_analysis[secret_scanning][status]=enabled" -f "security_and_analysis[secret_scanning_push_protection][status]=enabled"
+
+# Dependabot security updates and alerts.
+gh api -X PUT repos/faizydroid/lockstep/vulnerability-alerts
+gh api -X PUT repos/faizydroid/lockstep/automated-security-fixes
+
+# Fork pull requests from anyone who is not already trusted need a maintainer's click before
+# their workflows run. Today only first-time contributors do, and one merged typo fix removes that.
+gh api -X PUT repos/faizydroid/lockstep/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors
+```
+
+Branch protection on `main` (no force pushes, no deletion) is worth adding too, but it also blocks your
+own direct pushes to `main` if you require reviews, so decide that one deliberately in **Settings →
+Branches**. Leave "require a pull request" off if you want to keep pushing directly.
+
+One more, and it is the one that matters most after the deploy-gate fix: in **Settings → Environments**,
+create an environment named `production`, add yourself as a required reviewer, and add
+`environment: production` to the deploy job. Then even a gate bug cannot reach the Cloudflare token
+without a click from you. It is not done in the code because it would make every automatic deploy wait for
+that click.
+
+The Cloudflare token was created with the Pages-edit permission only, which is right. Rotate it if you
+ever paste it anywhere.
 
 ## 7. Submit
 

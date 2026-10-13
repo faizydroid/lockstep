@@ -84,9 +84,16 @@ This section exists because a judge who finds a limitation themselves discounts 
 
 **Attested, not proven: which skill actually produced the call.** The runtime computes the hash off
 chain and reports it. A compromised runtime can report an honest hash while executing something
-else. What the chain provides is a non-repudiable record binding a transaction to a claimed version,
-which turns a false claim into provable fraud against a bond. That is an economic guarantee, not a
-cryptographic one.
+else. What the chain provides is a non-repudiable record binding a transaction to a claimed version. It
+does **not** make a false attestation slashable: the bond is forfeited for one offence only, a publisher
+committing two different byte sets under one name and version. A malicious update under a new version
+is not equivocation. So the bond prices dishonest *publishing* and covers nothing else. That is an
+economic guarantee, limited to that one offence, and not a cryptographic one.
+
+**Not constrained: arguments.** The guard compares target, selector and value, never calldata
+arguments. A pin that allows `transfer(address,uint256)` on a token allows a transfer of any amount to
+any address, so whoever can sign as the executor can move the account's whole balance of that token. A
+pin bounds *which functions can be called*, not *where the money goes*.
 
 **Out of scope entirely:** indirect prompt injection from content the agent reads, and any harm that
 does not move funds. Lockstep bounds financial blast radius from skill origin. It is not an agent
@@ -107,8 +114,8 @@ showing a skill name shows the publisher beside it.
 
 ## Evidence
 
-**950 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
-678 off-chain unit tests; 85 end-to-end against a real chain, which includes every hand-written ABI
+**996 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
+718 off-chain unit tests; 91 end-to-end against a real chain, which includes every hand-written ABI
 fragment checked against the compiled artifacts. The indexer adds 3 more, which run its handlers
 against the events behind the live deployment.
 
@@ -148,6 +155,31 @@ comment read "the innocent pin's bond is still frozen: the contradiction stands.
 Every fix was verified by disabling it, running the suite, and confirming the new tests fail. The
 counts above are that measurement, not an estimate.
 
+### And again, the day before the deadline
+
+A second audit on 13 October ran four parallel reviews (contracts, agent runtime, tooling, dashboard and
+CI), each required to prove a claim with a test or a measurement, then checked the headline claims by
+hand ([`FINDINGS.md` §42](FINDINGS.md#42-a-second-audit-of-the-whole-system-what-it-found-what-was-fixed-and-what-was-not)).
+Against the live chain and site it was read-only. It found more serious things than the first, in places
+the first never looked:
+
+- **The production deploy gate admitted a fork pull request** that named its branch `main`, which would
+  have run the fork's build with the Cloudflare token in scope. Fixed; 5 of the 10 new tests fail against
+  the old gate.
+- **The live dashboard could not see the live deployment.** Its log window started 294,048 blocks before
+  the first event, so the live pin showed no capabilities, no approval and no executions while the page
+  said "live". Fixed, and the page now says when its window stops short of the head.
+- **The plugin could not find an approval on Monad's public RPC**, which refuses the log query it used.
+  It worked in every test because the test chain has no range cap. Fixed with a log-free lookup, proven
+  behind a proxy that refuses logs exactly as Monad's does.
+- **The executor key was inherited by every command the agent ran**, so a skill script could bypass the
+  plugin entirely. The key is now removed from the environment after it is read. That is the cheap half
+  of a fix, and the README says what is left.
+
+The contracts held. The review found no way to exceed a pin and the deployed bytecode matches the source.
+Their limits are the ones this document already states: the guard does not look at arguments, and the
+bond covers equivocation and nothing else.
+
 ## Why Monad
 
 | Property | What it enables |
@@ -179,6 +211,19 @@ Stated because the gap between a demo and a product is where credibility is won 
   says so on the page where the figures appear, and a build gate keeps that disclosure there.
 - **No third-party skills pinned yet.** The demo pins our own. Distribution is the real moat and it
   is the open work.
+- **The CLI's `approve`, `diff` and `status`, and the watcher, cannot run on Monad's public RPC.** They
+  scan logs from the first block and that endpoint refuses ranges over 100 blocks. The testnet approvals
+  were made by script. The fix is known (compute the pin id from `--publisher` and check the manifest
+  with `isAllowed`, as the plugin now does) and was not safe to ship the day before the deadline.
+- **The dashboard is not built for thousands of visitors.** Each page load sends about 99 requests to
+  the public RPC from the visitor's browser and takes 11 to 12 seconds, and one failed request drops the
+  page to sample data. The static site itself scales; the live read does not. The fix is to read once at
+  build time and ship the snapshot.
+- **The executor key is only as safe as the place the agent's commands run.** It is out of the
+  environment, but a process of the same user can still reach it. The boundary is OpenClaw's sandbox,
+  which is off by default.
+- **The bond covers one offence.** Equivocation is slashable; a malicious update under a new version, and
+  a false attestation by a compromised runtime, are not.
 - **The indexer is hosted on a temporary plan.** Envio's free development plan deletes a deployment
   30 days after it is created, around 11 November and after winners are announced. Seven days with
   no queries starts deletion sooner. Keeping it needs a paid plan.
