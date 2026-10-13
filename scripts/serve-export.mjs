@@ -24,9 +24,10 @@
 
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
-import { dirname, extname, join, resolve, sep } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { fileFor as fileInExport } from "./export-paths.mjs";
 import { SECURITY_HEADERS } from "./security-headers.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -66,28 +67,11 @@ const TYPES = {
  */
 
 /**
- * Maps a URL path to a file inside the export, or null.
- *
- * Returns null rather than throwing for anything outside `OUT`. The containment check is done on
- * the *resolved* path with a trailing separator, because a prefix comparison without one lets
- * `app/outside/` pass as being inside `app/out`.
+ * Maps a URL path to a file inside the export, or null. See `export-paths.mjs` for why it never
+ * throws and how it stays inside `OUT`.
  */
 function fileFor(urlPath) {
-  const decoded = decodeURIComponent(urlPath.split("?")[0].split("#")[0]);
-  const candidate = resolve(OUT, `.${decoded.startsWith("/") ? decoded : `/${decoded}`}`);
-
-  if (candidate !== OUT && !candidate.startsWith(OUT + sep)) return null;
-
-  // `output: export` writes `/pins` as `pins.html`, so a bare route needs the extension added.
-  // Directory-style `/pins/` gets `index.html`, which is what a static host would do.
-  for (const attempt of [
-    candidate,
-    `${candidate}.html`,
-    join(candidate, "index.html"),
-  ]) {
-    if (existsSync(attempt) && statSync(attempt).isFile()) return attempt;
-  }
-  return null;
+  return fileInExport(OUT, urlPath);
 }
 
 const server = createServer((req, res) => {

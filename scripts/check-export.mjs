@@ -15,7 +15,11 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { HEADER_ONLY, HEADER_ONLY_CSP_DIRECTIVES } from "./security-headers.mjs";
+import {
+  auditHeadersFile,
+  forbiddenWriteEvidence,
+  wiredWritesPresent,
+} from "./export-checks.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "app", "out");
@@ -471,23 +475,18 @@ function checkWriteBoundary(problems) {
     return;
   }
 
-  /** Matches an ABI fragment's name field, tolerating minified spacing and either quote style. */
-  const fragment = (fn) => new RegExp(`name\\s*:\\s*["']${fn}["']`);
-
-  const FORBIDDEN = ["approvePin", "publish", "execute"];
-  for (const fn of FORBIDDEN) {
-    const present = fragment(fn).test(bundle);
+  for (const { fn, evidence } of forbiddenWriteEvidence(bundle)) {
+    const present = evidence.length > 0;
     process.stdout.write(`  ${fn.padEnd(20)} ${present ? "PRESENT -- must not be" : "absent, ok"}\n`);
     if (present) {
       problems.push(
-        `the bundle carries an ABI fragment for ${fn}, which asserts a fact about bytes and must stay out of the browser`,
+        `the bundle can encode ${fn}, which asserts a fact about bytes and must stay out of the browser: ` +
+          evidence.join("; "),
       );
     }
   }
 
-  const WIRED = ["unapprovePin", "revokeExecutor", "slashEquivocation"];
-  for (const fn of WIRED) {
-    const present = fragment(fn).test(bundle);
+  for (const { fn, present } of wiredWritesPresent(bundle)) {
     process.stdout.write(`  ${fn.padEnd(20)} ${present ? "present, ok" : "MISSING"}\n`);
     if (!present) {
       problems.push(`${fn} is an allowed write but no ABI fragment reached the bundle`);
@@ -772,40 +771,13 @@ function checkHostHeaders(problems) {
     return;
   }
 
+  // Exact values under the `/*` rule, parsed rather than searched for. The first version of this was
+  // `includes("x-frame-options:")` over the whole file, which `X-Frame-Options: ALLOWALL`, a
+  // `frame-ancestors *` CSP, or a comment mentioning the right words all satisfied.
   const raw = readFileSync(file, "utf8");
-  const lower = raw.toLowerCase();
-
-  for (const name of HEADER_ONLY) {
-    const present = lower.includes(`${name}:`);
-    process.stdout.write(`  ${name.padEnd(22)} ${present ? "ok" : "MISSING"}\n`);
-    if (!present) problems.push(`_headers does not send ${name}, which a <meta> tag cannot express`);
-  }
-
-  for (const directive of HEADER_ONLY_CSP_DIRECTIVES) {
-    const present = lower.includes(directive);
-    process.stdout.write(`  ${directive.padEnd(22)} ${present ? "ok" : "MISSING"}\n`);
-    if (!present) problems.push(`_headers CSP is missing ${directive}`);
-  }
-
-  // The rule has to actually match the pages. A file full of correct headers scoped to a path
-  // nothing resolves to is the failure mode that would otherwise look fine here.
-  if (!/^\/\*\s*$/m.test(raw)) {
-    problems.push("_headers has no `/*` rule, so the headers apply to nothing");
-  }
-
-  // Cloudflare applies every matching rule and joins a repeated header with a comma, so the static
-  // rule must detach the `/*` rule's `no-store` before setting its own. The first deploy did not,
-  // and served every fingerprinted asset as `no-store, public, max-age=31536000, immutable`, which
-  // browsers read as `no-store`.
-  const staticRule = /^\/_next\/static\/\*[ \t]*\r?\n((?:[ \t]+[^\r\n]*\r?\n?)*)/m.exec(raw);
-  const detaches = staticRule !== null && /^[ \t]*![ \t]*cache-control[ \t]*\r?$/im.test(staticRule[1] ?? "");
-  process.stdout.write(`  ${"static cache override".padEnd(22)} ${detaches ? "ok" : "MISSING"}\n`);
-  if (!detaches) {
-    problems.push(
-      "_headers does not detach cache-control on /_next/static/*, so Cloudflare merges in the /* " +
-        "rule's no-store and fingerprinted assets are never cached",
-    );
-  }
+  const audit = auditHeadersFile(raw);
+  for (const line of audit.lines) process.stdout.write(`${line}\n`);
+  problems.push(...audit.problems);
 }
 
 process.exit(main());
