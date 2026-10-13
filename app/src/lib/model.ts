@@ -280,7 +280,18 @@ export interface ReviewerSet {
 }
 
 export type DataSource =
-  | { readonly kind: "chain"; readonly chainId: number; readonly registry: Address; readonly blockNumber: bigint }
+  | {
+      readonly kind: "chain";
+      readonly chainId: number;
+      readonly registry: Address;
+      readonly blockNumber: bigint;
+      /**
+       * The log range actually read, when it was bounded. Absent on a local chain, where one unbounded
+       * query is complete. `partial` means the range stops before the head, so any log-derived figure
+       * (capabilities, approvals, executions) can be missing events from outside it.
+       */
+      readonly window?: { readonly from: bigint; readonly to: bigint; readonly partial: boolean };
+    }
   | { readonly kind: "sample"; readonly reason: string }
   | { readonly kind: "error"; readonly reason: string };
 

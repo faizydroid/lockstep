@@ -214,6 +214,27 @@ const LOG_SCAN_SPAN = 4_000n;
  */
 const LOG_REQUEST_BUDGET = 400;
 
+/**
+ * The block range a bounded log scan covers, and whether it stops short of the head.
+ *
+ * One definition shared by the scan itself and by what the page tells the reader about it. The scan
+ * used to compute this inline and throw the answer away, so a window that stopped 8 million blocks
+ * before the head looked exactly like one that reached it: the live pin read as a chain snapshot with
+ * no capabilities, no approval and no executions, and nothing on the page said the history was cut.
+ *
+ * `undefined` for a local chain (`fromBlock === 0n`), where the scan is one unbounded query and the
+ * result is complete.
+ */
+export function scanWindow(
+  fromBlock: bigint,
+  head: bigint,
+): { readonly from: bigint; readonly to: bigint; readonly partial: boolean } | undefined {
+  if (fromBlock === 0n) return undefined;
+  const ceiling = fromBlock + LOG_SCAN_SPAN;
+  const to = ceiling < head ? ceiling : head;
+  return { from: fromBlock, to, partial: to < head };
+}
+
 export interface PagedResult<T> {
   readonly logs: readonly T[];
   /** True when the budget ran out before reaching the head. */
@@ -245,9 +266,9 @@ async function pagedEvents<T>(
    * that cluster and a receding head are almost entirely empty and cost one request per hundred to
    * confirm as empty.
    */
-  const ceiling = fromBlock + LOG_SCAN_SPAN;
-  const end = ceiling < head ? ceiling : head;
-  const truncated = end < head;
+  const bounds = scanWindow(fromBlock, head)!;
+  const end = bounds.to;
+  const truncated = bounds.partial;
 
   const windows: { from: bigint; to: bigint }[] = [];
   for (let from = fromBlock; from <= end; from += LOG_WINDOW) {
@@ -349,10 +370,26 @@ function explainReadFailure(error: unknown, config: AppConfig): string {
 async function readChain(config: AppConfig, registry: Address): Promise<Snapshot> {
   const client = clientFor(config);
 
-  const [blockNumber, pricing] = await Promise.all([
+  const [chainId, blockNumber, pricing] = await Promise.all([
+    client.getChainId(),
     client.getBlockNumber(),
     readPricing(client, registry),
   ]);
+
+  /*
+   * The endpoint has to be the chain this build says it is.
+   *
+   * Nothing checked this. viem's client is constructed with the expected chain, but its transport trusts
+   * whatever the URL answers, and Settings lets a reader supply any URL. An endpoint for another network,
+   * or one that fabricates answers, was therefore reported as "chain 10143" with its made-up registry
+   * presented as a reading, including the headline "delegated to the configured guard" signal. A mismatch
+   * throws, which `loadSnapshot` turns into sample data with the reason stated.
+   */
+  if (chainId !== config.chainId) {
+    throw new Error(`the endpoint answered for chain ${chainId}, but this build reads chain ${config.chainId}`);
+  }
+
+  const scanned = scanWindow(config.deployBlock, blockNumber);
 
   const pins = await readPins(client, registry, blockNumber, config.deployBlock, config.pinIds);
   const publishers = derivePublishers(pins);
@@ -391,7 +428,13 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
   const reviewers = await readReviewers(client, config, pins, publishers);
 
   return {
-    source: { kind: "chain", chainId: config.chainId, registry, blockNumber },
+    source: {
+      kind: "chain",
+      chainId: config.chainId,
+      registry,
+      blockNumber,
+      ...(scanned === undefined ? {} : { window: scanned }),
+    },
     totals,
     pins,
     approvals,

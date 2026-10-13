@@ -44,26 +44,49 @@ function cells(approved: string, current: string): readonly boolean[] {
  *
  * So the section keeps its position and tells the truth, which is good news rather than an empty state.
  */
-function NoDrift() {
+function NoDrift({ live }: { live: boolean }) {
   return (
     <section className="mx-auto w-full max-w-5xl px-5 pb-16 sm:px-8 sm:pb-24">
       <div className="overflow-hidden rounded-lg border border-line bg-panel">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-raise px-4 py-2.5">
           <span className="hash text-label tracking-wide text-faint">DRIFT CHECK</span>
-          <span className="hash text-label tracking-wide text-bonded-ink">0 SKILLS DIVERGED</span>
+          <span className="hash text-label tracking-wide text-bonded-ink">
+            {live ? "NOT COMPUTED HERE" : "0 SKILLS DIVERGED"}
+          </span>
         </div>
 
         <div className="flex items-start gap-3 p-5 sm:p-6">
           <span aria-hidden className="mt-1 flex size-1.5 shrink-0 rounded-pill bg-bonded" />
           <div className="min-w-0">
-            <p className="text-note font-medium text-text">
-              Every approved skill on this registry still hashes to the bytes that were approved.
-            </p>
-            <p className="mt-2 max-w-2xl text-note leading-relaxed text-muted">
-              Nothing is being refused right now, so there is no comparison to show you. This panel fills in
-              with the two real fingerprints the moment a publisher ships an update, benign or not. It is not
-              drawn from invented hashes in the meantime.
-            </p>
+            {live ? (
+              /*
+               * A live chain read never fills in `drifted`: drift is a comparison with files on the reader's
+               * machine, or with a newer release, and this page does neither. Saying "0 diverged" over a
+               * check that did not run is the claim this panel exists to avoid making.
+               */
+              <>
+                <p className="text-note font-medium text-text">
+                  This page cannot tell you whether a skill has drifted.
+                </p>
+                <p className="mt-2 max-w-2xl text-note leading-relaxed text-muted">
+                  A browser cannot see the files on your machine, and a chain read does not compare an approved
+                  version with a newer one. The check that matters runs elsewhere: the plugin refuses a skill
+                  whose bytes match none of the pins you approved, and the guard refuses a call attested with
+                  any other hash.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-note font-medium text-text">
+                  Every approved skill on this registry still hashes to the bytes that were approved.
+                </p>
+                <p className="mt-2 max-w-2xl text-note leading-relaxed text-muted">
+                  Nothing is being refused right now, so there is no comparison to show you. This panel fills in
+                  with the two real fingerprints the moment a publisher ships an update, benign or not. It is not
+                  drawn from invented hashes in the meantime.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -82,7 +105,7 @@ export function Hook({
   live: boolean;
 }) {
   if (approvedHash === undefined || currentHash === undefined || approvedHash === currentHash) {
-    return <NoDrift />;
+    return <NoDrift live={live} />;
   }
 
   return <Diff approvedHash={approvedHash} currentHash={currentHash} live={live} />;

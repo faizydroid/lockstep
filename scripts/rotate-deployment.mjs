@@ -71,7 +71,7 @@ const VALUES = [
     flag: "--drifted-hash",
     old: "0x960ea319b251ab8699fb8fa916c6e27e17ddc1938df41065a63c2227229bb4da",
   },
-  { key: "deployBlock", flag: "--deploy-block", old: "61714757" },
+  { key: "deployBlock", flag: "--deploy-block", old: "62008806" },
   { key: "indexerStartBlock", flag: "--indexer-start-block", old: "61714758" },
 ];
 

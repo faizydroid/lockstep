@@ -53,10 +53,23 @@ export default function DriftPage() {
           }
         >
           {drifted.length === 0 ? (
-            <Empty title="Nothing has drifted">
-              Every approved skill on this account still hashes to the bytes that were approved.
-              This page fills in when a publisher ships an update, whether benign or not.
-            </Empty>
+            snapshot.source.kind === "chain" ? (
+              /*
+               * A chain read never computes drift (`drifted` is always empty there), so "nothing has
+               * drifted" would be a claim about a check that did not run.
+               */
+              <Empty title="Drift is not computed on this page">
+                A browser cannot see the files on your machine, and a chain read does not compare an approved
+                version with a newer one, so this page cannot tell you whether anything has drifted. Enforcement
+                does not depend on it: the plugin refuses a skill whose bytes match none of the pins you
+                approved, and the guard refuses a call attested with any other hash.
+              </Empty>
+            ) : (
+              <Empty title="Nothing has drifted">
+                Every approved skill on this account still hashes to the bytes that were approved.
+                This page fills in when a publisher ships an update, whether benign or not.
+              </Empty>
+            )
           ) : null}
         </Section>
       </Reveal>

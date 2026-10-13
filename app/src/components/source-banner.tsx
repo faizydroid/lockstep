@@ -82,6 +82,24 @@ export function SourceBanner() {
     });
   }
 
+  /*
+   * A bounded log scan that stops before the head has to say so.
+   *
+   * Capabilities, approvals and executions come from logs, and a public RPC serves 100 blocks a request, so
+   * the page reads one fixed window. Whatever happened outside it is simply absent, and an absent approval
+   * looks the same as no approval. The window was computed and then dropped, which is how the live pin came
+   * to show no capabilities at all while the banner said "live". Pin state (bond, revoked, slashed) does not
+   * come from logs and is not affected.
+   */
+  if (source.kind === "chain" && source.window?.partial === true) {
+    const range = `${source.window.from.toLocaleString("en-US")}\u2013${source.window.to.toLocaleString("en-US")}`;
+    notes.push({
+      label: `log window \u00b7 blocks ${range}`,
+      title:
+        "A public RPC serves 100 blocks per log request, so this page reads one fixed window of blocks. Capabilities, approvals and executions outside it do not appear here. Each pin's own state (bond, revoked, slashed) is read directly and is complete. The indexer has the full history.",
+    });
+  }
+
   return (
     <div className="gutter relative z-10 w-full pt-3">
       <AnimatePresence mode="wait" initial={false}>
