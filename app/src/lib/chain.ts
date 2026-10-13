@@ -16,6 +16,7 @@ import type { Address, Hex, PublicClient } from "viem";
 import { monad, monadTestnet } from "viem/chains";
 
 import { erc20Abi, lockstepGuardAbi, lockstepLensAbi, pinRegistryAbi } from "./abi";
+import { blockTimestamps, confirmApprovals } from "./chain-reads";
 import { sampleSnapshot } from "./fixtures";
 import { describeGuard, isDelegatedTo, parseDelegation } from "./profile";
 import type {
@@ -296,9 +297,13 @@ function isAddressish(value: string | undefined): boolean {
   return value.toLowerCase() !== "0x0000000000000000000000000000000000000000";
 }
 
-function clientFor(config: AppConfig): PublicClient {
+export function chainOf(config: Pick<AppConfig, "chainId">) {
+  return config.chainId === 143 ? monad : monadTestnet;
+}
+
+export function clientFor(config: AppConfig): PublicClient {
   return createPublicClient({
-    chain: config.chainId === 143 ? monad : monadTestnet,
+    chain: chainOf(config),
     transport: http(config.rpcUrl),
   }) as PublicClient;
 }
@@ -393,10 +398,16 @@ async function readChain(config: AppConfig, registry: Address): Promise<Snapshot
 
   const pins = await readPins(client, registry, blockNumber, config.deployBlock, config.pinIds);
   const publishers = derivePublishers(pins);
-  const { approvals, executions } =
+  const events =
     config.account === undefined
       ? { approvals: [], executions: [] }
       : await readAccountEvents(client, config.account, blockNumber, config.deployBlock);
+  const { executions } = events;
+  // Asked of the account itself where it can answer: the logs only cover the scanned window.
+  const approvals =
+    config.account === undefined
+      ? events.approvals
+      : await confirmApprovals(client, config.account, pins, events.approvals);
 
   /*
    * Allowed to fail on its own, like the Lens read below.
@@ -910,6 +921,8 @@ async function readPins(
     versionId: Hex;
     maxValuePerBatch: bigint;
     requiredBond: bigint;
+    capabilityCount: number;
+    highRiskCount: number;
     publishedAt: bigint;
     revokedAt: bigint;
     exists: boolean;
@@ -958,6 +971,9 @@ async function readPins(
       ...(revokedAt !== undefined ? { revokedAt } : {}),
       slashed: isSlashed,
       capabilities: capsByPin.get(pinId) ?? [],
+      // From `getPin`, so they hold whether or not the capability events fell inside the scanned window.
+      declaredCapabilities: Number(pin.capabilityCount),
+      declaredHighRisk: Number(pin.highRiskCount),
       state: pinStateOf({
         slashed: isSlashed,
         requiredBond: pin.requiredBond,
@@ -1047,7 +1063,18 @@ async function readAccountEvents(
     }
   }
 
-  return { approvals: [...live.values()], executions: executions.reverse() };
+  // The loop above kept block numbers in `approvedAt` and `timestamp`, which is all a log carries. The
+  // model wants unix seconds, and a block number printed as seconds is a date in 1971.
+  const times = await blockTimestamps(client, [
+    ...[...live.values()].map((a) => a.approvedAt),
+    ...executions.map((e) => e.timestamp),
+  ]);
+  const secondsOf = (block: bigint): bigint => times.get(block) ?? 0n;
+
+  return {
+    approvals: [...live.values()].map((a) => ({ ...a, approvedAt: secondsOf(a.approvedAt) })),
+    executions: executions.map((e) => ({ ...e, timestamp: secondsOf(e.timestamp) })).reverse(),
+  };
 }
 
 /**

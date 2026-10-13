@@ -11,6 +11,7 @@
 import { formatUnits } from "viem/utils";
 
 import type { BondPricing, Pin } from "./model";
+import { capabilityCounts } from "./capability-counts";
 
 export interface BondPart {
   readonly label: string;
@@ -39,8 +40,9 @@ export interface BondBreakdown {
  *   base + perCapability * count + highRisk * highRiskCount + (movesNativeValue ? native : 0)
  */
 export function bondBreakdown(pin: Pin, pricing: BondPricing): BondBreakdown {
-  const capabilityCount = pin.capabilities.length;
-  const highRiskCount = pin.capabilities.filter((c) => c.highRisk).length;
+  // The registry's counts when it supplied them: the capability list only holds what the scanned log
+  // window recovered, and pricing a pin from a partial list priced it as if it were nearly empty.
+  const { total: capabilityCount, highRisk: highRiskCount } = capabilityCounts(pin);
   const movesNative = pin.maxValuePerBatch > 0n;
 
   const parts: BondPart[] = [

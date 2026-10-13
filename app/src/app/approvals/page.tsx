@@ -18,6 +18,7 @@ import type { FilterChip } from "@/components/filters";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Card, Empty, HashChip, Pill, Section, StatePill, Table, Td, Th } from "@/components/ui";
 import { WriteAction } from "@/components/write-action";
+import { capabilityCounts, capabilityNoun } from "@/lib/capability-counts";
 import { readConfig } from "@/lib/chain";
 import { formatNative, timeAgo } from "@/lib/format";
 import { displayName } from "@/lib/untrusted";
@@ -145,10 +146,10 @@ export default function ApprovalsPage() {
 
                           {pin === undefined ? null : (
                             <p className="text-xs text-muted">
-                              {pin.capabilities.length}{" "}
-                              {pin.capabilities.length === 1 ? "capability" : "capabilities"}
-                              {pin.capabilities.some((c) => c.highRisk)
-                                ? ` \u00b7 ${pin.capabilities.filter((c) => c.highRisk).length} high risk`
+                              {capabilityCounts(pin).total}{" "}
+                              {capabilityNoun(capabilityCounts(pin).total)}
+                              {capabilityCounts(pin).highRisk > 0
+                                ? ` \u00b7 ${capabilityCounts(pin).highRisk} high risk`
                                 : ""}{" "}
                               &middot; ceiling {formatNative(pin.maxValuePerBatch)}
                             </p>

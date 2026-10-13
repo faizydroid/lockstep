@@ -19,6 +19,7 @@ import { FingerprintMark, HashFingerprint } from "@/components/fingerprint";
 import { AnimatePresence, Reveal, RevealGroup, RevealItem, SPRING_SOFT, motion } from "@/components/motion";
 import { Card, Empty, HashChip, Pill, Section, Segmented, StatePill, cx } from "@/components/ui";
 import { bondBreakdown, formatBondWith } from "@/lib/bond";
+import { capabilityCounts, capabilityNoun, partialListNote } from "@/lib/capability-counts";
 import { formatNative, timeAgo } from "@/lib/format";
 import type { Pin, PinState } from "@/lib/model";
 import { displayName, pinIdFromQuery } from "@/lib/untrusted";
@@ -231,8 +232,8 @@ export default function PinsPage() {
                           )}
                         </p>
                         <p className="text-xs text-faint">
-                          {pin.capabilities.length}{" "}
-                          {pin.capabilities.length === 1 ? "capability" : "capabilities"} &middot;{" "}
+                          {capabilityCounts(pin).total}{" "}
+                          {capabilityNoun(capabilityCounts(pin).total)} &middot;{" "}
                           {timeAgo(pin.publishedAt)}
                         </p>
                       </div>
@@ -269,7 +270,9 @@ export default function PinsPage() {
 function PinDetail({ pin }: { pin: Pin }) {
   const { snapshot } = useSnapshot();
   const breakdown = bondBreakdown(pin, snapshot.pricing);
-  const highRisk = pin.capabilities.filter((c) => c.highRisk);
+  // The registry's own counts, and a note when the list below them is only part of what it declares.
+  const counts = capabilityCounts(pin);
+  const partialNote = partialListNote(counts);
 
   /*
    * The endpoint the page actually read, including a settings override.
@@ -386,6 +389,12 @@ function PinDetail({ pin }: { pin: Pin }) {
             </ul>
           </div>
 
+          {partialNote === undefined ? null : (
+            <p className="text-xs leading-relaxed font-semibold text-attention-ink">
+              {counts.total} declared, {counts.highRisk} high risk. {partialNote}
+            </p>
+          )}
+
           <p className="text-xs text-muted">
             Native value ceiling: <span className="text-text">{formatNative(pin.maxValuePerBatch)}</span>
             {pin.maxValuePerBatch === 0n ? (
@@ -424,9 +433,9 @@ function PinDetail({ pin }: { pin: Pin }) {
             </p>
           )}
 
-          {highRisk.length === 0 ? null : (
+          {counts.highRisk === 0 ? null : (
             <p className="text-xs leading-relaxed text-muted">
-              {highRisk.length} of these {highRisk.length === 1 ? "power" : "powers"} can grant an
+              {counts.highRisk} of these {counts.highRisk === 1 ? "power" : "powers"} can grant an
               allowance or move tokens, which is why this pin costs more to publish than a
               read-only one. Breadth and severity set the price, not the value moved &mdash; a
               swap declares no native value and still needs approval to touch a balance.

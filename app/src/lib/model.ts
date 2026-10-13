@@ -62,6 +62,19 @@ export interface Pin {
   readonly revokedAt?: bigint;
   readonly slashed: boolean;
   readonly capabilities: readonly Capability[];
+  /**
+   * How many capabilities, and how many of them high risk, the registry itself says this pin declares.
+   *
+   * `capabilities` comes from `CapabilityDeclared` logs, and a public RPC serves 100 blocks per request,
+   * so the dashboard reads one fixed window of them. A pin published before or after that window has
+   * its capabilities missing from the list, and the page then showed "0 capabilities" and a green badge
+   * for a pin that could call `approve`. `getPin` carries both counts regardless of the window, so they
+   * are the figures to show and `capabilities` is the part of the list that could be recovered.
+   *
+   * Absent on fixtures and on the log-only path, where the list is all there is.
+   */
+  readonly declaredCapabilities?: number;
+  readonly declaredHighRisk?: number;
   readonly state: PinState;
 }
 

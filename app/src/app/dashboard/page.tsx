@@ -38,6 +38,7 @@ import { Reveal, RevealGroup, RevealItem } from "@/components/motion";
 import { Quickstart } from "@/components/quickstart";
 import { Position, Verdict } from "@/components/verdict";
 import { Button, Card, Empty, Section, Skeleton, StatePill, cx } from "@/components/ui";
+import { capabilityCounts, capabilityNoun } from "@/lib/capability-counts";
 import { formatBond, formatCount, timeAgo } from "@/lib/format";
 import type { BondPricing, DataSource, Totals } from "@/lib/model";
 import { displayName } from "@/lib/untrusted";
@@ -127,10 +128,10 @@ export default function DashboardPage() {
                             )}
                           </p>
                           <p className="text-xs font-semibold text-faint">
-                            {pin.capabilities.length}{" "}
-                            {pin.capabilities.length === 1 ? "capability" : "capabilities"}
-                            {pin.capabilities.some((c) => c.highRisk)
-                              ? ` \u00b7 ${pin.capabilities.filter((c) => c.highRisk).length} high risk`
+                            {capabilityCounts(pin).total}{" "}
+                            {capabilityNoun(capabilityCounts(pin).total)}
+                            {capabilityCounts(pin).highRisk > 0
+                              ? ` \u00b7 ${capabilityCounts(pin).highRisk} high risk`
                               : ""}{" "}
                             &middot; {timeAgo(pin.publishedAt)}
                           </p>

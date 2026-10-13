@@ -17,9 +17,12 @@ import {
   ForbiddenWriteError,
   buildWrite,
   delegationTarget,
+  guardWriteBlocker,
   isDelegatedToGuard,
 } from "@/lib/writes";
 import type { WriteName } from "@/lib/writes";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const ACCOUNT = "0x209C903f68f169C8e654e0C3C91cAdc4C4A4aFF2" as Address;
 const REGISTRY = "0xF0800974aE84F55508E3e31F72A52E09b19829B0" as Address;
@@ -137,5 +140,60 @@ describe("7702 delegation detection", () => {
     expect(delegationTarget(indicator)?.toLowerCase()).toBe(GUARD.toLowerCase());
     expect(delegationTarget("0x")).toBeUndefined();
     expect(delegationTarget("0x60806040")).toBeUndefined();
+  });
+});
+
+/*
+ * A withdrawal sent from an account with no delegation succeeds and changes nothing, and the dialog used to
+ * report it as sent. The emergency stop must not be able to look like it worked when it did not.
+ */
+describe("guardWriteBlocker", () => {
+  const indicator = `0xef0100${GUARD.slice(2).toLowerCase()}`;
+
+  it("lets a withdrawal through from an account delegated to the configured guard", () => {
+    expect(guardWriteBlocker("unapprovePin", indicator, GUARD)).toBeUndefined();
+    expect(guardWriteBlocker("revokeExecutor", indicator, GUARD)).toBeUndefined();
+  });
+
+  it("stops a withdrawal from an account with no code, and says it would do nothing", () => {
+    const reason = guardWriteBlocker("unapprovePin", "0x", GUARD);
+    expect(reason).toMatch(/no EIP-7702 delegation/);
+    expect(reason).toMatch(/change nothing/);
+    expect(guardWriteBlocker("unapprovePin", undefined, GUARD)).toMatch(/no EIP-7702 delegation/);
+  });
+
+  it("stops a withdrawal from an account whose code is a contract, not a delegation", () => {
+    expect(guardWriteBlocker("revokeExecutor", "0x60806040523480156100", GUARD)).toMatch(/no EIP-7702 delegation/);
+  });
+
+  it("stops a withdrawal from an account delegated to something other than the configured guard", () => {
+    const other = "0x1111111111111111111111111111111111111111";
+    const reason = guardWriteBlocker("unapprovePin", `0xef0100${other.slice(2)}`, GUARD);
+    expect(reason).toMatch(/not to the guard this dashboard is configured for/);
+    expect(reason).toContain(other);
+  });
+
+  it("accepts any delegation when no guard is configured, but still requires one", () => {
+    const other = `0xef0100${"11".repeat(20)}`;
+    expect(guardWriteBlocker("unapprovePin", other, undefined)).toBeUndefined();
+    expect(guardWriteBlocker("unapprovePin", "0x", undefined)).toMatch(/no EIP-7702 delegation/);
+  });
+
+  it("does not apply to a challenge, which goes to the registry", () => {
+    expect(guardWriteBlocker("slashEquivocation", "0x", GUARD)).toBeUndefined();
+  });
+});
+
+describe("the component that sends a write", () => {
+  const source = readFileSync(join(__dirname, "..", "src", "components", "write-action.tsx"), "utf8");
+
+  it("checks the account's delegation before asking the wallet to sign", () => {
+    expect(source).toMatch(/guardWriteBlocker\(/);
+    expect(source.indexOf("guardWriteBlocker(")).toBeLessThan(source.indexOf("client.writeContract("));
+  });
+
+  it("names the chain it writes to, so viem refuses a wallet that has switched networks", () => {
+    expect(source).not.toMatch(/chain:\s*null/);
+    expect(source).toMatch(/chain:\s*chainOf\(/);
   });
 });

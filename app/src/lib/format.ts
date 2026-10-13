@@ -67,6 +67,9 @@ export function formatCount(value: number): string {
  * window, where an absolute timestamp makes them do arithmetic.
  */
 export function timeAgo(seconds: bigint, now: number = Date.now()): string {
+  // Zero is "not known", not the epoch: a log carries only a block number, and a block whose time could
+  // not be read is left without one rather than given a date that is wrong.
+  if (seconds <= 0n) return "time unknown";
   const then = Number(seconds) * 1000;
   const delta = Math.max(0, now - then);
 

@@ -16,6 +16,7 @@ import type { BadgeInput, BadgeState } from "@lockstep/badge";
 import { useSnapshot } from "@/components/data";
 import { Reveal, SPRING_FIRM, motion } from "@/components/motion";
 import { Card, Pill, Section, Segmented, cx } from "@/components/ui";
+import { capabilityCounts } from "@/lib/capability-counts";
 import { displayName } from "@/lib/untrusted";
 
 const STATES: readonly { state: BadgeState; label: string; why: string }[] = [
@@ -192,7 +193,7 @@ export default function BadgePage() {
                   <Pill tone="bonded">from this registry</Pill>
                   <span className="text-xs break-words text-muted">
                     {displayName(livePin.skillName)} would render{" "}
-                    {livePin.capabilities.some((c) => c.highRisk) ? "amber" : "green"}
+                    {capabilityCounts(livePin).highRisk > 0 ? "amber" : "green"}
                   </span>
                 </div>
               )}

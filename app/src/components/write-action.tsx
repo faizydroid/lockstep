@@ -22,9 +22,9 @@
 import { useEffect, useState } from "react";
 import type { Hash } from "viem";
 
-import { explorerTxUrl } from "@/lib/chain";
+import { chainOf, clientFor, explorerTxUrl, readConfig } from "@/lib/chain";
 import { needsHardConfirm } from "@/lib/policy";
-import { buildWrite } from "@/lib/writes";
+import { buildWrite, guardWriteBlocker } from "@/lib/writes";
 import type { WriteName } from "@/lib/writes";
 
 import { AnimatePresence, SPRING_SOFT, motion, useReducedMotion } from "./motion";
@@ -94,6 +94,23 @@ export function WriteAction({
 
     setPhase({ kind: "signing" });
     try {
+      const config = readConfig();
+
+      /*
+       * Ask the chain whether this will do anything before asking the wallet to sign.
+       *
+       * A withdrawal sent from an account with no delegation succeeds and changes nothing, and the dialog
+       * then said "sent". `guardWriteBlocker` is the decision; this is only the read that feeds it.
+       */
+      if (request.functionName !== "slashEquivocation") {
+        const code = await clientFor(config).getCode({ address: request.to });
+        const blocker = guardWriteBlocker(request.functionName, code, config.guard);
+        if (blocker !== undefined) {
+          setPhase({ kind: "failed", reason: blocker });
+          return;
+        }
+      }
+
       /*
        * `args` is cast because viem infers a tuple per function and this call is generic over three.
        *
@@ -103,13 +120,18 @@ export function WriteAction({
        * construction here even though it cannot be proven at this call site. Widening
        * `WriteRequest.args` to satisfy viem would mean three overloads and a union that has to be
        * re-narrowed anyway; this is the smaller lie and it is contained to one line.
+       *
+       * `chain` is the configured chain and not `null`. With `null` viem skips its check that the wallet
+       * is on the chain being written to, so a wallet switched to another network after this dialog
+       * opened would have signed there. With the chain given, viem reads the wallet's chain id at send
+       * time and refuses on a mismatch.
        */
       const hash = await client.writeContract({
         address: request.to,
         abi: request.abi,
         functionName: request.functionName,
         args: request.args as never,
-        chain: null,
+        chain: chainOf(config),
         account: client.account ?? null,
       });
       setPhase({ kind: "sent", hash });

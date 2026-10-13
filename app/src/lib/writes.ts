@@ -155,3 +155,38 @@ export function delegationTarget(code: string | undefined): Address | undefined 
   const m = /^0xef0100([0-9a-fA-F]{40})$/.exec(code);
   return m === null ? undefined : (`0x${m[1]}` as Address);
 }
+
+/**
+ * Why a guard write should not be sent from this account, or undefined when it can be.
+ *
+ * `unapprovePin` and `revokeExecutor` are calls to the account's own address, answered by the guard code it
+ * delegates to. On an account with no delegation that address is a plain account, the transaction is a
+ * transfer of nothing to oneself, and it succeeds. The dialog then reported the withdrawal as sent while
+ * nothing had changed and every approval still stood. For an emergency stop that is the worst possible
+ * failure, so the answer to "will this do anything" is checked before the wallet is asked to sign, and the
+ * connected wallet's own delegation is the thing checked.
+ *
+ * `slashEquivocation` goes to the registry and has no such dependency.
+ */
+export function guardWriteBlocker(
+  name: WriteName,
+  code: string | undefined,
+  guard: Address | undefined,
+): string | undefined {
+  if (name === "slashEquivocation") return undefined;
+
+  const delegate = delegationTarget(code);
+  if (delegate === undefined) {
+    return (
+      "This account carries no EIP-7702 delegation, so there is no guard running at its address. The " +
+      "transaction would succeed and change nothing, and your approvals would still stand."
+    );
+  }
+  if (guard !== undefined && delegate.toLowerCase() !== guard.toLowerCase()) {
+    return (
+      `This account is delegated to ${delegate}, not to the guard this dashboard is configured for ` +
+      `(${guard}). The call would go to code that is not that guard.`
+    );
+  }
+  return undefined;
+}

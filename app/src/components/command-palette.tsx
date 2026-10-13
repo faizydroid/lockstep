@@ -33,6 +33,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { capabilityCounts, capabilityNoun } from "@/lib/capability-counts";
 import { shortAddress } from "@/lib/format";
 import { applyRail } from "@/lib/rail";
 import type { Pin } from "@/lib/model";
@@ -232,7 +233,7 @@ export function CommandPalette() {
               kind: "pin" as const,
               key: `pin:${pin.pinId}`,
               label: `${displayName(pin.skillName)}${pin.skillVersion === undefined ? "" : ` ${displayName(pin.skillVersion, "")}`}`,
-              hint: `${pin.state} · ${shortAddress(pin.publisher)} · ${pin.capabilities.length} ${pin.capabilities.length === 1 ? "capability" : "capabilities"}`,
+              hint: `${pin.state} · ${shortAddress(pin.publisher)} · ${capabilityCounts(pin).total} ${capabilityNoun(capabilityCounts(pin).total)}`,
               href: `/pins?pin=${pin.pinId}`,
             }));
 
