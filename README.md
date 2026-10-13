@@ -214,7 +214,15 @@ control characters (browsers strip those *before* parsing the scheme, so `java\n
 scheme-relative `//host` which reads like a path and is not one, and plain http. Nothing is
 sanitised — rewriting an attacker's URL into a slightly different attacker's URL is not a defence.
 
-**Zero production dependency vulnerabilities**, `npm audit --omit=dev`. The app adds no wallet SDK:
+**Zero production dependency vulnerabilities**, `npm audit --omit=dev`, as of 13 October 2026. The date
+matters, because the advisory database moves: earlier the same day, before the upgrade, the same command
+reported three, one critical, all in Next's server runtime (`next/og`, the image optimizer, ISR caching,
+none of which a static export runs) or in a build-time tool, and `next` 16.3.8, `sharp` 0.35.5 and
+`source-map-js` 1.2.2 clear them.
+The test runner is the exception: `vitest` has two open advisories (a prototype-pollution gadget in
+`tinypool`, rated critical, and a path traversal in its mock redirect), development-only and not part of
+anything served, and the fix is a major upgrade to vitest 5 that was not taken the day before the
+deadline. The app adds no wallet SDK:
 identity is EIP-1193 through viem, which was already a dependency.
 
 **The CSP is real, and it is not XSS-proof.** `script-src` needs `'unsafe-inline'` for Next's own

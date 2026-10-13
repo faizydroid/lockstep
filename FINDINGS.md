@@ -1515,6 +1515,18 @@ and the canonical hash covers every file there, so the pin described bytes that 
 commit the SVG. The badge now goes next to the skill (the current directory, or `--badge-dir`), and is
 refused inside it.
 
+**The README's "zero production dependency vulnerabilities" had stopped being true.** Checked on 13
+October, `npm audit --omit=dev` reported three: `next` 16.3.4 (critical, remote code execution in
+`next/og`'s `ImageResponse`, plus several server-side cache and image-optimizer advisories), `sharp` and
+`source-map-js` (high). The advisory database had moved since the claim was written. None of the Next
+ones is reachable from this app, which is a static export with no Next server and no image optimizer, but
+a claim a reader can falsify with one command should be true, not arguable. `next` 16.3.8, `sharp` 0.35.5
+and `source-map-js` 1.2.2 clear all three: the lockfile changes by those packages and their platform
+binaries and nothing else (266 packages before and after), the dashboard builds, the export gate passes
+and the 492 dashboard tests pass. The audit now reports 0 for production dependencies. The test runner is
+the exception, as before: `vitest` and `tinypool` carry a critical prototype-pollution advisory that is
+development-only, and the fix is vitest 5, a major upgrade not taken the day before the deadline.
+
 Also: HSTS is sent, and the export gate fails a build that drops it. Four statements in the README were
 stronger than the code and are corrected: "the set of skills in context is exactly the set read" (skill
 descriptions reach the model without a read), "provable fraud against a bond" (a false attestation is
