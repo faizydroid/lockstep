@@ -74,9 +74,11 @@ jobs:
           - demo/skills/kuru-quote
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to commits because this job holds PUBLISHER_PRIVATE_KEY on a push to main. See
+      # deploy-dashboard.yml for why a tag is not enough.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # 22, matching ci.yml. The root `engines` field requires >=22.18.0 because these packages
           # are run as TypeScript by plain node, and that is only on by default from 22.18.

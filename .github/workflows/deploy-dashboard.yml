@@ -48,20 +48,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # Manual runs are always allowed. Automatic ones only for a green CI run on main, because a
-    # `workflow_run` fires for every branch's CI including forks.
+    # Manual runs are allowed from main only. Automatic ones only for a green CI run of a *push* to main
+    # *in this repository*.
+    #
+    # The earlier gate tested the conclusion and `head_branch == 'main'` and nothing else, and that
+    # admits a fork pull request. `workflow_run` jobs get secrets even when the run that triggered them
+    # was an unprivileged `pull_request` run (GitHub's Security Lab calls the pattern a "pwn request"),
+    # `head_branch` is the pull request's own branch name, and a fork can name its branch `main`. The
+    # pull request also supplies its own `ci.yml`, so it can make CI pass. Then this job would check out
+    # the fork's commit, run its `npm ci` and its build, and hand CLOUDFLARE_API_TOKEN to a later step.
+    # Checking the triggering event and the head repository closes that; neither can be set by a pull
+    # request. `app/test/deploy-gate.test.ts` evaluates this exact expression against both shapes.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
 
     steps:
-      - uses: actions/checkout@v4
+      # Third-party actions are pinned to a commit, not a tag. A tag can be moved, and this job hands
+      # the Cloudflare token to wrangler-action, so a compromised or re-tagged release would receive it.
+      # The trailing comment is the tag the commit was resolved from, for whoever updates it.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # The commit CI passed on, not the branch tip. See the note above.
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -99,7 +113,7 @@ jobs:
         run: npm run verify:dashboard
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
