@@ -3,7 +3,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 import { formatUnits } from "viem";
 
@@ -14,6 +14,21 @@ import { pinRegistryAbi } from "../abi.ts";
 import { publicClientFor, resolveEnv, signerFor, chainFor } from "../env.ts";
 import { loadManifest } from "../manifest.ts";
 import { HIGH_RISK_LABELS, isHighRiskSelector } from "../risk.ts";
+
+/** True when `candidate` is `root` or somewhere under it, compared on resolved paths. */
+function isInside(root: string, candidate: string): boolean {
+  const a = resolve(root);
+  const b = resolve(candidate);
+  return b === a || b.startsWith(a.endsWith(sep) ? a : a + sep);
+}
+
+/**
+ * Where the badge goes: the current directory, unless that is inside the skill, in which case the
+ * skill's parent. Exported so the choice has a test.
+ */
+export function badgeDirectory(skillDir: string, cwd: string = process.cwd()): string {
+  return isInside(skillDir, cwd) ? dirname(resolve(skillDir)) : resolve(cwd);
+}
 
 /**
  * Where a badge links to.
@@ -32,6 +47,8 @@ export interface PublishOptions {
   readonly skillDir: string | undefined;
   readonly manifestPath: string | undefined;
   readonly dryRun: boolean;
+  /** Where to write the badge. Defaults to the current directory. Never honoured inside `skillDir`. */
+  readonly badgeDir?: string | undefined;
 }
 
 export async function publishCommand(options: PublishOptions): Promise<number> {
@@ -211,6 +228,7 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
     publisher: account.address,
     bond: quote,
     highRiskCount: highRisk.length,
+    badgeDir: options.badgeDir,
   });
 
   return 0;
@@ -226,7 +244,7 @@ export async function publishCommand(options: PublishOptions): Promise<number> {
  *
  * ## Why a file and not a URL
  *
- * The badge is written into the skill directory and referenced by a relative path. A hosted badge would
+ * The badge is written next to the skill, never into it (see `badgeDirectory`), and referenced by a relative path. A hosted badge would
  * report every README view to whoever runs the host — which repositories carry a pin, how often they
  * are read, from where — and for a supply-chain security product that is a map of its own users'
  * posture handed to a third party. So there is no badge host and there will not be one.
@@ -249,6 +267,7 @@ async function writeBadge(options: {
   readonly publisher: `0x${string}`;
   readonly bond: bigint;
   readonly highRiskCount: number;
+  readonly badgeDir?: string | undefined;
 }): Promise<void> {
   const snippet = badgeSnippet({
     skillName: options.skillName,
@@ -269,8 +288,29 @@ async function writeBadge(options: {
     highRiskCount: options.highRiskCount,
   });
 
-  const target = join(options.skillDir, snippet.fileName);
+  /*
+   * Never inside the directory that was just pinned.
+   *
+   * The canonical hash covers every file in the skill directory, so a badge written there changes the
+   * hash the moment it lands: the pin on chain describes bytes that are no longer on disk, `lockstep
+   * approve` then finds no pin for the directory, and republishing is refused as equivocation. It used
+   * to be written there, so the CLI's own advice ("commit the SVG alongside your README") broke the pin
+   * it had just created. The default is the current directory, which is where a README usually is when
+   * `lockstep publish ./skills/x` is run from the repository root, and when the current directory is
+   * itself the skill's (`lockstep publish .`) it falls back to the skill's parent.
+   */
+  const targetDir =
+    options.badgeDir !== undefined ? resolve(options.badgeDir) : badgeDirectory(options.skillDir);
+  const target = join(targetDir, snippet.fileName);
   const pinId = options.pinId;
+
+  if (isInside(options.skillDir, target)) {
+    process.stdout.write(
+      `\npin published. the badge was not written because it would sit inside the pinned directory and change its hash. ` +
+        `Run the command from the directory that holds your README.\n`,
+    );
+    return;
+  }
 
   try {
     await writeFile(target, svg, "utf8");

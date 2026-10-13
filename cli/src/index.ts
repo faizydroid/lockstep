@@ -27,8 +27,10 @@ lockstep - bind agent transactions to the exact skill version you approved
   lockstep hash <skill-dir>
       Print the canonical hash of a skill directory. Reads nothing but disk.
 
-  lockstep publish <skill-dir> --manifest <file> [--dry-run]
+  lockstep publish <skill-dir> --manifest <file> [--dry-run] [--badge-dir <dir>]
       Publish a pin for a skill's current bytes and lock its bond.
+      Writes the pin badge to the current directory, or to --badge-dir; never into <skill-dir>,
+      because that would change the hash that was just pinned.
       Requires PUBLISHER_PRIVATE_KEY.
 
   lockstep approve <skill-dir> [--yes]
@@ -83,12 +85,14 @@ async function main(argv: readonly string[]): Promise<number> {
         options: {
           manifest: { type: "string" },
           "dry-run": { type: "boolean", default: false },
+          "badge-dir": { type: "string" },
         },
       });
       return publishCommand({
         skillDir: positionals[0],
         manifestPath: values.manifest,
         dryRun: values["dry-run"] === true,
+        badgeDir: values["badge-dir"],
       });
     }
 
