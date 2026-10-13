@@ -811,12 +811,27 @@ async function main() {
   const turnArgs = [OPENCLAW, "agent", "--message", prompt];
   if (values.model !== undefined && values.model !== "") turnArgs.push("--model", values.model);
   const TURN_TIMEOUT_MS = 600_000;
-  const turn = spawnSync("node", turnArgs, {
-    env, cwd: PROBE, encoding: "utf8", timeout: TURN_TIMEOUT_MS,
-    // Model turns with full trace logging are verbose, and exceeding the 1MB default kills
-    // the child, which then looks like the agent simply produced nothing.
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  // The Gateway accepts TCP connections before it answers WebSocket handshakes: it loads every
+  // installed plugin first, and that took 68 seconds on a loaded machine. A turn started the moment
+  // the port opened then failed with "Opening handshake has timed out", which reads like a product
+  // failure and is neither: no message had been sent, so there was no model call, no tool call and
+  // no transaction. That one condition is retried. Nothing else is, because a turn that got further
+  // than the handshake may have sent a transaction and must not be asked twice.
+  const NOT_READY = /Opening handshake has timed out|ECONNREFUSED|ECONNRESET|connect ETIMEDOUT/i;
+  const TURN_ATTEMPTS = 6;
+  let turn;
+  for (let attempt = 1; attempt <= TURN_ATTEMPTS; attempt += 1) {
+    turn = spawnSync("node", turnArgs, {
+      env, cwd: PROBE, encoding: "utf8", timeout: TURN_TIMEOUT_MS,
+      // Model turns with full trace logging are verbose, and exceeding the 1MB default kills
+      // the child, which then looks like the agent simply produced nothing.
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const text = `${turn.stdout ?? ""}\n${turn.stderr ?? ""}`;
+    if (turn.status === 0 || !NOT_READY.test(text) || attempt === TURN_ATTEMPTS) break;
+    out(`the gateway is not answering yet (attempt ${attempt} of ${TURN_ATTEMPTS}); waiting 20s and asking again\n`);
+    await new Promise((r) => setTimeout(r, 20_000));
+  }
   const output = `${turn.stdout ?? ""}\n${turn.stderr ?? ""}`;
   out(output);
 
