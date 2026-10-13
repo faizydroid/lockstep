@@ -1754,6 +1754,15 @@ The Gateway loads every installed plugin first (68 seconds, on a busy machine), 
 times 20 seconds apart. Nothing else is retried, because a turn that got past the handshake may have sent a
 transaction.
 
+**CI found a race in one of the tests above.** The adapter's capped-RPC tests ran in CI for the first time
+on the push that carried this section, and "with trustedPublishers, finds the approved pin and never asks
+for logs" read one refused log query where it expected none. The code was right and the test was not: the
+test before it asks for two logs at once and rejects on the first refusal, and the second request can reach
+the proxy after the next test has reset the counter. Locally the two land a few milliseconds apart. With the
+second request delayed by 18 ms at the proxy the old test failed with the CI error in 1 run of 3, and the
+fixed one (it waits for a quiet period) passed 4 of 4; the next CI run was green on all three jobs, and the
+dashboard deployed from it.
+
 ### Still not fixed
 
 - **The Envio endpoint runs the old handlers** until it is redeployed (above), and its guard events remain
