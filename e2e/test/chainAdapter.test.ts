@@ -528,6 +528,28 @@ describe.skipIf(!available)("ChainAdapter on an RPC that refuses wide log querie
     createWalletClient({ account, chain: foundry, transport: http(UPSTREAM) });
   const send = async (hash: Hex) => client.waitForTransactionReceipt({ hash });
 
+  /**
+   * Resolves once no refused log query has reached the proxy for `quietMs`.
+   *
+   * The lookup without `trustedPublishers` asks for two logs at once and rejects on the first refusal. The
+   * second request is already on its way, and on a slow runner it can reach the proxy after the test that
+   * caused it has finished and the next one has reset the counter, which then reads as a log query made by
+   * code that made none. That failed CI once with "expected 1 to be 0" and passes locally, where the two
+   * requests land a few milliseconds apart. Waiting out a quiet period before the counter is reset removes
+   * the race instead of narrowing it.
+   */
+  const untilNoLogQueries = async (quietMs = 500) => {
+    let last = refusedLogQueries;
+    let since = Date.now();
+    while (Date.now() - since < quietMs) {
+      await new Promise((r) => setTimeout(r, 50));
+      if (refusedLogQueries !== last) {
+        last = refusedLogQueries;
+        since = Date.now();
+      }
+    }
+  };
+
   const adapterFor = (trustedPublishers?: readonly Address[]) =>
     new ChainAdapter({
       rpcUrl: PROXY,
@@ -676,9 +698,13 @@ describe.skipIf(!available)("ChainAdapter on an RPC that refuses wide log querie
     refusedLogQueries = 0;
     await expect(adapterFor().findApprovedPin(HONEST_SKILL)).rejects.toThrow();
     expect(refusedLogQueries).toBeGreaterThan(0);
+    // Let the second of the two concurrent log requests arrive before this test ends, so it cannot be
+    // counted against the next one.
+    await untilNoLogQueries();
   }, 60_000);
 
   it("with trustedPublishers, finds the approved pin and never asks for logs", async () => {
+    await untilNoLogQueries();
     refusedLogQueries = 0;
     ethCalls = 0;
     const adapter = adapterFor([publisher.address]);
