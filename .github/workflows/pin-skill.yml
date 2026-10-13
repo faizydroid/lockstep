@@ -5,8 +5,9 @@ name: Pin skill
 # hashes differently there — Linux CI is the only place a pin is reliably reproducible.
 #
 # Note the split: pull requests dry-run, which needs no key and makes a capability
-# change visible in review. A push to main publishes, and so does a manual run:
-# `workflow_dispatch` takes the publish path, not the dry run.
+# change visible in review. A push to main publishes, and so does a manual run *from main*.
+# A manual run from any other ref is a dry run too: the key is a repository secret with no
+# environment protection, so an unreviewed branch must not be able to reach it with one click.
 
 # ## Settings this workflow reads, all configured
 #
@@ -90,10 +91,11 @@ jobs:
       - name: Build the action
         run: npm run build --workspace @lockstep/action
 
-      # Dry run on pull requests. No key is needed, and the job summary shows the
-      # capability diff and bond price before anything is published.
+      # Dry run on pull requests, and on a manual run from any ref other than main. No key is
+      # needed, and the job summary shows the capability diff and bond price before anything is
+      # published.
       - name: Price the pin
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         uses: ./action
         with:
           skill-dir: ${{ matrix.skill }}
@@ -107,7 +109,7 @@ jobs:
       # true, so a widened blast radius turns the release red instead of shipping
       # quietly and forcing every user to re-approve.
       - name: Publish the pin
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: ./action
         with:
           skill-dir: ${{ matrix.skill }}

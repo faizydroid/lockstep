@@ -65,8 +65,40 @@ function run(command, args, options = {}) {
   return execFileSync(command, args, { encoding: "utf8", stdio: "pipe", ...options }).trim();
 }
 
+function refuse(message) {
+  process.stderr.write(`\npublish-action-repo: ${message}\n`);
+  process.exit(1);
+}
+
+/*
+ * The version ends up in a git tag, a commit message and a README, so it is held to the one shape a
+ * release tag has. Anything else is a typo or an attempt to put text where a version belongs.
+ */
+if (!/^v\d+\.\d+\.\d+$/.test(VERSION)) refuse(`--version must look like v1.2.3, got ${JSON.stringify(VERSION.slice(0, 40))}`);
+
+/*
+ * The published bundle has to be the bundle of the commit this script names.
+ *
+ * The README it writes says "Generated from commit <sha>", and a consumer who audits the action reads
+ * that commit. With uncommitted changes in the tree the bundle could contain code that commit does not,
+ * so the stated provenance would be false at the exact place a supply-chain tool must not have a false
+ * statement. A real run refuses a dirty tree. A dry run only warns, because looking at what would be
+ * published is exactly what someone with work in progress wants to do.
+ */
+const dirty = run("git", ["status", "--porcelain"], { cwd: ROOT });
+if (dirty !== "") {
+  const message = `the working tree has uncommitted changes:\n${dirty.split("\n").slice(0, 10).join("\n")}\ncommit or stash them first, so the published bundle matches the commit it names.`;
+  if (DRY_RUN) process.stdout.write(`WARNING (a real run would refuse): ${message}\n`);
+  else refuse(message);
+}
+
 /*
  * The bundle has to be current, or the published action runs code nobody reviewed.
+ *
+ * Not rebuilt in a dry run: a dry run should not rewrite files in the repository it is inspecting. It
+ * packages the committed bundle as it is. A real run rebuilds, and then refuses if the rebuild differs
+ * from what is committed, because that means the committed `action/dist` is stale and the commit named
+ * in the README does not contain the code being published.
  *
  * `shell: true` on Windows, and the reason is worth writing down because Node prints a security
  * warning about it and the warning is correct in general.
@@ -78,11 +110,22 @@ function run(command, args, options = {}) {
  * What the warning describes is that arguments passed through a shell are concatenated rather than
  * escaped, so an attacker-controlled argument becomes an attacker-controlled command. That hazard
  * needs untrusted input, and there is none: every argument below is a literal in this file. Nothing
- * from `process.argv`, the environment, or the repository reaches this call. `--version` is used
- * only in a git tag and a template string.
+ * from `process.argv`, the environment, or the repository reaches this call. `--version` is checked
+ * against a fixed pattern above and is used only in a git tag and a template string.
  */
-const npmOptions = { cwd: ROOT, ...(process.platform === "win32" ? { shell: true } : {}) };
-run("npm", ["run", "build", "--workspace", "@lockstep/action"], npmOptions);
+if (DRY_RUN) {
+  process.stdout.write("(dry run: the bundle is not rebuilt; the committed action/dist is packaged as it is)\n");
+} else {
+  const npmOptions = { cwd: ROOT, ...(process.platform === "win32" ? { shell: true } : {}) };
+  run("npm", ["run", "build", "--workspace", "@lockstep/action"], npmOptions);
+  const stale = run("git", ["status", "--porcelain", "--", "action/dist"], { cwd: ROOT });
+  if (stale !== "") {
+    refuse(
+      "rebuilding action/dist changed it, so the committed bundle is stale.\n" +
+        "Commit the rebuilt action/dist first; the commit this publishes from must contain the code it ships.",
+    );
+  }
+}
 
 const sha = run("git", ["rev-parse", "HEAD"], { cwd: ROOT });
 const staging = mkdtempSync(join(tmpdir(), "lockstep-action-"));
@@ -168,17 +211,23 @@ run("git", ["commit", "-q", "-m", `release ${version} (from ${SOURCE_REPO}@${sha
 run("git", ["tag", version], { cwd: staging, mutates: true });
 
 /*
- * A force push, and it is safe here for a reason worth stating rather than assuming: this
- * repository has no history worth keeping. It is a generated snapshot of one directory, the
- * monorepo is the source of truth, and every published version is pinned by tag. Tags are pushed
- * without force, so a released version can never be moved under a consumer.
+ * The tag goes first, and without force, so a released version can never be moved under a consumer.
+ *
+ * It used to be the other way round: main was force-pushed and then the tag. If the tag already existed
+ * the second push was refused, but main had already been replaced, leaving a repository whose default
+ * branch no longer contained the code its tag pointed at. Pushed first, an existing tag stops the
+ * whole release before anything has moved.
+ *
+ * The force on main is deliberate and safe for a stated reason rather than an assumed one: this
+ * repository has no history worth keeping. It is a generated snapshot of one directory, the monorepo
+ * is the source of truth, and every published version is pinned by tag.
  */
 run("git", ["remote", "add", "origin", `https://github.com/${TARGET_REPO}.git`], {
   cwd: staging,
   mutates: true,
 });
-run("git", ["push", "--force", "origin", "main"], { cwd: staging, mutates: true });
 run("git", ["push", "origin", version], { cwd: staging, mutates: true });
+run("git", ["push", "--force", "origin", "main"], { cwd: staging, mutates: true });
 
 process.stdout.write(
   [
