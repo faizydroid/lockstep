@@ -1199,7 +1199,7 @@ it fixes the widening check (`FINDINGS.md` §39). No tag has ever been moved. Co
 | File | Size | Purpose |
 |---|---:|---|
 | `README.md` | 81 KB / 1350 lines | The full technical + commercial document. Sections: problem, gap, how it works, proven-vs-attested, Gator comparison, why Monad, layout, running it, design decisions, distribution, monetisation, status, license |
-| `FINDINGS.md` | 76 KB / 1444 lines | **Engineering log across 6 sessions, §1–41.** The single best source for *why* something is the way it is, and what was tried and rejected |
+| `FINDINGS.md` | 91 KB / 1643 lines | **Engineering log across 7 sessions, §1–42.** The single best source for *why* something is the way it is, and what was tried and rejected |
 | `PLAN.md` | 31 KB / 409 lines | Original build plan v2. **Partly stale** — see §22 |
 | `SUBMISSION.md` | 13 KB / 210 lines | Standalone 5-minute read for a judge |
 | `VIDEO.md` | 10 KB / 238 lines | Timed 3-minute shot list, voiceover, captions, and two corrections to `PLAN.md` §8 |
@@ -1670,7 +1670,7 @@ Three distinct keys with a stated invariant: the **executor holds no funds**; th
 
 ## 29. AI working rules for this repository
 
-1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 41 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
+1. **Read `FINDINGS.md` before proposing a change to contracts, the plugin, or the hashing scheme.** It is 42 sections of what was already tried and why it was rejected. Most "obvious improvements" are in there with a reason.
 2. **Source comments here are specifications, not chatter.** Several say "do not" explicitly — `Do not add token-amount parsing here`, `Do not describe this as exposure-weighted`, `production must not pass this`, `Never use this as a trust signal`, `Do not flatten this back`. Honour them or argue against them explicitly with evidence.
 3. **Never change `runtime/src/canonical.ts` without bumping `SCHEME_ID`.** The id is inside the preimage precisely so old pins stay verifiable.
 4. **Do not exclude `node_modules` from hashing.** It is the supply-chain attack this project exists to stop.
@@ -1749,7 +1749,7 @@ runtime/src/canonical.ts          the hash everything commits to
 plugin/src/policy.ts              decide() — the off-chain security decision
 app/src/lib/policy.ts             the browser write boundary
 app/src/lib/chain.ts              all chain reads + the three RPC constants
-FINDINGS.md                       why everything is the way it is (§1–41)
+FINDINGS.md                       why everything is the way it is (§1–42)
 HANDOVER.md                       what is actually left to do
 ```
 

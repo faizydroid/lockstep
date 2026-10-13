@@ -12,7 +12,7 @@
 | GitHub Action | `faizydroid/lockstep/action@v0.1.2` — [source at that tag](https://github.com/faizydroid/lockstep/tree/v0.1.2/action) |
 | Indexer | https://indexer.dev.hyperindex.xyz/0be4884/v1/graphql — Envio HyperIndex, GraphQL over POST ([example query](#sponsor-bounties-claimed)) |
 | Chain | Monad testnet, 10143 |
-| Engineering log | [`FINDINGS.md`](FINDINGS.md) — 41 entries, including the four defects found in our own code |
+| Engineering log | [`FINDINGS.md`](FINDINGS.md) — 42 entries, including the defects found in our own code, twice |
 
 ---
 
@@ -266,7 +266,7 @@ reads as exactly what it is.
 | `contracts/test/Adversarial.t.sol` | The four attacks, run end to end against a real delegated account |
 | `runtime/src/canonical.ts` | `lockstep-skill-hash/v2`, with a locked golden vector |
 | `action/` | The GitHub Action. Two refusals: no self-slashing, no silent capability widening |
-| `FINDINGS.md` | 41 engineering findings, written as they were found |
+| `FINDINGS.md` | 42 engineering findings, written as they were found |
 | `README.md` | The long-form technical account |
 
 ---
