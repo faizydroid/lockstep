@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The handlers, run in process against the events the chain actually emitted.
  *
  * `createTestIndexer` is Envio's own harness: it loads `src/EventHandlers.ts` the way a deployment
@@ -155,6 +155,163 @@ function release(publisher: `0x${string}`, pin: string, block: number) {
     },
   ] as const;
 }
+
+describe("a slash", () => {
+  const CHALLENGER = "0x00000000000000000000000000000000000000Cc";
+  /** Past the registry's start block in config.yaml: an event before it is filtered out and never reaches a handler. */
+  const BASE = 62_100_000;
+
+  /** Two conflicting claims about one version by one publisher, then the slash, in the order the contract emits. */
+  function equivocation(options: { revokeGuiltyFirst?: boolean } = {}) {
+    const honestPin = word(0xa1);
+    const guiltyPin = word(0xa2);
+    // An unrelated release by the same publisher, which stays live throughout. Without it the live count ends at
+    // zero whatever the handlers do, because the count is floored there.
+    const bystanderPin = word(0xa3);
+    const publish = (pin: string, block: number, skill: number, versionId: string = VERSION_ID) =>
+      [
+        {
+          contract: "PinRegistry",
+          event: "BondLocked",
+          block: { number: block, timestamp: 1000 + (block - BASE) },
+          transaction: { hash: word(block * 10 + 2) },
+          logIndex: 0,
+          params: { pinId: pin, publisher: PUBLISHER, amount: BOND },
+        },
+        {
+          contract: "PinRegistry",
+          event: "Published",
+          block: { number: block, timestamp: 1000 + (block - BASE) },
+          transaction: { hash: word(block * 10 + 2) },
+          logIndex: 1,
+          params: {
+            pinId: pin,
+            publisher: PUBLISHER,
+            skillHash: word(skill),
+            versionId,
+            name: "kuru-quote",
+            version: "1.0.0",
+            maxValuePerBatch: 0n,
+            capabilityCount: 0n,
+            highRiskCount: 0n,
+            requiredBond: BOND,
+          },
+        },
+      ] as const;
+    const slashBlock = BASE + 200;
+    const tx = { hash: word(slashBlock * 10) };
+    const at = { number: slashBlock, timestamp: 5000 };
+    return {
+      honestPin,
+      guiltyPin,
+      events: [
+        {
+          contract: "PinRegistry",
+          event: "BondDeposited",
+          block: { number: BASE + 90, timestamp: 1090 },
+          transaction: { hash: word(900) },
+          logIndex: 0,
+          params: { publisher: PUBLISHER, amount: 3n * BOND, balance: 3n * BOND },
+        },
+        ...publish(honestPin, BASE + 100, 0x51),
+        ...publish(guiltyPin, BASE + 110, 0x52),
+        ...publish(bystanderPin, BASE + 120, 0x53, word(0x77)),
+        ...(options.revokeGuiltyFirst
+          ? [
+              {
+                contract: "PinRegistry",
+                event: "Revoked",
+                block: { number: BASE + 150, timestamp: 3000 },
+                transaction: { hash: word(1500) },
+                logIndex: 0,
+                params: { pinId: guiltyPin, publisher: PUBLISHER },
+              } as const,
+            ]
+          : []),
+        // The contract's own order: `Slashed` for the guilty pin, then `Revoked` for A, then for B.
+        {
+          contract: "PinRegistry",
+          event: "Slashed",
+          block: at,
+          transaction: tx,
+          logIndex: 0,
+          params: { pinId: guiltyPin, publisher: PUBLISHER, challenger: CHALLENGER, amount: BOND, challengerReward: BOND / 2n },
+        },
+        {
+          contract: "PinRegistry",
+          event: "Revoked",
+          block: at,
+          transaction: tx,
+          logIndex: 1,
+          params: { pinId: honestPin, publisher: PUBLISHER },
+        },
+        {
+          contract: "PinRegistry",
+          event: "Revoked",
+          block: at,
+          transaction: tx,
+          logIndex: 2,
+          params: { pinId: guiltyPin, publisher: PUBLISHER },
+        },
+      ] as const,
+    };
+  }
+
+  it("takes the slashed pin out of the live count, once, and stamps when it was revoked", async () => {
+    const { events, honestPin, guiltyPin } = equivocation();
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { [CHAIN]: { simulate: [...events] } } });
+
+    const global = await indexer.Global.getOrThrow("global");
+    assert.equal(global.totalPins, 3);
+    // The bystander is the only live pin left. Was 2: the slashed pin was marked not-live without being
+    // counted out, and the `Revoked` that follows it returns early for a pin that is no longer live.
+    assert.equal(global.livePins, 1);
+
+    const guilty = await indexer.Pin.getOrThrow(guiltyPin);
+    assert.equal(guilty.slashed, true);
+    assert.equal(guilty.live, false);
+    // Was undefined: nothing else sets it for the slashed pin.
+    assert.equal(guilty.revokedAt, 5000n);
+
+    const honest = await indexer.Pin.getOrThrow(honestPin);
+    assert.equal(honest.slashed, false, "the earlier claim is not the offence");
+    assert.equal(honest.live, false, "but the contract revokes both while the contradiction stands");
+    assert.equal(honest.revokedAt, 5000n);
+  });
+
+  it("releases the slashed bond from the locked total and from the publisher", async () => {
+    const { events } = equivocation();
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { [CHAIN]: { simulate: [...events] } } });
+
+    const global = await indexer.Global.getOrThrow("global");
+    // Three pins locked 3 * BOND; the slash released BOND. Was 3 * BOND, because only a reclaim lowered it.
+    assert.equal(global.totalBondLocked, 2n * BOND);
+    assert.equal(global.totalSlashed, BOND);
+
+    const publisher = await indexer.Publisher.getOrThrow(PUBLISHER.toLowerCase());
+    assert.equal(publisher.lockedBond, 2n * BOND);
+    assert.equal(publisher.totalSlashed, BOND);
+    assert.equal(publisher.hasEquivocated, true);
+    assert.equal(publisher.slashCount, 1);
+  });
+
+  it("does not count a pin out twice when the publisher had already revoked it", async () => {
+    const { events, guiltyPin } = equivocation({ revokeGuiltyFirst: true });
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { [CHAIN]: { simulate: [...events] } } });
+
+    const global = await indexer.Global.getOrThrow("global");
+    // A and B are out, B by the publisher's own revocation and A by the contract's, and the bystander is
+    // still live. Counting B out a second time on the slash would read 0 here.
+    assert.equal(global.livePins, 1);
+    assert.equal(global.totalPins, 3);
+
+    // The earlier revocation time is the one that stands.
+    assert.equal((await indexer.Pin.getOrThrow(guiltyPin)).revokedAt, 3000n);
+  });
+});
 
 describe("the read model, replayed from the live deployment's events", () => {
   it("matches what the chain says happened", async () => {

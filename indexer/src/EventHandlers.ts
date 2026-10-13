@@ -163,7 +163,17 @@ indexer.onEvent(
   const publisher = await loadPublisher(context, event.params.publisher);
 
   if (pin !== undefined) {
-    context.Pin.set({ ...pin, slashed: true, live: false });
+    // This is the only place the slashed pin leaves the live count, and the only place it is given a
+    // revocation time. The contract emits `Slashed` first and then `Revoked` for both pins, and the
+    // `Revoked` handler returns early for a pin that is no longer live. Marking the pin not-live here
+    // without counting it out therefore left `livePins` one too high for every slash, and `revokedAt`
+    // empty on the pin the whole system calls revoked.
+    context.Pin.set({
+      ...pin,
+      slashed: true,
+      live: false,
+      revokedAt: pin.revokedAt ?? BigInt(event.block.timestamp),
+    });
   }
 
   context.Slash.set({
@@ -195,7 +205,13 @@ indexer.onEvent(
   const global = await loadGlobal(context);
   context.Global.set({
     ...global,
+    // Only if it was live: a publisher may have revoked the pin before it was slashed, and that
+    // revocation has already been counted.
+    livePins: pin !== undefined && pin.live ? Math.max(0, global.livePins - 1) : global.livePins,
     totalSlashed: global.totalSlashed + event.params.amount,
+    // The slashed bond is no longer locked: the registry releases the commitment before paying it out.
+    totalBondLocked:
+      global.totalBondLocked > event.params.amount ? global.totalBondLocked - event.params.amount : ZERO,
   });
 });
 

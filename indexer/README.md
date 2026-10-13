@@ -80,6 +80,14 @@ Monad testnet, through the real handlers using Envio's `createTestIndexer`. Disa
 it: the old publisher check fails 2 of the 3 tests, the raw selector 1, and dropping the field
 selection fails the typecheck, since a simulated event carries whatever hash it is given.
 
+**After a slash the read model was wrong in three ways:** `livePins` stayed one too high, the slashed pin
+had no `revokedAt`, and its bond stayed in `totalBondLocked`. The contract emits `Slashed` and then
+`Revoked` for both pins, and the `Revoked` handler returns early for a pin that is no longer live, so the
+`Slashed` handler has to do the counting. It now does, without counting a pin out twice when its publisher
+had already revoked it. Three tests cover it, with a bystander pin so the live count cannot hide behind its
+floor at zero; undoing each of the four changes fails one. **This is committed and not deployed.** The
+endpoint above still runs the earlier handlers, and deploying makes a new deployment with a new URL.
+
 ## Deploying to Envio Cloud
 
 ### Before you start: two things that will bite
