@@ -77,7 +77,7 @@ const PAGES = {
     "reverts inside the settling transaction",
     "No bond was slashed",
     "HASH POSITIONS DIFFER",
-    "provable fraud against a bond",
+    "a false claim about which bytes asked is not slashable",
 
     /*
      * The invitation, and the escape from it.

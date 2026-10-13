@@ -73,8 +73,9 @@ const LIMITS: readonly Limit[] = [
         That part is <Term name="attestation">attested</Term> by the runtime, not proven. A compromised
         runtime can report an honest hash while executing something else, and no signature fixes it,
         because the key would be reachable by the compromised process. Closing it needs a TEE. Until then
-        the guarantee is economic: a false claim is provable fraud against a{" "}
-        <Term name="bond">bond</Term>.
+        the guarantee is economic, and narrower than it sounds: the <Term name="bond">bond</Term> is
+        forfeited for one offence, a publisher committing two different byte sets under one version. A
+        false claim about which bytes asked is not slashable.
       </>
     ),
   },
@@ -127,9 +128,10 @@ export function Limits() {
           The honest split is that calldata constraints are{" "}
           <strong className="font-extrabold text-text">cryptographic</strong> &mdash; target, selector and
           value ceiling are checked from the transaction itself, whatever anyone claims &mdash; while code
-          identity is <strong className="font-extrabold text-text">economic</strong>: a false claim about
-          which bytes asked is provable fraud against a <Term name="bond">bond</Term>, and the penalty is
-          a <Term name="slash">slash</Term> rather than a takedown request. Any project asserting
+          identity is <strong className="font-extrabold text-text">economic</strong>, and only partly: the{" "}
+          <Term name="bond">bond</Term> is forfeited, by <Term name="slash">slash</Term> rather than a
+          takedown request, when a publisher is caught committing two different byte sets under one version.
+          A false claim about which bytes asked is not slashable. Any project asserting
           otherwise without a TEE in the diagram is overclaiming, and one follow-up question exposes it.
         </p>
       </Card>

@@ -35,7 +35,7 @@ const LIMITS: readonly { what: string; why: string }[] = [
   },
   {
     what: "Which code asked, cryptographically",
-    why: "That part is attested by the runtime, not proven. A compromised runtime can report an honest hash while executing something else, and no signature fixes it because the key is reachable by the compromised process. Closing it needs a TEE. Until then the guarantee is economic: a false claim is provable fraud against a bond.",
+    why: "That part is attested by the runtime, not proven. A compromised runtime can report an honest hash while executing something else, and no signature fixes it because the key is reachable by the compromised process. Closing it needs a TEE. Until then the guarantee is economic, and narrower than it sounds: the bond is forfeited for one offence, a publisher committing two different byte sets under one version. A false claim about which bytes asked is not slashable.",
   },
   {
     what: "Anything that does not move funds",
@@ -107,8 +107,9 @@ export function ThreatModel() {
               The honest split is that calldata constraints are{" "}
               <span className="font-semibold text-text">cryptographic</span> &mdash; target, selector and
               value ceiling are checked from the transaction itself, whatever anyone claims &mdash; while
-              code identity is <span className="font-semibold text-text">economic</span>: a false claim
-              about which bytes asked is provable fraud against a bond. Any project asserting otherwise
+              code identity is <span className="font-semibold text-text">economic</span>, and only partly:
+              the bond is forfeited when a publisher is caught committing two different byte sets under one
+              version, and a false claim about which bytes asked is not slashable. Any project asserting otherwise
               without a TEE in the diagram is overclaiming, and one follow-up question exposes it.
             </p>
           </div>
