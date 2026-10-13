@@ -59,6 +59,13 @@ export const SECURITY_HEADERS = {
   // No URL leaves this origin in a Referer. Pin ids and account addresses live in these URLs.
   "referrer-policy": "no-referrer",
   "cross-origin-opener-policy": "same-origin",
+  // Once a browser has seen this, it refuses to load the dashboard over plain http for a year, which
+  // closes the window where an on-path attacker answers the first http:// request before the 301 to
+  // https. That matters more here than on most sites, because this origin asks for a wallet connection.
+  // No includeSubDomains and no preload, on purpose: `.space` is not on the preload list, and
+  // includeSubDomains would bind every other subdomain of the parent domain to https as well, which this
+  // file has no business deciding.
+  "strict-transport-security": "max-age=31536000",
   // No reason for a read-only dashboard to be able to ask for any of these.
   "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 };
@@ -69,7 +76,7 @@ export const SECURITY_HEADERS = {
  * Read by `check-export.mjs`. Kept beside the definition so adding a header-only protection here
  * cannot silently escape the check.
  */
-export const HEADER_ONLY = ["x-frame-options", "referrer-policy"];
+export const HEADER_ONLY = ["x-frame-options", "referrer-policy", "strict-transport-security"];
 
 /** CSP directives that only work in a real header, so their presence in `_headers` is load-bearing. */
 export const HEADER_ONLY_CSP_DIRECTIVES = ["frame-ancestors 'none'"];
