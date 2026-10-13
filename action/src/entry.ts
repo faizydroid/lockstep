@@ -7,8 +7,10 @@
  * killing the test process.
  */
 import { main } from "./main.ts";
+import { workflowErrorCommand } from "./shared.ts";
 
 main().catch((error: unknown) => {
-  process.stdout.write(`::error::${error instanceof Error ? error.message : String(error)}\n`);
+  // Redacted and escaped: see `workflowErrorCommand`. The raw message used to go straight into the command.
+  process.stdout.write(`${workflowErrorCommand(error)}\n`);
   process.exit(1);
 });

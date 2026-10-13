@@ -10,3 +10,4 @@
 export { loadManifest, parseManifest, computeVersionId, type Manifest, type Capability } from "@lockstep/cli/manifest";
 export { isHighRiskSelector, HIGH_RISK_LABELS, highRiskSelectors } from "@lockstep/cli/risk";
 export { pinRegistryAbi as registryAbi } from "@lockstep/cli/abi";
+export { escapeMarkdown, inlineCode, redactUrls, safeErrorMessage, workflowErrorCommand } from "@lockstep/cli/sanitize";

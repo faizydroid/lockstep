@@ -14374,6 +14374,9 @@ function defineChain(chain) {
 // ../node_modules/viem/_esm/utils/index.js
 init_fromHex();
 
+// ../node_modules/viem/_esm/utils/hash/toFunctionSignature.js
+init_toSignature();
+
 // ../node_modules/viem/_esm/utils/rpc/http.js
 init_request();
 init_utils3();
@@ -20878,6 +20881,11 @@ function computeVersionId(name, version4) {
   return keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], [name, version4]));
 }
 var MANIFEST_FILENAME = "lockstep.json";
+var CANONICAL_SIGNATURE = /^[A-Za-z_$][A-Za-z0-9_$]*\([A-Za-z0-9_,()[\]]*\)$/;
+function quoted(raw) {
+  const shown = JSON.stringify(raw.length > 40 ? `${raw.slice(0, 40)}\u2026` : raw);
+  return shown;
+}
 function parseSelector(raw, where) {
   if (typeof raw !== "string" || raw.length === 0) {
     throw new Error(`${where}: selector must be a non-empty string`);
@@ -20885,12 +20893,20 @@ function parseSelector(raw, where) {
   if (/^0x[0-9a-fA-F]{8}$/.test(raw)) {
     return { selector: raw.toLowerCase(), label: raw.toLowerCase() };
   }
-  if (raw === "" || !raw.includes("(") || !raw.endsWith(")")) {
+  if (!isCanonicalSignature(raw)) {
     throw new Error(
-      `${where}: selector must be a function signature such as 'swap(uint256)' or a 4-byte hex string, got '${raw}'`
+      `${where}: selector must be a function signature such as 'swap(uint256)' (types only: no parameter names, spaces or text after the closing parenthesis) or a 4-byte hex string, got ${quoted(raw)}`
     );
   }
   return { selector: toFunctionSelector(raw), label: raw };
+}
+function isCanonicalSignature(raw) {
+  if (!CANONICAL_SIGNATURE.test(raw)) return false;
+  try {
+    return toSignature(raw) === raw;
+  } catch {
+    return false;
+  }
 }
 function parseValue(raw) {
   if (raw === void 0 || raw === null) return 0n;
@@ -21242,6 +21258,26 @@ var pinRegistryAbi = [
   }
 ];
 
+// ../cli/src/sanitize.ts
+function redactUrls(message) {
+  return message.split(/\r?\n/).filter((line) => !/^\s*(?:URL|Request body|Request Arguments)\s*:/i.test(line)).join("\n").replace(/\b(?:https?|wss?):\/\/[^\s"'<>)\]]*[^\s"'<>)\],.;:!?]/gi, "<url>").replace(/\n{3,}/g, "\n\n").trim();
+}
+function safeErrorMessage(error) {
+  return redactUrls(error instanceof Error ? error.message : String(error));
+}
+function escapeCommandData(text) {
+  return text.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+}
+function workflowErrorCommand(error) {
+  return `::error::${escapeCommandData(safeErrorMessage(error))}`;
+}
+function escapeMarkdown(text) {
+  return text.replace(/[\\`*_[\]()<>|&~#!]/g, "\\$&").replace(/\r?\n/g, " ");
+}
+function inlineCode(text) {
+  return text.replace(/[`|<>\r\n]/g, "?");
+}
+
 // src/main.ts
 var DASHBOARD_URL = LOCKSTEP_DASHBOARD;
 function input(name, fallback = "") {
@@ -21322,7 +21358,7 @@ async function main() {
   const rows = manifest.capabilities.map(capabilityRow).join("\n");
   await summary(
     [
-      `## Lockstep pin: ${manifest.name} ${manifest.version}`,
+      `## Lockstep pin: ${escapeMarkdown(manifest.name)} ${escapeMarkdown(manifest.version)}`,
       "",
       `| | |`,
       `|---|---|`,
@@ -21516,7 +21552,7 @@ function failWidened(widening) {
 }
 function capabilityRow(c) {
   const risk = isHighRiskSelector(c.selector) ? `\u26A0\uFE0F ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}` : "";
-  return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
+  return `| \`${inlineCode(c.target)}\` | \`${inlineCode(c.label)}\` | ${risk} |`;
 }
 function comparisonSummary(comparison) {
   const heading = ["", "### Compared with the previous pin", ""];
@@ -21529,7 +21565,7 @@ function comparisonSummary(comparison) {
     case "first-release":
       return [...heading, `Nothing to compare: ${comparison.why}.`].join("\n");
     case "unknown":
-      return [...heading, `Not compared: ${comparison.reason}.`].join("\n");
+      return [...heading, `Not compared: ${escapeMarkdown(comparison.reason)}.`].join("\n");
     case "compared": {
       const { widening } = comparison;
       const origin = comparison.source === "input" ? "given as `previous-pin-id`" : "the latest earlier pin of this skill";
@@ -21629,8 +21665,8 @@ function rpcReason(error) {
     if (typeof details === "string" && details !== "") {
       const range = /limited to a \d+ range/i.exec(details);
       if (range !== null) return `eth_getLogs is ${range[0]}`;
-      const quoted = /"message"\s*:\s*"([^"]{1,200})"/.exec(details);
-      if (quoted?.[1] !== void 0) return quoted[1];
+      const quoted2 = /"message"\s*:\s*"([^"]{1,200})"/.exec(details);
+      if (quoted2?.[1] !== void 0) return quoted2[1];
       if (!/https?:\/\//i.test(details)) return details.slice(0, 200);
     }
     current = current.cause;
@@ -21640,7 +21676,7 @@ function rpcReason(error) {
 
 // src/entry.ts
 main().catch((error) => {
-  process.stdout.write(`::error::${error instanceof Error ? error.message : String(error)}
+  process.stdout.write(`${workflowErrorCommand(error)}
 `);
   process.exit(1);
 });

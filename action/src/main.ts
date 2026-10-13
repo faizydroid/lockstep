@@ -50,6 +50,8 @@ import {
   isHighRiskSelector,
   HIGH_RISK_LABELS,
   registryAbi,
+  escapeMarkdown,
+  inlineCode,
   type Capability,
   type Manifest,
 } from "./shared.ts";
@@ -185,7 +187,7 @@ export async function main(): Promise<void> {
 
   await summary(
     [
-      `## Lockstep pin: ${manifest.name} ${manifest.version}`,
+      `## Lockstep pin: ${escapeMarkdown(manifest.name)} ${escapeMarkdown(manifest.version)}`,
       "",
       `| | |`,
       `|---|---|`,
@@ -460,7 +462,10 @@ function failWidened(widening: Widening): never {
 
 function capabilityRow(c: Capability): string {
   const risk = isHighRiskSelector(c.selector) ? `⚠️ ${HIGH_RISK_LABELS[c.selector] ?? "elevated"}` : "";
-  return `| \`${c.target}\` | \`${c.label}\` | ${risk} |`;
+  // The label is the publisher's text. It is a canonical signature by the time it gets here (the manifest
+  // parser enforces that), and is made safe for a table cell again regardless: a backtick or a pipe in it
+  // would end the code span or the cell, and the cell is where the two real high-risk rows were hidden.
+  return `| \`${inlineCode(c.target)}\` | \`${inlineCode(c.label)}\` | ${risk} |`;
 }
 
 function comparisonSummary(comparison: Comparison): string {
@@ -474,7 +479,7 @@ function comparisonSummary(comparison: Comparison): string {
     case "first-release":
       return [...heading, `Nothing to compare: ${comparison.why}.`].join("\n");
     case "unknown":
-      return [...heading, `Not compared: ${comparison.reason}.`].join("\n");
+      return [...heading, `Not compared: ${escapeMarkdown(comparison.reason)}.`].join("\n");
     case "compared": {
       const { widening } = comparison;
       const origin = comparison.source === "input" ? "given as `previous-pin-id`" : "the latest earlier pin of this skill";
