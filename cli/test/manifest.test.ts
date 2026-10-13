@@ -165,6 +165,85 @@ describe("parseManifest", () => {
     ).toThrow(/function signature/);
   });
 
+  /*
+   * The label is what a reviewer reads, so it has to be exactly what was hashed.
+   *
+   * viem hashes the text up to the first closing parenthesis and ignores the rest, so each of these
+   * used to be accepted with the selector of the part that came first, carrying the rest into the
+   * Action's table and the CLI's prompt. `<!--` in a job summary opens an HTML comment, which hid
+   * the two real high-risk rows of a capability table from the person reviewing the pull request.
+   */
+  const withSelector = (selector: string) => ({
+    ...valid,
+    capabilities: { onchain: { calls: [{ target: ROUTER, selector }] } },
+  });
+
+  it.each([
+    ["swap(uint256)<!--", "an HTML comment opener after the signature"],
+    ["swap(uint256)<!-- hidden -->(x)", "a comment, closed by a parenthesis"],
+    ["swap(uint256)(uint256)", "a second parenthesised group"],
+    ["swap(uint256) ", "trailing space"],
+    ["swap(uint256)\n| `x` | `y` |", "a newline and a table row"],
+    ["swap(uint256)`", "a backtick"],
+    ["approve(address spender,uint256 value)", "parameter names"],
+    ["function approve(address,uint256)", "a function keyword"],
+    ["approve (address,uint256)", "a space before the parenthesis"],
+    ["swap((uint256)", "unbalanced parentheses"],
+    ["(uint256)", "no function name"],
+    ["1swap(uint256)", "a name starting with a digit"],
+  ])("rejects %o as a selector (%s)", (selector) => {
+    expect(() => parseManifest(withSelector(selector))).toThrow(/function signature/);
+  });
+
+  it("accepts a tuple parameter and an array parameter", () => {
+    const m = parseManifest({
+      ...valid,
+      capabilities: {
+        onchain: {
+          calls: [
+            { target: ROUTER, selector: "exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))" },
+            { target: TOKEN, selector: "multicall(bytes[])" },
+            { target: TOKEN, selector: "fill(uint256[2])" },
+            { target: TOKEN, selector: "ping()" },
+          ],
+        },
+      },
+    });
+    expect(m.capabilities.map((c) => c.label)).toEqual([
+      "exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
+      "multicall(bytes[])",
+      "fill(uint256[2])",
+      "ping()",
+    ]);
+  });
+
+  it("keeps the label equal to the hashed text for every accepted signature", () => {
+    for (const selector of ["swap(uint256)", "multicall(bytes[])", "ping()"]) {
+      const m = parseManifest(withSelector(selector));
+      expect(m.capabilities[0]!.label).toBe(selector);
+      expect(m.capabilities[0]!.selector).toBe(toFunctionSelector(m.capabilities[0]!.label));
+    }
+  });
+
+  /**
+   * The error is printed by the CLI to a terminal and by the Action into a workflow command, both from
+   * a file a pull request controls. It must not carry control characters, and it must not carry
+   * arbitrary amounts of attacker text.
+   */
+  it("does not echo raw control characters or an unbounded string in the error", () => {
+    const hostile = `swap(uint256)\n::warning title=ok::${"x".repeat(500)}\u001b[2J`;
+    let message = "";
+    try {
+      parseManifest(withSelector(hostile));
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/function signature/);
+    expect(message).not.toContain("\n");
+    expect(message).not.toContain("\u001b");
+    expect(message.length).toBeLessThan(400);
+  });
+
   /** The registry rejects duplicates on chain; catching it here names the entry. */
   it("rejects duplicate capabilities", () => {
     expect(() =>

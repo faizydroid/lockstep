@@ -15,6 +15,7 @@ import {
   isAddress,
   keccak256,
   toFunctionSelector,
+  toFunctionSignature,
   type Address,
   type Hex,
 } from "viem";
@@ -60,11 +61,30 @@ export function computeVersionId(name: string, version: string): Hex {
 export const MANIFEST_FILENAME = "lockstep.json";
 
 /**
+ * A canonical function signature: a name, then parenthesised types, with no spaces, no parameter
+ * names and nothing after the closing parenthesis. `exactInputSingle((address,address,uint24))` and
+ * `foo(uint256[])` qualify; `approve(address spender,uint256)` and `function swap(uint256)` do not.
+ */
+const CANONICAL_SIGNATURE = /^[A-Za-z_$][A-Za-z0-9_$]*\([A-Za-z0-9_,()[\]]*\)$/;
+
+/** A string made safe to put in an error message: quoted, escaped, and cut short. */
+function quoted(raw: string): string {
+  const shown = JSON.stringify(raw.length > 40 ? `${raw.slice(0, 40)}…` : raw);
+  return shown;
+}
+
+/**
  * Selectors are accepted either as a full signature or as a 4-byte hex string.
  *
  * Signatures are strongly preferred and the CLI says so on publish: `0x095ea7b3`
  * is unreviewable, while `approve(address,uint256)` tells a reader they are about
  * to grant allowance-granting power.
+ *
+ * A signature has to be canonical, and the check is what makes the label trustworthy. viem hashes only
+ * the text up to the first closing parenthesis, so a label like `swap(uint256)<!-- ... -->` used to
+ * produce the selector of `swap(uint256)` while carrying whatever else the author put after it. That
+ * label is what the Action prints in a table and the CLI prints in a prompt, so a reviewer read text
+ * the hash had never covered. The label is now exactly what was hashed, or the manifest is refused.
  */
 function parseSelector(raw: unknown, where: string): { selector: Hex; label: string } {
   if (typeof raw !== "string" || raw.length === 0) {
@@ -73,12 +93,24 @@ function parseSelector(raw: unknown, where: string): { selector: Hex; label: str
   if (/^0x[0-9a-fA-F]{8}$/.test(raw)) {
     return { selector: raw.toLowerCase() as Hex, label: raw.toLowerCase() };
   }
-  if (raw === "" || !raw.includes("(") || !raw.endsWith(")")) {
+  if (!isCanonicalSignature(raw)) {
     throw new Error(
-      `${where}: selector must be a function signature such as 'swap(uint256)' or a 4-byte hex string, got '${raw}'`,
+      `${where}: selector must be a function signature such as 'swap(uint256)' (types only: no ` +
+        `parameter names, spaces or text after the closing parenthesis) or a 4-byte hex string, ` +
+        `got ${quoted(raw)}`,
     );
   }
   return { selector: toFunctionSelector(raw), label: raw };
+}
+
+function isCanonicalSignature(raw: string): boolean {
+  if (!CANONICAL_SIGNATURE.test(raw)) return false;
+  try {
+    // What viem will actually hash. If it differs from the text, part of the text is not covered.
+    return toFunctionSignature(raw) === raw;
+  } catch {
+    return false;
+  }
 }
 
 function parseValue(raw: unknown): bigint {

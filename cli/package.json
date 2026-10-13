@@ -25,6 +25,7 @@
                     "./manifest":  "./src/manifest.ts",
                     "./risk":  "./src/risk.ts",
                     "./abi":  "./src/abi.ts",
-                    "./pins":  "./src/pins.ts"
+                    "./pins":  "./src/pins.ts",
+                    "./sanitize":  "./src/sanitize.ts"
                 }
 }
