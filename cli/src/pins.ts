@@ -132,19 +132,20 @@ export async function loadPin(
 export async function loadApprovedPinIds(
   client: PublicClient,
   account: Address,
+  fromBlock: bigint | "earliest" = "earliest",
 ): Promise<readonly Hex[]> {
   const [approved, unapproved] = await Promise.all([
     client.getContractEvents({
       address: account,
       abi: lockstepGuardAbi,
       eventName: "PinApproved",
-      fromBlock: "earliest",
+      fromBlock,
     }),
     client.getContractEvents({
       address: account,
       abi: lockstepGuardAbi,
       eventName: "PinUnapproved",
-      fromBlock: "earliest",
+      fromBlock,
     }),
   ]);
 

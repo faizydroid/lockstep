@@ -1,17 +1,23 @@
 /**
  * `lockstep approve` - approve the version of a skill currently on disk.
  *
- * Always prints the capability diff before writing. Approval that does not show
- * what it is granting is a checkbox, not consent.
+ * Prints who published the pin and what it allows before writing, and refuses when it cannot show both.
+ * Approval that does not show what it is granting is a checkbox, not consent.
+ *
+ * The publisher is part of what is approved. A pin id is derived from the publisher and the bytes, and the
+ * bytes of a skill are public before the honest publisher's CI has run, so anyone can pin them first with a
+ * wider capability set. This command used to take whichever pin it found first and never printed whose it
+ * was. It now takes a publisher you name, prints it, and stops when several live pins exist and you have
+ * not said which you trust.
  */
 
 import { createInterface } from "node:readline/promises";
 
 import { chainFor, publicClientFor, resolveEnv, signerFor } from "../env.ts";
 import { lockstepGuardAbi } from "../abi.ts";
-import { printDiff, resolveChange } from "./diff.ts";
+import { inspect, type LookupFlags } from "./diff.ts";
 
-export interface ApproveOptions {
+export interface ApproveOptions extends LookupFlags {
   readonly skillDir: string | undefined;
   readonly assumeYes: boolean;
 }
@@ -35,34 +41,20 @@ export async function approveCommand(options: ApproveOptions): Promise<number> {
 
   const env = resolveEnv();
   const client = publicClientFor(env);
-  const { onDiskHash, candidate, approved } = await resolveChange(client, env, skillDir);
+  const inspected = await inspect(client, env, skillDir, options);
+  if (!inspected.ok) return inspected.exitCode;
+  const { pin, change, approval } = inspected.value;
 
-  process.stdout.write(`account     ${env.account}\n`);
-  process.stdout.write(`directory   ${skillDir}\n`);
-  process.stdout.write(`skillHash   ${onDiskHash}\n\n`);
+  if (approval === "approved") return 0;
 
-  if (candidate === undefined) {
+  if (approval === "not-delegated") {
+    // An approval is written to the account's own storage by delegated guard code. On a plain account the
+    // transaction below would succeed and store nothing, and the guard would go on refusing every call.
     process.stderr.write(
-      "no pin exists for these bytes, so there is nothing to approve.\n" +
-        "Ask the publisher to run `lockstep publish` for this version.\n",
+      `\nrefusing: ${env.account} carries no EIP-7702 delegation, so there is nowhere to store an approval.\n` +
+        "Delegate the account to a LockstepGuard first.\n",
     );
     return 1;
-  }
-
-  if (candidate.revoked) {
-    // Refuse outright rather than warn. The publisher has said this release is
-    // compromised, and the guard would reject it anyway.
-    process.stderr.write(
-      "refusing: the publisher revoked this version. Approving it would have no effect,\n" +
-        "because the guard treats a revoked pin as having no live hash.\n",
-    );
-    return 1;
-  }
-
-  const widened = printDiff(approved, candidate);
-
-  if (approved?.skillHash === candidate.skillHash) {
-    return 0;
   }
 
   if (!options.assumeYes) {
@@ -84,11 +76,16 @@ export async function approveCommand(options: ApproveOptions): Promise<number> {
      * hash and therefore a new pin, which is unapproved until this transaction lands. The gap was
      * that this command sent that transaction without asking.
      *
-     * `--yes` still bypasses it, because a flag someone typed is a decision they made.
+     * `--yes` still bypasses it, because a flag someone typed is a decision they made. It bypasses only
+     * the question: every refusal above, including an unnamed publisher and a manifest that does not
+     * match the pin, happens before this point and `--yes` cannot reach it.
      */
-    const question = widened
-      ? "\nthis version can do things the approved one could not. approve anyway? [y/N] "
-      : "\nthe bytes changed. capabilities are unchanged. approve this version? [y/N] ";
+    const question =
+      change === undefined
+        ? `\napprove this version from publisher ${pin.publisher}, with the capabilities listed above? [y/N] `
+        : change.widened
+          ? "\nthis version can do things the baseline could not. approve anyway? [y/N] "
+          : "\nthe bytes changed. capabilities are unchanged or narrower. approve this version? [y/N] ";
     const ok = await confirm(question);
     if (!ok) {
       process.stdout.write("aborted\n");
@@ -111,12 +108,13 @@ export async function approveCommand(options: ApproveOptions): Promise<number> {
     address: env.account,
     abi: lockstepGuardAbi,
     functionName: "approvePin",
-    args: [candidate.pinId],
+    args: [pin.pinId],
     chain: chainFor(env.chainId),
     account,
   });
 
-  process.stdout.write(`\napproved    ${candidate.pinId}\n`);
+  process.stdout.write(`\napproved    ${pin.pinId}\n`);
+  process.stdout.write(`publisher   ${pin.publisher}\n`);
   process.stdout.write(`tx          ${hash}\n`);
   const receipt = await client.waitForTransactionReceipt({ hash });
   process.stdout.write(`status      ${receipt.status}\n`);
