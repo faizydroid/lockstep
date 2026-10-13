@@ -240,7 +240,23 @@ export function registerLockstep(api: HostApi, config: LockstepPluginConfig): Sk
             `root=${skillRootOf(expandHome(path))} tracked=${tracker.trackedRuns}`,
         );
       }
-      tracker.observeRead(correlationId, path);
+      const root = tracker.observeRead(correlationId, path);
+
+      // Hash the directory now, while the bytes the agent was just shown are on disk. The send hashes it
+      // again, and the two have to agree (see `decide`). Only for a root inside a configured skills
+      // directory: `decide` refuses anything else before hashing, so reading a SKILL.md somewhere
+      // arbitrary must not make this hook walk an arbitrary directory. Filed as a promise and not
+      // awaited, so the hook adds no latency to the read.
+      if (root !== undefined && config.skillRoots.some((allowed) => isInside(allowed, root))) {
+        tracker.recordReadHash(
+          correlationId,
+          root,
+          config.deps.hashSkillDirectory(root).then(
+            (hash) => hash,
+            () => null,
+          ),
+        );
+      }
     },
     { registrationId: "lockstep-provenance" },
   );
@@ -348,7 +364,28 @@ export function registerLockstep(api: HostApi, config: LockstepPluginConfig): Sk
         );
       }
 
-      const decision = await decide(tracker.resolve(correlationId), policyDeps);
+      const outcome = tracker.resolve(correlationId);
+      const provenance =
+        outcome.kind === "resolved"
+          ? { ...outcome, readHashes: await tracker.readHashes(correlationId, outcome.skillRoot) }
+          : outcome;
+
+      // The decision reads the chain, and a read can fail: an RPC that refuses wide log queries, a
+      // timeout, a rate limit. That used to escape as a raw viem error, which names the RPC URL (often
+      // carrying an API key) and tells the model nothing it can act on. A failure to check is a refusal
+      // to send, in words, with the URL scrubbed.
+      let decision: Decision;
+      try {
+        decision = await decide(provenance, policyDeps);
+      } catch (error) {
+        const reason = describeChainFailure(error);
+        api.logger.warn(`lockstep: could not check approvals on chain, refusing to send. ${reason}`);
+        return {
+          ok: false,
+          code: "CHAIN_READ_FAILED",
+          error: `Lockstep: could not check your approvals on chain, so nothing was sent. ${reason}`,
+        };
+      }
       if (decision.kind === "block") {
         return { ok: false, code: decision.code, error: `Lockstep: ${decision.reason}` };
       }
@@ -370,6 +407,30 @@ export function registerLockstep(api: HostApi, config: LockstepPluginConfig): Sk
   }));
 
   return tracker;
+}
+
+/**
+ * A chain-read failure, reduced to something safe and useful to show the model.
+ *
+ * viem's messages carry the request URL and the request body, and an RPC URL commonly has an API key
+ * in it, so only the first line is kept and any URL in it is replaced. The one failure with a known fix
+ * gets it spelled out: Monad's public RPC refuses `eth_getLogs` over more than 100 blocks, and
+ * `trustedPublishers` removes the need for a log scan.
+ */
+export function describeChainFailure(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? [(error as { shortMessage?: string }).shortMessage, error.message].filter(Boolean).join("\n")
+      : String(error);
+  const firstLine = (raw.split("\n")[0] ?? "").replace(/https?:\/\/\S+/gi, "<rpc>").trim();
+  const base = firstLine === "" ? "The chain read failed." : firstLine;
+  if (/limited to a \d+ range|eth_getLogs|block range/i.test(raw)) {
+    return (
+      `${base} The RPC refuses wide log queries. Set trustedPublishers in the Lockstep plugin config so ` +
+      "approvals are found with eth_call instead of by scanning logs."
+    );
+  }
+  return base;
 }
 
 /** Lists an object's keys for a diagnostic, without risking a throw on odd values. */

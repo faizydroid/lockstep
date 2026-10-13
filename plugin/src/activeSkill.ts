@@ -40,7 +40,19 @@ export interface SkillRead {
 }
 
 export type ProvenanceOutcome =
-  | { readonly kind: "resolved"; readonly skillRoot: string }
+  | {
+      readonly kind: "resolved";
+      readonly skillRoot: string;
+      /**
+       * The skill directory's hash as it was each time the manifest was read, in order; `null` where
+       * hashing failed. Absent only for callers that never observed the reads (unit tests of `decide`).
+       *
+       * Without this the directory was hashed once, when `lockstep_send` ran, so a skill that read
+       * hostile and then put the approved bytes back before the send was attested as the approved
+       * version. With it, every observation has to equal the hash at send time.
+       */
+      readonly readHashes?: readonly (`0x${string}` | null)[];
+    }
   /** No skill instructions were in context, so nothing vouches for this call. */
   | { readonly kind: "no-skill" }
   /**
@@ -91,11 +103,18 @@ export function skillRootOf(skillMdPath: string): string {
  */
 export class SkillProvenanceTracker {
   private readonly byRun = new Map<string, Map<string, SkillRead>>();
+  /** correlation id -> skill root -> the hash taken at each observed read, still in flight or settled. */
+  private readonly hashesByRun = new Map<string, Map<string, Promise<`0x${string}` | null>[]>>();
   private seq = 0;
 
-  /** Records a successful `read`. Non-manifest paths are ignored. */
-  observeRead(correlationId: string, rawPath: string): void {
-    if (!isSkillManifest(rawPath)) return;
+  /**
+   * Records a successful `read`. Non-manifest paths are ignored.
+   *
+   * Returns the skill root the read was filed under, or `undefined` for a path that is not a manifest, so
+   * the caller keys anything it attaches to the read by exactly the root `resolve` will report.
+   */
+  observeRead(correlationId: string, rawPath: string): string | undefined {
+    if (!isSkillManifest(rawPath)) return undefined;
 
     const path = expandHome(rawPath);
     const root = skillRootOf(path);
@@ -109,6 +128,30 @@ export class SkillProvenanceTracker {
       this.seq += 1;
       reads.set(root, { skillMdPath: resolve(path), seq: this.seq });
     }
+    return root;
+  }
+
+  /**
+   * Attaches the directory hash taken at the moment a manifest was read.
+   *
+   * Kept as a promise so the read hook never waits on disk: it files the work and returns, and `decide`
+   * settles the lot when a send arrives. A read that is observed twice contributes two hashes, and all
+   * of them have to match, so a skill that changed between two reads of its own manifest is caught too.
+   */
+  recordReadHash(correlationId: string, skillRoot: string, hash: Promise<`0x${string}` | null>): void {
+    let roots = this.hashesByRun.get(correlationId);
+    if (roots === undefined) {
+      roots = new Map();
+      this.hashesByRun.set(correlationId, roots);
+    }
+    const list = roots.get(skillRoot) ?? [];
+    list.push(hash);
+    roots.set(skillRoot, list);
+  }
+
+  /** Every hash recorded for this root in this run, settled. Empty when none was recorded. */
+  async readHashes(correlationId: string, skillRoot: string): Promise<(`0x${string}` | null)[]> {
+    return Promise.all(this.hashesByRun.get(correlationId)?.get(skillRoot) ?? []);
   }
 
   /** Resolves provenance for a correlation id, failing closed on absence or ambiguity. */
@@ -137,6 +180,7 @@ export class SkillProvenanceTracker {
    */
   forget(correlationId: string): void {
     this.byRun.delete(correlationId);
+    this.hashesByRun.delete(correlationId);
   }
 
   /** Number of tracked correlation ids. Exposed for leak assertions in tests. */

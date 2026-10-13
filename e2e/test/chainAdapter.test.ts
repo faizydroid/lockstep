@@ -11,6 +11,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { join, resolve } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -30,7 +31,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 
-import { ChainAdapter } from "@lockstep/openclaw-plugin/chain";
+import { ChainAdapter, computePinId } from "@lockstep/openclaw-plugin/chain";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
 const FOUNDRY_BIN = join(ROOT, ".tools", "foundry");
@@ -492,5 +493,226 @@ describe.skipIf(!available)("ChainAdapter against a live chain", () => {
     adapter.invalidate();
 
     expect(await adapter.findApprovedPin(HONEST_SKILL)).toBeUndefined();
+  }, 60_000);
+});
+
+/**
+ * Finding an approval on an endpoint that refuses `eth_getLogs`, which is the endpoint this runs against.
+ *
+ * Monad's public RPC answers HTTP 413 `{"code":-32614,"message":"eth_getLogs is limited to a 100 range"}`
+ * to anything wider than 100 blocks, and the adapter's only way to discover approvals was to replay the
+ * account's logs from the first block. So on the real network every lookup threw, nothing could ever be
+ * sent, and no test noticed, because anvil has no range cap and every test here talked to anvil. This
+ * puts the same proxy in front of anvil that action.test.ts uses, and asserts on what the adapter asks.
+ *
+ * Needs its own chain: the describe above ends by revoking the pin it uses.
+ */
+describe.skipIf(!available)("ChainAdapter on an RPC that refuses wide log queries", () => {
+  const CAP_ANVIL_PORT = 8552;
+  const CAP_PROXY_PORT = 8553;
+  const UPSTREAM = `http://127.0.0.1:${CAP_ANVIL_PORT}`;
+  const PROXY = `http://127.0.0.1:${CAP_PROXY_PORT}`;
+
+  let anvil: ChildProcess;
+  let proxy: Server;
+  let refusedLogQueries = 0;
+  let ethCalls = 0;
+  let client: PublicClient;
+  let registry: Address;
+  let pinId: Hex;
+
+  const publisher = privateKeyToAccount(PUBLISHER_PK);
+  const accountSigner = privateKeyToAccount(ACCOUNT_PK);
+  const executor = privateKeyToAccount(EXECUTOR_PK);
+  const wallet = (account: typeof publisher) =>
+    createWalletClient({ account, chain: foundry, transport: http(UPSTREAM) });
+  const send = async (hash: Hex) => client.waitForTransactionReceipt({ hash });
+
+  const adapterFor = (trustedPublishers?: readonly Address[]) =>
+    new ChainAdapter({
+      rpcUrl: PROXY,
+      chainId: 10143,
+      chainOverride: foundry,
+      registry,
+      account: accountSigner.address,
+      executorPrivateKey: EXECUTOR_PK,
+      ...(trustedPublishers === undefined ? {} : { trustedPublishers }),
+    });
+
+  beforeAll(async () => {
+    anvil = spawn(ANVIL, ["--port", String(CAP_ANVIL_PORT), "--silent", "--hardfork", "prague"], {
+      stdio: "ignore",
+    });
+    client = createPublicClient({ chain: foundry, transport: http(UPSTREAM) }) as PublicClient;
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      try {
+        await client.getBlockNumber();
+        break;
+      } catch {
+        if (Date.now() > deadline) throw new Error("anvil did not start within 30s");
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+
+    // The proxy that behaves like Monad's public RPC: logs refused, everything else forwarded.
+    proxy = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        void (async () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          const parsed = JSON.parse(body) as { id?: unknown; method?: string } | { id?: unknown; method?: string }[];
+          const calls = Array.isArray(parsed) ? parsed : [parsed];
+          if (calls.some((call) => call.method === "eth_getLogs")) {
+            refusedLogQueries += 1;
+            res.writeHead(413, { "content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: calls[0]?.id ?? 0,
+                error: { code: -32614, message: "eth_getLogs is limited to a 100 range" },
+              }),
+            );
+            return;
+          }
+          ethCalls += calls.filter((call) => call.method === "eth_call").length;
+          const forwarded = await fetch(UPSTREAM, { method: "POST", headers: { "content-type": "application/json" }, body });
+          res.writeHead(forwarded.status, { "content-type": "application/json" });
+          res.end(await forwarded.text());
+        })().catch((error: unknown) => {
+          res.writeHead(502);
+          res.end(String(error));
+        });
+      });
+    });
+    await new Promise<void>((done) => proxy.listen(CAP_PROXY_PORT, "127.0.0.1", done));
+
+    // The same setup as the describe above, through anvil directly.
+    const deploy = spawn(
+      FORGE,
+      ["script", "script/Deploy.s.sol", "--tc", "Deploy", "--root", join(ROOT, "contracts"), "--rpc-url", UPSTREAM, "--broadcast", "--private-key", PUBLISHER_PK, "--json"],
+      { cwd: join(ROOT, "contracts"), stdio: ["ignore", "pipe", "pipe"] },
+    );
+    let stdout = "";
+    let stderr = "";
+    deploy.stdout?.on("data", (c) => (stdout += String(c)));
+    deploy.stderr?.on("data", (c) => (stderr += String(c)));
+    const code = await new Promise<number>((r) => deploy.on("close", (c) => r(c ?? 1)));
+    if (code !== 0) throw new Error(`forge script exited ${code}\n--- stderr ---\n${stderr}\n--- stdout ---\n${stdout}`);
+    const line = stdout
+      .split("\n")
+      .map((l) => {
+        try {
+          return JSON.parse(l) as Record<string, unknown>;
+        } catch {
+          return undefined;
+        }
+      })
+      .find((p) => p !== undefined && "returns" in p);
+    const returns = (line as { returns: Record<string, { value: string }> }).returns;
+    registry = getAddress((returns.registry ?? returns["0"]!).value);
+    const guardImpl = getAddress((returns.guard ?? returns["1"]!).value);
+    const bondAsset = (await client.readContract({ address: registry, abi: registryAbi, functionName: "bondAsset" })) as Address;
+
+    const artifact = JSON.parse(
+      await readFile(join(ROOT, "contracts", "out", "DemoRouter.sol", "DemoRouter.json"), "utf8"),
+    ) as { bytecode: { object: Hex } };
+    const routerReceipt = await send(
+      await wallet(publisher).deployContract({ abi: routerAbi, bytecode: artifact.bytecode.object, chain: foundry, account: publisher }),
+    );
+    const router = getAddress(routerReceipt.contractAddress!);
+
+    const quote = (await client.readContract({ address: registry, abi: registryAbi, functionName: "quoteBond", args: [1n, 0n, false] })) as bigint;
+    const funding = quote * 10n;
+    await send(await wallet(publisher).writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "mint", args: [publisher.address, funding], chain: foundry, account: publisher }));
+    await send(await wallet(publisher).writeContract({ address: bondAsset, abi: bondAssetAbi, functionName: "approve", args: [registry, funding], chain: foundry, account: publisher }));
+    await send(await wallet(publisher).writeContract({ address: registry, abi: registryAbi, functionName: "deposit", args: [funding], chain: foundry, account: publisher }));
+    await send(
+      await wallet(publisher).writeContract({
+        address: registry,
+        abi: registryAbi,
+        functionName: "publish",
+        args: [{ name: "demo", version: "1.0.0", skillHash: HONEST_SKILL, maxValuePerBatch: 0n, targets: [router], selectors: [toFunctionSelector("swap(uint256)")] }],
+        chain: foundry,
+        account: publisher,
+      }),
+    );
+
+    pinId = (await client.readContract({ address: registry, abi: registryAbi, functionName: "computePinId", args: [publisher.address, HONEST_SKILL] })) as Hex;
+
+    const authorization = await wallet(accountSigner).signAuthorization({ account: accountSigner, contractAddress: guardImpl, executor: "self" });
+    await send(
+      await wallet(accountSigner).sendTransaction({
+        account: accountSigner,
+        to: accountSigner.address,
+        data: encodeFunctionData({ abi: guardAbi, functionName: "approvePin", args: [pinId] }),
+        authorizationList: [authorization],
+        chain: foundry,
+      }),
+    );
+    await send(
+      await wallet(accountSigner).sendTransaction({
+        account: accountSigner,
+        to: accountSigner.address,
+        data: encodeFunctionData({ abi: guardAbi, functionName: "authorizeExecutor", args: [executor.address] }),
+        chain: foundry,
+      }),
+    );
+  }, 180_000);
+
+  afterAll(() => {
+    proxy?.close();
+    anvil?.kill();
+  });
+
+  it("the local pin id is what the registry computes, so a candidate can be built without asking it", () => {
+    return expect(
+      client.readContract({ address: registry, abi: registryAbi, functionName: "computePinId", args: [publisher.address, HONEST_SKILL] }),
+    ).resolves.toBe(computePinId(publisher.address, HONEST_SKILL));
+  });
+
+  it("without trustedPublishers, the log replay is refused and the lookup throws (the failure this fixes)", async () => {
+    refusedLogQueries = 0;
+    await expect(adapterFor().findApprovedPin(HONEST_SKILL)).rejects.toThrow();
+    expect(refusedLogQueries).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("with trustedPublishers, finds the approved pin and never asks for logs", async () => {
+    refusedLogQueries = 0;
+    ethCalls = 0;
+    const adapter = adapterFor([publisher.address]);
+
+    const pin = await adapter.findApprovedPin(HONEST_SKILL);
+
+    expect(pin).toEqual({ pinId, skillHash: HONEST_SKILL, publisher: publisher.address });
+    expect(refusedLogQueries).toBe(0);
+    // isPinApproved, liveSkillHash and getPin: three calls, however old the chain is.
+    expect(ethCalls).toBe(3);
+  }, 60_000);
+
+  it("does not find a pin approved for a publisher that is not on the list", async () => {
+    const stranger = getAddress("0x00000000000000000000000000000000000000Aa");
+    expect(await adapterFor([stranger]).findApprovedPin(HONEST_SKILL)).toBeUndefined();
+  }, 60_000);
+
+  it("does not find a hash that was never published, and costs one call per listed publisher", async () => {
+    ethCalls = 0;
+    const adapter = adapterFor([publisher.address, getAddress("0x00000000000000000000000000000000000000Aa")]);
+    expect(await adapter.findApprovedPin(HOSTILE_SKILL)).toBeUndefined();
+    expect(ethCalls).toBe(2);
+  }, 60_000);
+
+  it("stops finding the pin after the account unapproves it", async () => {
+    await send(
+      await wallet(accountSigner).sendTransaction({
+        account: accountSigner,
+        to: accountSigner.address,
+        data: encodeFunctionData({ abi: guardAbi, functionName: "unapprovePin", args: [pinId] }),
+        chain: foundry,
+      }),
+    );
+    // A fresh adapter: the cache is per adapter, and invalidation is covered by the describe above.
+    expect(await adapterFor([publisher.address]).findApprovedPin(HONEST_SKILL)).toBeUndefined();
   }, 60_000);
 });

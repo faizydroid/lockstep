@@ -16,7 +16,9 @@
 import {
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   http,
+  keccak256,
   type Address,
   type Chain,
   type Hex,
@@ -30,6 +32,17 @@ import { lockstepGuardAbi, pinRegistryAbi } from "./abi.ts";
 import type { ApprovedPin } from "./policy.ts";
 import type { GuardedCall } from "./index.ts";
 import type { Decision } from "./policy.ts";
+
+/**
+ * The registry's pin id: `keccak256(abi.encode(publisher, skillHash))`, which `PinRegistry.computePinId`
+ * is. Computed here so that finding an approval needs no log scan at all. A test compares this with the
+ * registry's own answer, so the two cannot drift.
+ */
+export function computePinId(publisher: Address, skillHash: Hex): Hex {
+  return keccak256(
+    encodeAbiParameters([{ type: "address" }, { type: "bytes32" }], [publisher, skillHash]),
+  );
+}
 
 export interface ChainConfig {
   readonly rpcUrl: string;
@@ -47,13 +60,30 @@ export interface ChainConfig {
   /** The account holding the funds. Delegated to LockstepGuard via EIP-7702. */
   readonly account: Address;
   /**
-   * Executor key. Pays gas, holds no funds.
+   * Executor key. Pays gas, holds no funds of its own.
+   *
+   * Hold it carefully: it can direct the account's funds within an approved pin's declared capabilities,
+   * to any recipient, because the guard checks target, selector and value but not arguments. See
+   * keyCustody.ts.
    *
    * This must never be the account's key. If it were, the agent could sign
    * transactions straight to any target and the guard would never run — see the
    * threat model in LockstepGuard.sol.
    */
   readonly executorPrivateKey: Hex;
+  /**
+   * Publishers whose pins this account may have approved.
+   *
+   * With this set, an approval is found by computing `pinId = keccak256(abi.encode(publisher,
+   * skillHash))` for each publisher and asking the account `isPinApproved(pinId)`: two `eth_call`s per
+   * publisher and no logs. Without it the adapter replays the account's `PinApproved`/`PinUnapproved`
+   * logs from the first block, which Monad's public RPC refuses (`eth_getLogs is limited to a 100
+   * range`), so on that endpoint every lookup would fail.
+   *
+   * It is also a narrowing: an approval by a publisher not on the list is not found. That is the point
+   * of listing the publishers you actually trust.
+   */
+  readonly trustedPublishers?: readonly Address[];
 }
 
 export class ChainAdapter {
@@ -103,6 +133,37 @@ export class ChainAdapter {
 
   get executorAddress(): Address {
     return this.executor;
+  }
+
+  /**
+   * The pins to check for `skillHash`: those this account has approved.
+   *
+   * Two ways to know, and which one runs depends on configuration rather than on what the endpoint
+   * happens to tolerate, so a refused log query is never papered over by guessing.
+   *
+   *  - `trustedPublishers` set: compute each candidate pin id locally and ask the account whether it
+   *    approved it. `isPinApproved` is a plain `eth_call` served from the account's own storage, so it
+   *    works on any endpoint, costs one request per publisher, and cannot be made to grow with chain age.
+   *  - Otherwise: replay the account's approval logs. Correct on a local chain or an archive endpoint,
+   *    and refused by Monad's public RPC.
+   */
+  private async approvedPinIds(skillHash: Hex): Promise<Iterable<Hex>> {
+    const publishers = this.config.trustedPublishers;
+    if (publishers === undefined || publishers.length === 0) return this.loadApprovals();
+
+    const candidates = [...new Set(publishers.map((p) => computePinId(p, skillHash)))];
+    const approved = await Promise.all(
+      candidates.map(
+        (pinId) =>
+          this.publicClient.readContract({
+            address: this.account,
+            abi: lockstepGuardAbi,
+            functionName: "isPinApproved",
+            args: [pinId],
+          }) as Promise<boolean>,
+      ),
+    );
+    return candidates.filter((_, index) => approved[index] === true);
   }
 
   /**
@@ -163,7 +224,7 @@ export class ChainAdapter {
     const cached = this.pinCache.get(skillHash);
     if (cached !== undefined) return cached ?? undefined;
 
-    const approvals = await this.loadApprovals();
+    const approvals = await this.approvedPinIds(skillHash);
     let found: ApprovedPin | undefined;
 
     for (const pinId of approvals) {

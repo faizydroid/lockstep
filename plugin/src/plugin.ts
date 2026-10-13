@@ -21,6 +21,7 @@ import { hashSkillDirectory } from "@lockstep/runtime";
 
 import { ChainAdapter } from "./chain.ts";
 import { registerLockstep, type HostApi } from "./index.ts";
+import { claimSecretFromEnv } from "./keyCustody.ts";
 
 /**
  * Mirrors `configSchema` in `openclaw.plugin.json`.
@@ -40,6 +41,10 @@ const CONFIG_SCHEMA = {
     rpcUrl: { type: "string" },
     executorPrivateKeyEnv: { type: "string", default: "LOCKSTEP_EXECUTOR_KEY" },
     skillRoots: { type: "array", items: { type: "string" } },
+    trustedPublishers: {
+      type: "array",
+      items: { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" },
+    },
   },
 } as const;
 
@@ -50,6 +55,7 @@ interface LockstepConfig {
   readonly rpcUrl?: string;
   readonly executorPrivateKeyEnv?: string;
   readonly skillRoots?: readonly string[];
+  readonly trustedPublishers?: readonly `0x${string}`[];
 }
 
 interface ApiWithConfig extends HostApi {
@@ -79,7 +85,9 @@ export default definePluginEntry({
     }
 
     const keyEnv = config.executorPrivateKeyEnv ?? "LOCKSTEP_EXECUTOR_KEY";
-    const executorKey = process.env[keyEnv];
+    // Claimed, not just read: the variable is removed from the Gateway's environment so the agent's
+    // exec tool cannot hand it to a child process. See keyCustody.ts for what that does and does not buy.
+    const executorKey = claimSecretFromEnv(keyEnv);
     if (executorKey === undefined || executorKey === "") {
       api.logger.warn(
         `lockstep: ${keyEnv} is not set. The executor key is read from the environment and never from config, so nothing can be submitted until it is present.`,
@@ -100,7 +108,16 @@ export default definePluginEntry({
       registry: config.registry,
       account: config.account,
       executorPrivateKey: executorKey as `0x${string}`,
+      ...(config.trustedPublishers === undefined ? {} : { trustedPublishers: config.trustedPublishers }),
     });
+
+    if (config.trustedPublishers === undefined || config.trustedPublishers.length === 0) {
+      api.logger.warn(
+        "lockstep: no trustedPublishers configured, so approvals are found by scanning the account's logs. " +
+          "Monad's public RPC refuses log queries wider than 100 blocks, so on a public endpoint that scan fails " +
+          "and every guarded send is refused. Set trustedPublishers to the publisher addresses you approve skills from.",
+      );
+    }
 
     api.logger.info(
       `lockstep: guarding ${config.account} on chain ${config.chainId}, executor ${chain.executorAddress}`,

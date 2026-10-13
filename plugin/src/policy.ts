@@ -49,6 +49,7 @@ export type BlockCode =
   | "AMBIGUOUS_PROVENANCE"
   | "SKILL_OUTSIDE_ROOTS"
   | "HASH_FAILED"
+  | "SKILL_CHANGED"
   | "NOT_PINNED";
 
 /**
@@ -106,6 +107,27 @@ export async function decide(
       code: "HASH_FAILED",
       reason: "The active skill could not be hashed, so its version is unknown.",
     };
+  }
+
+  // The bytes the agent was shown have to be the bytes being attested.
+  //
+  // The directory used to be hashed only here, at send time. A skill that was hostile when its manifest
+  // was read, and had the approved bytes put back before the send, was attested as the approved version:
+  // the instructions that shaped the calls came from one set of files and the hash from another. Every
+  // hash taken at a read of this skill must equal the one taken now. A failed read-time hash (null) and a
+  // missing one (empty) both block, because "we did not look" is not "it matched".
+  if (provenance.readHashes !== undefined) {
+    const sameBytes =
+      provenance.readHashes.length > 0 &&
+      provenance.readHashes.every((h) => h !== null && h.toLowerCase() === skillHash.toLowerCase());
+    if (!sameBytes) {
+      return {
+        kind: "block",
+        code: "SKILL_CHANGED",
+        reason:
+          "The skill's files are not the ones the agent read: they changed between reading the skill and sending. Start a new run so the skill is read again as it is now.",
+      };
+    }
   }
 
   const pin = await deps.findApprovedPin(skillHash);
