@@ -67,6 +67,16 @@ const OPENCLAW = join(PROBE, "node_modules", "openclaw", "openclaw.mjs");
 const BEDROCK_PROVIDER = "@openclaw/amazon-bedrock-provider";
 
 const PORT = 8560;
+/**
+ * How long one OpenClaw install step may run.
+ *
+ * `run` allows ten minutes for anything, which is far beyond a cast or forge call and was meant to be
+ * beyond an install too. It was not: on a machine whose CPU is saturated by something else, npm alone
+ * took 13 to 20 seconds per invocation and the Bedrock provider install, which makes dozens, ran past
+ * ten minutes and failed with a timeout that reads like a hang in the product. The installs are the only
+ * steps that scale with how busy the machine is, so only they get the longer allowance.
+ */
+const INSTALL_TIMEOUT_MS = 45 * 60_000;
 /** Loopback port for the throwaway Gateway this harness starts. */
 const GATEWAY_PORT = 19555;
 const RPC = `http://127.0.0.1:${PORT}`;
@@ -583,7 +593,17 @@ async function main() {
         lockstep: {
           enabled: true,
           hooks: { allowConversationAccess: true },
-          config: { registry, account, chainId: 10143, rpcUrl: RPC, skillRoots: [skillsDir] },
+          // trustedPublishers: the log-free lookup, which is the only one that works on Monad's public
+          // RPC (it refuses log queries wider than 100 blocks). Anvil would accept either, so using it
+          // here means the run being filmed exercises the path a real network needs.
+          config: {
+            registry,
+            account,
+            chainId: 10143,
+            rpcUrl: RPC,
+            skillRoots: [skillsDir],
+            trustedPublishers: [publisherSigner.address],
+          },
         },
       },
     },
@@ -665,15 +685,15 @@ async function main() {
   // directory, and plugin installs are recorded against the state directory rather than the
   // npm tree, which already has the package.
   if (IS_BEDROCK) {
-    out("installing bedrock provider... ");
-    run("node", [OPENCLAW, "plugins", "install", BEDROCK_PROVIDER, "--force", "--accept-capabilities"], { env, cwd: PROBE });
+    out("installing bedrock provider (this downloads packages and can take many minutes on a busy machine)... ");
+    run("node", [OPENCLAW, "plugins", "install", BEDROCK_PROVIDER, "--force", "--accept-capabilities"], { env, cwd: PROBE, timeout: INSTALL_TIMEOUT_MS });
     out("ok\n");
   }
 
   out("installing plugin... ");
-  run("node", [OPENCLAW, "plugins", "install", "--link", join(ROOT, "plugin"), "--force", "--accept-capabilities"], { env, cwd: PROBE });
-  run("node", [OPENCLAW, "plugins", "enable", "lockstep", "--accept-capabilities"], { env, cwd: PROBE });
-  const inspect = run("node", [OPENCLAW, "plugins", "inspect", "lockstep", "--runtime"], { env, cwd: PROBE });
+  run("node", [OPENCLAW, "plugins", "install", "--link", join(ROOT, "plugin"), "--force", "--accept-capabilities"], { env, cwd: PROBE, timeout: INSTALL_TIMEOUT_MS });
+  run("node", [OPENCLAW, "plugins", "enable", "lockstep", "--accept-capabilities"], { env, cwd: PROBE, timeout: INSTALL_TIMEOUT_MS });
+  const inspect = run("node", [OPENCLAW, "plugins", "inspect", "lockstep", "--runtime"], { env, cwd: PROBE, timeout: INSTALL_TIMEOUT_MS });
 
   // What this can and cannot prove.
   //
