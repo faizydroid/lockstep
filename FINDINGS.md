@@ -1805,3 +1805,7 @@ this round: 60 for the CLI, 8 for the watcher, 50 for the dashboard and 3 for th
 checked by reverting its fix and watching it fail: 6 of 6 for the sanitising helpers, 8 of 8 for the CLI
 lookup, 6 of 6 for the watcher, 4 of 4 for the indexer, 6 of 6 and 4 of 4 for the dashboard reads and
 writes, 5 of 5 for the export gate.
+
+The logo change that followed (the owner's logo replacing the old mark, with the icons and the link card
+derived from it) added 17 dashboard tests, so the suite now stands at 1,132; the README carries the
+current figure.

@@ -25,7 +25,7 @@ what the submission can claim.
 
 ## Current state, so you can trust the rest of this
 
-CI is green on `main`. 1,115 tests: 187 contract across 14 suites including 7 invariants, 836 unit,
+CI is green on `main`. 1,132 tests: 187 contract across 14 suites including 7 invariants, 853 unit,
 92 end-to-end against a real chain. The dashboard export gate also passed.
 
 **The dashboard is live** at https://lockstep.dofolabs.space, and also served at

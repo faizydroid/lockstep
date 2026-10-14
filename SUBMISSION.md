@@ -114,8 +114,8 @@ showing a skill name shows the publisher beside it.
 
 ## Evidence
 
-**1,115 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
-836 off-chain unit tests; 92 end-to-end against a real chain, which includes every hand-written ABI
+**1,132 tests.** 187 Solidity across 14 suites including 7 invariants over 4,096 calls per campaign;
+853 off-chain unit tests; 92 end-to-end against a real chain, which includes every hand-written ABI
 fragment checked against the compiled artifacts. The indexer adds 6 more, which run its handlers
 against the events behind the live deployment and against a slash.
 

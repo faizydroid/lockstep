@@ -6,7 +6,7 @@ Canonical context document for AI systems working on this repository.
 
 Every factual claim below was read out of the repository. Where a claim is derived rather than stated, it is marked `[INFERRED]`. Where the repository does not answer, it is marked `[UNKNOWN]` rather than guessed.
 
-**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (836 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
+**Verification basis for this document:** `forge test` run and observed (**187 tests / 14 suites / exit 0**), `npm run test:unit` run and observed (853 tests / 7 workspaces / exit 0), `npm run typecheck` (8 workspaces / exit 0), `npm run verify:dashboard` (export gate passed), `git ls-files` enumerated (234 tracked files at first pass). Test counts, gas figures, design tokens and addresses in this document are transcribed from those runs and from source, not recalled.
 
 **A confirmed privilege escalation was found and fixed during this document's lifetime.** An authorised executor could change account policy by routing `authorizeExecutor` or `approvePin` through `execute`, because a call made *from* the account *to* the account satisfies `onlySelf`. `execute` now refuses the account as a call target. See §5.2, §5.4, §17 and §23. Any statement below about the guard's guarantees reflects the fixed contract.
 
@@ -538,7 +538,7 @@ A second, found before automatic publishing was switched on (`FINDINGS.md` §39)
 
 ---
 
-## 10. `app/` — dashboard (IMPLEMENTED, 542 tests)
+## 10. `app/` — dashboard (IMPLEMENTED, 559 tests)
 
 Next.js **16.3.4**, React **19.2.8**, viem **2.56.3**, Tailwind **4.3.3**, framer-motion **13.2.0**, vitest 3.2.7. `output: "export"` (static), `images.unoptimized: true`, `typedRoutes: true`. Dev port 3210.
 
@@ -1017,7 +1017,7 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | CLI (5 commands) | **IMPLEMENTED** | 48 tests | `cli/` |
 | GitHub Action | **IMPLEMENTED** | 22 e2e tests against a real chain, incl. a Monad-style capped RPC | `action/` |
 | Action on GitHub Marketplace | **PARTIAL** | standalone `faizydroid/lockstep-action@v0.1.2` published; the listing itself needs the maintainer to accept the terms | `scripts/publish-action-repo.mjs` |
-| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 542 tests + export gate | `app/` |
+| Dashboard (11 routes + error + 404) | **IMPLEMENTED** | 559 tests + export gate | `app/` |
 | Browser write boundary | **IMPLEMENTED** | 4 enforcement layers | `app/src/lib/policy.ts` |
 | Badge generator | **IMPLEMENTED** | 30 tests | `badge/` |
 | Sandbox draft manifests | **IMPLEMENTED** | 17 tests | `sandbox/` |
@@ -1041,9 +1041,9 @@ The AI-facing security properties are therefore **the absence of parameters**, n
 | Layer | Count | Command |
 |---|---:|---|
 | Contracts | **187** (14 suites, incl. 7 invariants over 128 runs / 4096 calls) | `forge test` |
-| Unit — runtime 41, plugin 69, cli 114, watcher 23, sandbox 17, badge 30, app 542 | **836** (45 files) | `npm run test:unit` |
+| Unit — runtime 41, plugin 69, cli 114, watcher 23, sandbox 17, badge 30, app 559 | **853** (46 files) | `npm run test:unit` |
 | End-to-end | **92** (5 files) | `npm run test:e2e` |
-| **Total** | **1,115** | |
+| **Total** | **1,132** | |
 
 ---
 
@@ -1257,7 +1257,8 @@ app/src/lib/model.ts       every domain type
 app/src/lib/untrusted.ts   URL/href validation
 app/src/lib/settings.ts    PIN_REGISTRY_IS_FIXED and validators
 app/src/app/globals.css    85 design tokens with measured contrast ratios
-app/src/app/layout.tsx     provider order = dependency order; 2 pre-paint scripts
+app/src/app/layout.tsx     provider order = dependency order; 2 pre-paint scripts; the icon and link-card metadata
+brand/lockstep-logo.webp   the owner's logo, the source of truth. scripts/make-logo-assets.mjs derives app/public/{logo.webp,icon-on-*.png,apple-icon.png,favicon.ico,og.png} and brand/logo-{black,white}.webp from it; app/test/logo.test.ts fails if they drift
 app/src/components/data.tsx SnapshotProvider + useCertainty (the 3-state nuance)
 app/src/components/ui.tsx   primitive kit — highest reuse in the app
 ```
@@ -1757,7 +1758,7 @@ HANDOVER.md                       what is actually left to do
 
 ### Current state
 
-1,115 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 836 unit, 92 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
+1,132 tests, all verified passing: **187 contract (14 suites, 7 invariants over 4096 calls)**, 853 unit, 92 e2e. Typecheck clean across 8 workspaces; the dashboard export gate passes. Contracts, CLI, plugin, Action, dashboard, badge, sandbox, watcher and indexer config are implemented.
 
 Deployed on Monad testnet from the audited source, with separated publisher, account and executor identities and recorded success and refusal receipts (§19). The bond asset there is a freely mintable mock. Not on mainnet. The indexer is hosted on Envio Cloud's free plan, which is temporary. The dashboard is live at `lockstep.dofolabs.space` and redeploys after every green CI run on `main`. The `/drift` page is fixture-only against live data (§10.4, §23), so the dashboard's most important view is a demonstration rather than an operational one.
 
