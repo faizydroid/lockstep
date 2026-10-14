@@ -1,0 +1,14 @@
+{
+  "source": "brand/lockstep-logo.webp",
+  "sha256": "ab7dc47a43ea0edb6cc97229d483590e3d99503d42f2663c2a830e5177677783",
+  "derived": [
+    "app/public/apple-icon.png",
+    "app/public/favicon.ico",
+    "app/public/icon-on-dark.png",
+    "app/public/icon-on-light.png",
+    "app/public/logo.webp",
+    "app/public/og.png",
+    "brand/logo-black.webp",
+    "brand/logo-white.webp"
+  ]
+}

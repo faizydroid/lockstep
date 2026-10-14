@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LOCKSTEP_DASHBOARD } from "@lockstep/badge";
 
 /*
  * `Field` used to be rendered here, directly under ThemeProvider.
@@ -23,9 +24,46 @@ import { RAIL_SCRIPT } from "@/lib/rail";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  /*
+   * Needed for the social card. Open Graph and Twitter want an absolute image URL, and without a base Next
+   * resolves `/og.png` against http://localhost:3000, which is what a link preview would then try to fetch.
+   */
+  metadataBase: new URL(LOCKSTEP_DASHBOARD),
   title: "Lockstep — a lockfile for agent money",
   description:
     "Every fund-moving call is bound to the exact skill version the account owner approved, enforced on chain at settlement and backed by publisher bonds.",
+
+  /*
+   * The logo, as a tab, a home-screen icon and a link preview. All of these files are derived from
+   * `brand/lockstep-logo.webp` by `scripts/make-logo-assets.mjs`.
+   *
+   * Two tab icons because the glyph is one colour: black disappears on a dark tab bar and white on a light
+   * one, so the browser is told which to use for each. `favicon.ico` is the tile (white square, rounded)
+   * that reads on either ground, for the clients that ignore `media` and for crawlers that ask for the file
+   * by name.
+   */
+  icons: {
+    icon: [
+      { url: "/icon-on-light.png", type: "image/png", sizes: "64x64", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-on-dark.png", type: "image/png", sizes: "64x64", media: "(prefers-color-scheme: dark)" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Lockstep",
+    title: "Lockstep — a lockfile for agent money",
+    description:
+      "Every fund-moving call is bound to the exact skill version the account owner approved, enforced on chain at settlement and backed by publisher bonds.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "The Lockstep logo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Lockstep — a lockfile for agent money",
+    description: "Your agent can only move funds through the exact skill bytes you approved.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

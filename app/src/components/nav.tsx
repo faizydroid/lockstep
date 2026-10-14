@@ -947,46 +947,28 @@ function IconPanel({ open }: { open: boolean }) {
 }
 
 /**
- * The mark: two rounded bars locked at an offset.
+ * The mark: the Lockstep logo.
  *
- * Reads as a step, which is the whole idea -- the version that runs moves in lockstep with the
- * version that was approved. The bars nudge into alignment on hover, which is the joke made
- * literal.
+ * `/logo.webp` is the owner's logo, a black glyph on a transparent ground, derived from
+ * `brand/lockstep-logo.webp` by `scripts/make-logo-assets.mjs`. The dark theme inverts it with
+ * `dark:invert` rather than loading a second file, so there is no second image to fall out of step with
+ * the first.
+ *
+ * Decorative here, hence the empty `alt`: the word "Lockstep" sits beside it, and where the rail is
+ * collapsed the link's own `title` names it. A described image would have a screen reader say the name
+ * twice. Width and height are set so the header does not shift while the file loads.
+ *
+ * The mark before this one was two rounded bars that nudged into line on hover. It went with the drawing.
  */
 export function Mark() {
   return (
-    <motion.span
-      aria-hidden
-      initial="rest"
-      whileHover="locked"
-      className="pop-sm grid size-9 shrink-0 place-items-center rounded-lg bg-panel"
-    >
-      <svg viewBox="0 0 24 24" className="size-[20px]">
-        {/*
-          Stroked in --on-face at 1.5, matching the mascot's outline, so the mark and the character
-          read as the same drawing system rather than two unrelated pieces of art.
-        */}
-        <motion.rect
-          width="12"
-          height="6"
-          rx="3"
-          fill="var(--bonded)"
-          stroke="var(--on-face)"
-          strokeWidth="1.5"
-          variants={{ rest: { x: 3, y: 4.5 }, locked: { x: 6, y: 4.5 } }}
-          transition={SPRING_SOFT}
-        />
-        <motion.rect
-          width="12"
-          height="6"
-          rx="3"
-          fill="var(--pinned)"
-          stroke="var(--on-face)"
-          strokeWidth="1.5"
-          variants={{ rest: { x: 9, y: 13.5 }, locked: { x: 6, y: 13.5 } }}
-          transition={SPRING_SOFT}
-        />
-      </svg>
-    </motion.span>
+    <img
+      src="/logo.webp"
+      alt=""
+      width={32}
+      height={32}
+      draggable={false}
+      className="size-8 shrink-0 select-none dark:invert"
+    />
   );
 }

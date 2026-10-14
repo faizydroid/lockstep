@@ -1,4 +1,11 @@
-﻿# Lockstep
+﻿<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/logo-white.webp">
+    <img src="brand/logo-black.webp" alt="The Lockstep logo" width="112" height="112">
+  </picture>
+</p>
+
+# Lockstep
 
 **A lockfile for agent money.** Your agent can only move funds through the exact
 skill bytes you approved — enforced on-chain, backed by the publisher's bond.
@@ -400,7 +407,9 @@ integrations/metamask/  lockstep-provenance skill in MetaMask's skill.md layout
 app/         Next.js dashboard: pins, drift, approvals, bonds, publishers
 demo/        An honest skill and its rug-pulled successor
 e2e/         Full flow against a live Anvil chain with real 7702 delegation
-scripts/     check-export.mjs (verifies the export), serve-export.mjs (serves it)
+brand/       The logo (the owner's file) and a record of what was derived from it
+scripts/     check-export.mjs (verifies the export), serve-export.mjs (serves it),
+             make-logo-assets.mjs (builds the icons, link card and README logos from brand/)
 ```
 
 ## Running it
@@ -430,7 +439,7 @@ Foundry install already on `PATH`.
 
 ```bash
 npm install
-npm run test:unit          # 836 tests across seven packages
+npm run test:unit          # 853 tests across seven packages
 npm run typecheck
 
 cd contracts
@@ -440,7 +449,7 @@ cd ..
 npm run test:e2e           # 92 tests against a live Anvil chain
 ```
 
-**1,115 tests total**, counted by running all three: 836 unit, 187 contract, 92 end-to-end. The indexer
+**1,132 tests total**, counted by running all three: 853 unit, 187 contract, 92 end-to-end. The indexer
 has 6 more, which need `envio codegen` and so run only on Linux, in CI's `indexer` job.
 
 | package | tests |
@@ -451,7 +460,7 @@ has 6 more, which need `envio codegen` and so run only on Linux, in CI's `indexe
 | `sandbox` | 17 |
 | `watcher` | 23 |
 | `badge` | 30 |
-| `app` | 542 |
+| `app` | 559 |
 | `contracts` (Foundry) | 187 |
 | `e2e` | 92 |
 
@@ -962,7 +971,7 @@ exists at all — and it is also why the enforcement has to be free.
 | **Live dispatch (model → `lockstep_send` → chain)** | **Verified both directions** against Claude Sonnet 4.5 on AWS Bedrock, on a local chain (Anvil as chain 10143, with the real contracts), most recently on 14 October 2026 for the honest and silent-update runs, with the modified plugin and a real Gateway. Honest run emitted `SkillExecuted` and moved the account's mAUSD; the same prompt with changed bytes was refused by the plugin with `NOT_PINNED`, before any transaction. It has not been run against Monad testnet itself: the testnet receipts below were sent by script. The harness first needed a fix, because its publish call predated the struct form ([FINDINGS §40](FINDINGS.md#40-the-live-dispatch-harness-called-a-function-the-registry-no-longer-has)). See below |
 | **Deployed on Monad testnet** | **Live at chain 10143.** Registry, guard and a mock bond asset, verified by reading state back. EIP-7702 delegation installed and exercised. See below |
 | **Monad testnet gas** | **Measured historically**, whole-transaction scope: guard-checked execution 115,207; refusal 62,181. Refusing was cheaper than settling. Enforcement *overhead* was 40,349 measured locally — [the two are reconciled](#reconciling-the-two-gas-tables), not in competition. The Monad figures predate the redeploy; this release does not claim a fresh live gas measurement |
-| Dashboard (Next.js static export) | Done, 542 tests, **live** at https://lockstep.dofolabs.space, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below. **It reads logs through a fixed 4,000-block window and says so in the source bar; capability counts and approvals are asked of the chain directly, so they hold outside it; every page load sends about 100 requests to Monad's public RPC from the visitor's browser (11 to 14 seconds), so it is built for a handful of readers, not thousands** — see [FINDINGS §42](FINDINGS.md#42-a-second-audit-of-the-whole-system-what-it-found-what-was-fixed-and-what-was-not) |
+| Dashboard (Next.js static export) | Done, 559 tests, **live** at https://lockstep.dofolabs.space, reading the live deployment including `LockstepLens`. The write boundary is enforced structurally, not by convention — see below. **It reads logs through a fixed 4,000-block window and says so in the source bar; capability counts and approvals are asked of the chain directly, so they hold outside it; every page load sends about 100 requests to Monad's public RPC from the visitor's browser (11 to 14 seconds), so it is built for a handful of readers, not thousands** — see [FINDINGS §42](FINDINGS.md#42-a-second-audit-of-the-whole-system-what-it-found-what-was-fixed-and-what-was-not) |
 | Account profile and settings | Done. Leads with whether anything is *enforcing* your approvals, because delegation changes code and not storage. Settings may change what is read, never what is claimed without disclosing it — the registry address is deliberately not settable |
 | Onboarding | Done. Five steps, all of them conditions on observable state rather than stored ticks, so progress can go down and fixtures satisfy nothing |
 | Browser attack surface | Audited. Two gaps closed, CSP in headers and markup, zero production dependency vulnerabilities — see below |
